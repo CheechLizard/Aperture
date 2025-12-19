@@ -1,0 +1,35 @@
+{
+  "name": "aperture",
+  "displayName": "Aperture",
+  "description": "AI Partner Programming Toolkit - visibility into codebase complexity and structure",
+  "version": "0.0.1",
+  "publisher": "cheechlizard",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aperture.openDashboard",
+        "title": "Aperture: Open Dashboard"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0"
+  }
+}
