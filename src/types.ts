@@ -8,6 +8,7 @@ export interface ProjectData {
     files: number;
     loc: number;
   };
+  patternAnalysis?: PatternAnalysis;
 }
 
 export interface Rule {
@@ -34,4 +35,36 @@ export interface LanguageSummary {
   language: string;
   fileCount: number;
   loc: number;
+}
+
+export interface PatternInfo {
+  name: string;
+  description: string;
+  category: 'architectural' | 'design';
+  color: string;
+  relatedPatterns?: string[];
+}
+
+export interface PatternUsage {
+  patternName: string;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
+export interface FilePatternClassification {
+  path: string;
+  patterns: PatternUsage[];
+}
+
+export interface PatternAnalysis {
+  analyzedAt: string;
+  framework: string;
+  patterns: PatternInfo[];
+  classifications: FilePatternClassification[];
+}
+
+export interface ImportInfo {
+  modulePath: string;
+  line: number;
+  code: string;
 }

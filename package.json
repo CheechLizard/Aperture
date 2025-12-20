@@ -5,6 +5,10 @@
   "version": "0.0.1",
   "publisher": "cheechlizard",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CheechLizard/Aperture.git"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -35,11 +39,14 @@
   "scripts": {
     "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
-    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "copy-wasm": "cp node_modules/web-tree-sitter/web-tree-sitter.wasm dist/ && cp node_modules/@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm dist/",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node && npm run copy-wasm",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.0"
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@tree-sitter-grammars/tree-sitter-lua": "^0.2.0",
+    "web-tree-sitter": "^0.26.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
