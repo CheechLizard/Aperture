@@ -62,5 +62,4 @@ npm run watch
 
 ## Documentation
 
-- [Product Requirements](../Specs/AI_Partner_Programming_Toolkit_PRD.md)
 - [AI Agent Guidelines](CLAUDE.md)

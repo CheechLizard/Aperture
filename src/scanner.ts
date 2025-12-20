@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ProjectData, FileInfo, LanguageSummary } from './types';
 import { getLanguage } from './language-map';
+import { parseClaudeMd } from './rules-parser';
 
 export async function scanWorkspace(): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -9,7 +10,10 @@ export async function scanWorkspace(): Promise<ProjectData> {
   }
 
   const root = workspaceFolder.uri.fsPath;
-  const files = await scanFiles(workspaceFolder.uri);
+  const [files, rules] = await Promise.all([
+    scanFiles(workspaceFolder.uri),
+    parseClaudeMd(root),
+  ]);
   const languages = aggregateLanguages(files);
   const totalLoc = files.reduce((sum, f) => sum + f.loc, 0);
 
@@ -18,6 +22,7 @@ export async function scanWorkspace(): Promise<ProjectData> {
     scannedAt: new Date().toISOString(),
     files,
     languages,
+    rules,
     totals: {
       files: files.length,
       loc: totalLoc,

@@ -3,10 +3,17 @@ export interface ProjectData {
   scannedAt: string;
   files: FileInfo[];
   languages: LanguageSummary[];
+  rules: Rule[];
   totals: {
     files: number;
     loc: number;
   };
+}
+
+export interface Rule {
+  id: string;
+  title: string;
+  description: string;
 }
 
 export interface FileInfo {

@@ -13,23 +13,38 @@
     "Other"
   ],
   "activationEvents": [],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "aperture.openDashboard",
         "title": "Aperture: Open Dashboard"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Aperture",
+      "properties": {
+        "aperture.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key for AI-powered code analysis"
+        }
+      }
+    }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.74.0",
+    "esbuild": "^0.27.2",
     "typescript": "^5.0.0"
   }
 }
