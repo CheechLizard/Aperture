@@ -229,6 +229,15 @@ function getDashboardContent(data: ProjectData): string {
     .unsupported-langs { margin-bottom: 15px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; font-size: 0.85em; }
     .unsupported-label { color: var(--vscode-descriptionForeground); margin-right: 8px; }
     .unsupported-lang { display: inline-block; padding: 2px 8px; margin: 2px 4px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); }
+
+    /* Issue highlighting - smooth color transitions */
+    .node.issue-high, .node.issue-medium, .node.issue-low {
+      transition: stroke 0.3s ease-in-out, stroke-width 0.2s;
+    }
+    .chord-arc.issue-high, .chord-arc.issue-medium, .chord-arc.issue-low,
+    .chord-ribbon.issue-high, .chord-ribbon.issue-medium, .chord-ribbon.issue-low {
+      /* No transition - direct JS animation at 60fps */
+    }
   </style>
 </head>
 <body>
@@ -300,6 +309,7 @@ let highlightedFiles = [];
 let currentView = 'treemap';
 let depGraph = null;
 let simulation = null;
+let topGroups = [];
 
 const COLORS = {
   'TypeScript': '#3178c6', 'JavaScript': '#f0db4f', 'Lua': '#9b59b6',
@@ -425,6 +435,7 @@ function renderDepGraph() {
   }
 
   // Build file-based groups for chord diagram
+  // ALWAYS include issue files, plus top N by imports
   const maxItems = parseInt(document.getElementById('depth-slider').value) || 30;
   const sortMode = document.getElementById('sort-mode').value;
   const sortedFiles = [...codeNodes].sort((a, b) => {
@@ -434,7 +445,39 @@ function renderDepGraph() {
       return b.imports.length - a.imports.length;
     }
   });
-  const topGroups = sortedFiles.slice(0, maxItems).map(f => ({
+
+  // Get issue file paths from anti-patterns
+  const issueFilePaths = new Set();
+  if (depGraph.antiPatterns) {
+    for (const ap of depGraph.antiPatterns) {
+      for (const f of ap.files) {
+        issueFilePaths.add(f);
+      }
+    }
+  }
+
+  // Always include issue files first, then fill with top sorted files
+  const includedPaths = new Set();
+  const selectedFiles = [];
+
+  // First add all issue files
+  for (const f of codeNodes) {
+    if (issueFilePaths.has(f.path)) {
+      selectedFiles.push(f);
+      includedPaths.add(f.path);
+    }
+  }
+
+  // Then fill remaining slots with top sorted files
+  for (const f of sortedFiles) {
+    if (selectedFiles.length >= maxItems) break;
+    if (!includedPaths.has(f.path)) {
+      selectedFiles.push(f);
+      includedPaths.add(f.path);
+    }
+  }
+
+  topGroups = selectedFiles.map(f => ({
     name: f.path.split('/').pop(),
     fullPath: f.path,
     files: [f],
@@ -492,6 +535,7 @@ function renderDepGraph() {
 
   group.append('path')
     .attr('class', 'chord-arc')
+    .attr('data-path', d => topGroups[d.index].fullPath)
     .attr('d', arc)
     .attr('fill', d => color(d.index))
     .style('cursor', 'pointer')
@@ -550,14 +594,15 @@ function renderDepGraph() {
 
   // Draw ribbons (connections)
   svg.append('g')
-    .attr('fill-opacity', 0.6)
     .selectAll('path')
     .data(chords)
     .join('path')
     .attr('class', 'chord-ribbon')
+    .attr('data-from', d => topGroups[d.source.index].fullPath)
+    .attr('data-to', d => topGroups[d.target.index].fullPath)
     .attr('d', ribbon)
     .attr('fill', d => color(d.source.index))
-    .attr('stroke', d => d3.rgb(color(d.source.index)).darker())
+    .attr('fill-opacity', 0.6)
     .style('cursor', 'pointer')
     .on('mouseover', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
@@ -588,6 +633,9 @@ function renderDepGraph() {
         vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath });
       }
     });
+
+  // Apply persistent issue highlights to chord arcs
+  applyPersistentIssueHighlights();
 }
 
 function escapeHtml(text) {
@@ -604,6 +652,70 @@ function renderStats(nodeCount, edgeCount) {
     '<div style="font-size:0.8em;color:var(--vscode-descriptionForeground);margin-top:4px;">' + parserType + '</div>';
 }
 
+// Map of file path -> highest severity issue affecting it
+let issueFileMap = new Map();
+
+function buildIssueFileMap() {
+  issueFileMap.clear();
+  if (!depGraph || !depGraph.antiPatterns) return;
+
+  const severityRank = { high: 0, medium: 1, low: 2 };
+  for (const ap of depGraph.antiPatterns) {
+    for (const file of ap.files) {
+      const existing = issueFileMap.get(file);
+      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
+        issueFileMap.set(file, ap.severity);
+      }
+    }
+  }
+}
+
+// Hover highlighting removed - only persistent issue highlighting now
+
+function applyPersistentIssueHighlights() {
+  // Apply persistent issue classes to treemap nodes
+  document.querySelectorAll('.node').forEach(node => {
+    const path = node.getAttribute('data-path');
+    node.classList.remove('issue-high', 'issue-medium', 'issue-low');
+    const severity = issueFileMap.get(path);
+    if (severity) {
+      node.classList.add('issue-' + severity);
+    }
+  });
+
+  // Apply persistent issue classes to chord arcs
+  document.querySelectorAll('.chord-arc').forEach(arc => {
+    const path = arc.getAttribute('data-path');
+    arc.classList.remove('issue-high', 'issue-medium', 'issue-low');
+    if (path) {
+      const severity = issueFileMap.get(path);
+      if (severity) {
+        arc.classList.add('issue-' + severity);
+      }
+    }
+  });
+
+  // Apply persistent issue classes to chord ribbons
+  document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
+    const fromPath = ribbon.getAttribute('data-from');
+    const toPath = ribbon.getAttribute('data-to');
+    ribbon.classList.remove('issue-high', 'issue-medium', 'issue-low');
+    // Use the highest severity from either end
+    const fromSev = fromPath ? issueFileMap.get(fromPath) : null;
+    const toSev = toPath ? issueFileMap.get(toPath) : null;
+    const severityRank = { high: 0, medium: 1, low: 2 };
+    let severity = null;
+    if (fromSev && toSev) {
+      severity = severityRank[fromSev] < severityRank[toSev] ? fromSev : toSev;
+    } else {
+      severity = fromSev || toSev;
+    }
+    if (severity) {
+      ribbon.classList.add('issue-' + severity);
+    }
+  });
+}
+
 function renderAntiPatterns() {
   const list = document.getElementById('anti-pattern-list');
 
@@ -612,15 +724,18 @@ function renderAntiPatterns() {
     return;
   }
 
+  // Build file->severity map for persistent highlights
+  buildIssueFileMap();
+
   // Sort by severity
   const sorted = [...depGraph.antiPatterns].sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 };
     return order[a.severity] - order[b.severity];
   });
 
-  list.innerHTML = sorted.map(ap => {
+  list.innerHTML = sorted.map((ap, idx) => {
     const fileNames = ap.files.map(f => f.split('/').pop()).join(', ');
-    return '<div class="anti-pattern ' + ap.severity + '" data-files="' + ap.files.join(',') + '">' +
+    return '<div class="anti-pattern ' + ap.severity + '" data-files="' + ap.files.join(',') + '" data-severity="' + ap.severity + '">' +
       '<div class="anti-pattern-type">' + ap.type + '</div>' +
       '<div class="anti-pattern-desc">' + ap.description + '</div>' +
       '<div class="anti-pattern-files">' + fileNames + '</div>' +
@@ -628,8 +743,9 @@ function renderAntiPatterns() {
   }).join('');
 
   list.querySelectorAll('.anti-pattern').forEach(el => {
+    const files = el.getAttribute('data-files').split(',');
+
     el.addEventListener('click', () => {
-      const files = el.getAttribute('data-files').split(',');
       if (files.length > 0) {
         vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0] });
       }
@@ -692,6 +808,10 @@ document.getElementById('view-treemap').addEventListener('click', () => {
     document.getElementById('treemap').style.display = 'block';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('legend').style.display = 'flex';
+    // Apply issue highlights to treemap if dependency data is available
+    if (depGraph) {
+      applyPersistentIssueHighlights();
+    }
   }
 });
 
@@ -710,6 +830,7 @@ document.getElementById('view-deps').addEventListener('click', () => {
     } else {
       renderDepGraph();
       renderAntiPatterns();
+      applyPersistentIssueHighlights();
     }
   }
 });
@@ -744,6 +865,7 @@ window.addEventListener('message', event => {
     document.getElementById('status').textContent = depGraph.antiPatterns.length + ' anti-patterns found';
     renderDepGraph();
     renderAntiPatterns();
+    applyPersistentIssueHighlights();
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
   }
@@ -752,6 +874,66 @@ window.addEventListener('message', event => {
 render();
 renderLegend();
 renderRules();
+
+// JavaScript-driven color cycling for issue highlights
+// Smooth sine-wave rainbow cycle (inspired by GLSL shader)
+let cycleTime = 0;
+
+function hslToHex(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return '#' + f(0) + f(8) + f(4);
+}
+
+function cycleIssueColors() {
+  // Smooth rainbow: cycle hue over time (360° in 10 seconds at 60fps)
+  cycleTime += 0.016;  // ~16ms in seconds per frame
+  const hue = (cycleTime * 36) % 360;  // 36°/sec = 360° in 10sec
+  const color = hslToHex(hue, 0.85, 0.6);  // 85% saturation, 60% lightness
+
+  // Pulsing opacity: sine wave, period 750ms
+  const pulsePhase = (cycleTime * 1000 / 750) * 2 * Math.PI;
+  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
+
+  // Cycle treemap node strokes - include ALL severity levels
+  const nodes = document.querySelectorAll('.node.issue-high, .node.issue-medium, .node.issue-low');
+  nodes.forEach(node => {
+    node.setAttribute('stroke', color);
+    node.setAttribute('stroke-width', '8');
+    node.setAttribute('stroke-opacity', alpha.toString());
+  });
+
+  // Cycle chord arc fills - check issueFileMap directly
+  const allArcs = document.querySelectorAll('.chord-arc');
+  allArcs.forEach(arc => {
+    const arcPath = arc.getAttribute('data-path');
+    if (arcPath && issueFileMap.has(arcPath)) {
+      arc.style.setProperty('fill', color, 'important');
+      arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+    }
+  });
+
+  // Cycle chord ribbon fills - check issueFileMap directly for each ribbon
+  const allRibbons = document.querySelectorAll('.chord-ribbon');
+  allRibbons.forEach(ribbon => {
+    const fromPath = ribbon.getAttribute('data-from');
+    const toPath = ribbon.getAttribute('data-to');
+    const fromIssue = fromPath && issueFileMap.has(fromPath);
+    const toIssue = toPath && issueFileMap.has(toPath);
+    if (fromIssue || toIssue) {
+      ribbon.style.setProperty('fill', color, 'important');
+      ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+    }
+  });
+}
+
+// Run animation at 60fps (16ms)
+setInterval(cycleIssueColors, 16);
 </script>
 </body>
 </html>`;
