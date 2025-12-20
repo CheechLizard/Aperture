@@ -4,18 +4,26 @@ import { scanWorkspace } from './scanner';
 import { ProjectData } from './types';
 import { analyzeQuery } from './agent';
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
-import { initParser } from './tree-sitter-parser';
+import { languageRegistry } from './language-registry';
+import { initializeParser } from './ast-parser';
+import { TypeScriptHandler } from './language-handlers/typescript-handler';
+import { LuaHandler } from './language-handlers/lua-handler';
 
 let currentData: ProjectData | null = null;
 let currentPanel: vscode.WebviewPanel | null = null;
+let parserInitPromise: Promise<void> | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Aperture extension is now active');
 
-  // Initialize tree-sitter parser with WASM files from dist/
+  // Register language handlers
+  languageRegistry.register(new TypeScriptHandler());
+  languageRegistry.register(new LuaHandler());
+
+  // Initialize AST parsers with WASM files from dist/
   const wasmDir = path.join(context.extensionPath, 'dist');
-  initParser(wasmDir).catch(err => {
-    console.warn('Tree-sitter init failed, using regex fallback:', err);
+  parserInitPromise = initializeParser(wasmDir).catch((err: Error) => {
+    console.error('AST parser initialization failed:', err);
   });
 
   const disposable = vscode.commands.registerCommand('aperture.openDashboard', async () => {
@@ -83,6 +91,10 @@ async function openDashboard(context: vscode.ExtensionContext) {
   panel.webview.html = getLoadingContent();
 
   try {
+    // Ensure AST parsers are initialized before scanning
+    if (parserInitPromise) {
+      await parserInitPromise;
+    }
     currentData = await scanWorkspace();
     panel.webview.html = getDashboardContent(currentData);
   } catch (error) {
@@ -119,6 +131,7 @@ function getDashboardContent(data: ProjectData): string {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
+  const unsupportedCount = data.totals.unsupportedFiles;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -212,6 +225,10 @@ function getDashboardContent(data: ProjectData): string {
     .dep-stats { padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 12px; font-size: 0.85em; }
     .dep-stats div { margin-bottom: 4px; }
     .dep-stats strong { color: var(--vscode-textLink-foreground); }
+    .stat-warning { color: var(--vscode-editorWarning-foreground, #cca700); }
+    .unsupported-langs { margin-bottom: 15px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; font-size: 0.85em; }
+    .unsupported-label { color: var(--vscode-descriptionForeground); margin-right: 8px; }
+    .unsupported-lang { display: inline-block; padding: 2px 8px; margin: 2px 4px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); }
   </style>
 </head>
 <body>
@@ -219,7 +236,15 @@ function getDashboardContent(data: ProjectData): string {
   <div class="summary">
     <div><span class="stat-value">${data.totals.files.toLocaleString()}</span><br><span class="stat-label">Files</span></div>
     <div><span class="stat-value">${data.totals.loc.toLocaleString()}</span><br><span class="stat-label">Lines of Code</span></div>
+    ${unsupportedCount > 0 ? `<div><span class="stat-value stat-warning">${unsupportedCount}</span><br><span class="stat-label">Unparsed Files</span></div>` : ''}
   </div>
+  ${unsupportedCount > 0 ? `
+  <div class="unsupported-langs">
+    <span class="unsupported-label">Languages without AST support:</span>
+    ${data.languageSupport.filter(l => !l.isSupported).map(l =>
+      '<span class="unsupported-lang">' + l.language + ' (' + l.fileCount + ')</span>'
+    ).join('')}
+  </div>` : ''}
   <div class="view-controls">
     <div class="view-toggle">
       <button id="view-treemap" class="active">Treemap</button>

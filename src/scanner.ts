@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { ProjectData, FileInfo, LanguageSummary } from './types';
+import { ProjectData, FileInfo, LanguageSummary, LanguageSupport } from './types';
 import { getLanguage } from './language-map';
 import { parseClaudeMd } from './rules-parser';
+import { parse } from './ast-parser';
 
 export async function scanWorkspace(): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -15,17 +16,21 @@ export async function scanWorkspace(): Promise<ProjectData> {
     parseClaudeMd(root),
   ]);
   const languages = aggregateLanguages(files);
+  const languageSupport = computeLanguageSupport(files);
   const totalLoc = files.reduce((sum, f) => sum + f.loc, 0);
+  const unsupportedFiles = files.filter(f => f.parseStatus === 'unsupported').length;
 
   return {
     root,
     scannedAt: new Date().toISOString(),
     files,
     languages,
+    languageSupport,
     rules,
     totals: {
       files: files.length,
       loc: totalLoc,
+      unsupportedFiles,
     },
   };
 }
@@ -63,11 +68,16 @@ async function scanFile(
     const relativePath = vscode.workspace.asRelativePath(uri, false);
     const language = getLanguage(uri.fsPath);
 
+    // Single-pass AST parsing for imports
+    const parseResult = parse(text, relativePath, language);
+
     return {
       path: relativePath,
       language,
       loc,
-      functions: [], // Deferred to v0.2
+      functions: [], // TODO: Extract functions via AST in future
+      imports: parseResult.imports,
+      parseStatus: parseResult.status,
     };
   } catch {
     return null;
@@ -100,4 +110,22 @@ function aggregateLanguages(files: FileInfo[]): LanguageSummary[] {
   }
 
   return summaries.sort((a, b) => b.loc - a.loc);
+}
+
+function computeLanguageSupport(files: FileInfo[]): LanguageSupport[] {
+  const langMap = new Map<string, { count: number; supported: boolean }>();
+
+  for (const file of files) {
+    const existing = langMap.get(file.language) || { count: 0, supported: true };
+    langMap.set(file.language, {
+      count: existing.count + 1,
+      supported: existing.supported && file.parseStatus !== 'unsupported',
+    });
+  }
+
+  return [...langMap.entries()].map(([language, data]) => ({
+    language,
+    fileCount: data.count,
+    isSupported: data.supported,
+  }));
 }

@@ -39,13 +39,14 @@
   "scripts": {
     "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
-    "copy-wasm": "cp node_modules/web-tree-sitter/web-tree-sitter.wasm dist/ && cp node_modules/@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm dist/",
-    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node && npm run copy-wasm",
+    "copy-wasm": "cp node_modules/web-tree-sitter/web-tree-sitter.wasm dist/ && cp node_modules/@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm dist/ && cp node_modules/tree-sitter-typescript/tree-sitter-typescript.wasm dist/ && cp node_modules/tree-sitter-typescript/tree-sitter-tsx.wasm dist/",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:web-tree-sitter --format=cjs --platform=node && npm run copy-wasm",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
     "@tree-sitter-grammars/tree-sitter-lua": "^0.2.0",
+    "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.26.3"
   },
   "devDependencies": {

@@ -3,10 +3,12 @@ export interface ProjectData {
   scannedAt: string;
   files: FileInfo[];
   languages: LanguageSummary[];
+  languageSupport: LanguageSupport[];
   rules: Rule[];
   totals: {
     files: number;
     loc: number;
+    unsupportedFiles: number;
   };
   patternAnalysis?: PatternAnalysis;
 }
@@ -17,11 +19,15 @@ export interface Rule {
   description: string;
 }
 
+export type ParseStatus = 'parsed' | 'unsupported' | 'error';
+
 export interface FileInfo {
   path: string;
   language: string;
   loc: number;
-  functions: FunctionInfo[];
+  functions: FunctionInfo[]; // TODO: Populate via AST in future
+  imports: ImportInfo[];
+  parseStatus: ParseStatus;
 }
 
 export interface FunctionInfo {
@@ -35,6 +41,12 @@ export interface LanguageSummary {
   language: string;
   fileCount: number;
   loc: number;
+}
+
+export interface LanguageSupport {
+  language: string;
+  fileCount: number;
+  isSupported: boolean;
 }
 
 export interface PatternInfo {
@@ -67,4 +79,31 @@ export interface ImportInfo {
   modulePath: string;
   line: number;
   code: string;
+}
+
+export interface ImportDetail {
+  targetPath: string;
+  line: number;
+  code: string;
+}
+
+export interface DependencyNode {
+  path: string;
+  imports: string[];
+  importedBy: string[];
+  importDetails: ImportDetail[];
+}
+
+export interface DependencyEdge {
+  from: string;
+  to: string;
+  line: number;
+  code: string;
+}
+
+export interface AntiPattern {
+  type: 'circular' | 'nexus' | 'orphan' | 'hub';
+  severity: 'high' | 'medium' | 'low';
+  description: string;
+  files: string[];
 }
