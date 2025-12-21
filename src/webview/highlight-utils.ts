@@ -14,6 +14,9 @@ function updateStatusButton() {
 }
 
 function highlightIssueFiles(files) {
+  // Track for tab switching
+  currentHighlightedFiles = files;
+
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');

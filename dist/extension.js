@@ -11256,6 +11256,9 @@ function updateStatusButton() {
 }
 
 function highlightIssueFiles(files) {
+  // Track for tab switching
+  currentHighlightedFiles = files;
+
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -11622,6 +11625,9 @@ document.getElementById('clear').addEventListener('click', () => {
   document.getElementById('response').style.display = 'none';
 });
 
+// Track currently highlighted files for tab switching
+let currentHighlightedFiles = [];
+
 document.getElementById('view-treemap').addEventListener('click', () => {
   if (currentView !== 'treemap') {
     currentView = 'treemap';
@@ -11631,9 +11637,10 @@ document.getElementById('view-treemap').addEventListener('click', () => {
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('dep-controls').classList.remove('visible');
-    // Apply issue highlights to treemap if dependency data is available
-    if (depGraph) {
-      applyPersistentIssueHighlights();
+    applyPersistentIssueHighlights();
+    // Restore current selection
+    if (currentHighlightedFiles.length > 0) {
+      highlightIssueFiles(currentHighlightedFiles);
     }
   }
 });
@@ -11655,6 +11662,10 @@ document.getElementById('view-deps').addEventListener('click', () => {
       renderDepGraph();
       renderAntiPatterns();
       applyPersistentIssueHighlights();
+      // Restore current selection
+      if (currentHighlightedFiles.length > 0) {
+        highlightIssueFiles(currentHighlightedFiles);
+      }
     }
   }
 });
@@ -11690,6 +11701,10 @@ window.addEventListener('message', event => {
     renderDepGraph();
     renderAntiPatterns();
     applyPersistentIssueHighlights();
+    // Restore current selection
+    if (currentHighlightedFiles.length > 0) {
+      highlightIssueFiles(currentHighlightedFiles);
+    }
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
   }
@@ -11701,6 +11716,16 @@ renderRules();
 renderAntiPatterns();
 applyPersistentIssueHighlights();
 renderFooterStats();
+
+// Auto-highlight all issue files on initial load
+if (initialAntiPatterns && initialAntiPatterns.length > 0) {
+  const activePatterns = initialAntiPatterns.filter(ap => !isPatternIgnored(ap));
+  const allFiles = activePatterns.flatMap(ap => ap.files);
+  if (allFiles.length > 0) {
+    selectedElement = document.getElementById('status');
+    highlightIssueFiles(allFiles);
+  }
+}
 
 // Status button click - highlight all active (non-ignored) anti-pattern files
 document.getElementById('status').addEventListener('click', () => {
