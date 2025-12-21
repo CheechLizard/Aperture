@@ -765,14 +765,14 @@ var require_url_state_machine = __commonJS({
       return url.replace(/\u0009|\u000A|\u000D/g, "");
     }
     function shortenPath(url) {
-      const path11 = url.path;
-      if (path11.length === 0) {
+      const path12 = url.path;
+      if (path12.length === 0) {
         return;
       }
-      if (url.scheme === "file" && path11.length === 1 && isNormalizedWindowsDriveLetter(path11[0])) {
+      if (url.scheme === "file" && path12.length === 1 && isNormalizedWindowsDriveLetter(path12[0])) {
         return;
       }
-      path11.pop();
+      path12.pop();
     }
     function includesCredentials(url) {
       return url.username !== "" || url.password !== "";
@@ -6351,14 +6351,14 @@ __export(fileFromPath_exports, {
   fileFromPathSync: () => fileFromPathSync,
   isFile: () => isFile
 });
-function createFileFromPath(path11, { mtimeMs, size }, filenameOrOptions, options = {}) {
+function createFileFromPath(path12, { mtimeMs, size }, filenameOrOptions, options = {}) {
   let filename;
   if (isPlainObject_default2(filenameOrOptions)) {
     [options, filename] = [filenameOrOptions, void 0];
   } else {
     filename = filenameOrOptions;
   }
-  const file = new FileFromPath({ path: path11, size, lastModified: mtimeMs });
+  const file = new FileFromPath({ path: path12, size, lastModified: mtimeMs });
   if (!filename) {
     filename = file.name;
   }
@@ -6367,13 +6367,13 @@ function createFileFromPath(path11, { mtimeMs, size }, filenameOrOptions, option
     lastModified: file.lastModified
   });
 }
-function fileFromPathSync(path11, filenameOrOptions, options = {}) {
-  const stats = (0, import_fs.statSync)(path11);
-  return createFileFromPath(path11, stats, filenameOrOptions, options);
+function fileFromPathSync(path12, filenameOrOptions, options = {}) {
+  const stats = (0, import_fs.statSync)(path12);
+  return createFileFromPath(path12, stats, filenameOrOptions, options);
 }
-async function fileFromPath2(path11, filenameOrOptions, options) {
-  const stats = await import_fs.promises.stat(path11);
-  return createFileFromPath(path11, stats, filenameOrOptions, options);
+async function fileFromPath2(path12, filenameOrOptions, options) {
+  const stats = await import_fs.promises.stat(path12);
+  return createFileFromPath(path12, stats, filenameOrOptions, options);
 }
 var import_fs, import_path, import_node_domexception, __classPrivateFieldSet4, __classPrivateFieldGet5, _FileFromPath_path, _FileFromPath_start, MESSAGE, FileFromPath;
 var init_fileFromPath = __esm({
@@ -6440,15 +6440,286 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode4 = __toESM(require("vscode"));
-var path10 = __toESM(require("path"));
-var fs4 = __toESM(require("fs"));
+var vscode6 = __toESM(require("vscode"));
+var path11 = __toESM(require("path"));
+
+// src/language-registry.ts
+var LanguageRegistry = class {
+  constructor() {
+    this.handlers = /* @__PURE__ */ new Map();
+    this.extensionMap = /* @__PURE__ */ new Map();
+  }
+  register(handler) {
+    for (const langId of handler.languageIds) {
+      this.handlers.set(langId, handler);
+    }
+    for (const ext of handler.extensions) {
+      this.extensionMap.set(ext.toLowerCase(), handler);
+    }
+  }
+  getHandlerByExtension(ext) {
+    return this.extensionMap.get(ext.toLowerCase()) || null;
+  }
+  getHandlerByLanguage(language) {
+    return this.handlers.get(language) || null;
+  }
+  async initializeAll(wasmDir) {
+    const uniqueHandlers = new Set(this.handlers.values());
+    await Promise.all([...uniqueHandlers].map((h2) => h2.initialize(wasmDir)));
+  }
+  getSupportedLanguages() {
+    return [...this.handlers.keys()];
+  }
+  isLanguageSupported(language) {
+    return this.handlers.has(language);
+  }
+  isExtensionSupported(ext) {
+    return this.extensionMap.has(ext.toLowerCase());
+  }
+};
+var languageRegistry = new LanguageRegistry();
+
+// src/ast-parser.ts
+var fs = __toESM(require("fs"));
+var path = __toESM(require("path"));
+var TreeSitter = __toESM(require("web-tree-sitter"));
+var treeSitterInitialized = false;
+function parse(content, filePath, language) {
+  const ext = path.extname(filePath).toLowerCase();
+  const handler = languageRegistry.getHandlerByExtension(ext);
+  if (!handler) {
+    return { imports: [], status: "unsupported" };
+  }
+  if (!handler.isInitialized()) {
+    return { imports: [], status: "error" };
+  }
+  try {
+    const imports = handler.extractImports(content, filePath);
+    return { imports, status: "parsed" };
+  } catch (error) {
+    console.error(`AST parse error for ${filePath}:`, error);
+    return { imports: [], status: "error" };
+  }
+}
+async function initializeParser(wasmDir) {
+  if (!treeSitterInitialized) {
+    const wasmPath = path.join(wasmDir, "web-tree-sitter.wasm");
+    const wasmBinary = fs.readFileSync(wasmPath);
+    await TreeSitter.Parser.init({
+      wasmBinary
+    });
+    treeSitterInitialized = true;
+  }
+  await languageRegistry.initializeAll(wasmDir);
+}
+
+// src/language-handlers/typescript-handler.ts
+var path2 = __toESM(require("path"));
+var TreeSitter2 = __toESM(require("web-tree-sitter"));
+
+// src/language-handlers/base-handler.ts
+var BaseLanguageHandler = class {
+  constructor() {
+    this.initialized = false;
+  }
+  isInitialized() {
+    return this.initialized;
+  }
+};
+
+// src/language-handlers/typescript-handler.ts
+var TypeScriptHandler = class extends BaseLanguageHandler {
+  constructor() {
+    super(...arguments);
+    this.languageIds = ["TypeScript", "JavaScript"];
+    this.extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
+    this.parser = null;
+    this.tsLanguage = null;
+    this.tsxLanguage = null;
+  }
+  async initialize(wasmDir) {
+    if (this.initialized) return;
+    this.parser = new TreeSitter2.Parser();
+    this.tsLanguage = await TreeSitter2.Language.load(
+      path2.join(wasmDir, "tree-sitter-typescript.wasm")
+    );
+    this.tsxLanguage = await TreeSitter2.Language.load(
+      path2.join(wasmDir, "tree-sitter-tsx.wasm")
+    );
+    this.initialized = true;
+  }
+  extractImports(content, filePath) {
+    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return [];
+    const ext = path2.extname(filePath).toLowerCase();
+    const isTsx = ext === ".tsx" || ext === ".jsx";
+    this.parser.setLanguage(isTsx ? this.tsxLanguage : this.tsLanguage);
+    const tree = this.parser.parse(content);
+    if (!tree) return [];
+    const imports = [];
+    const lines = content.split("\n");
+    this.walkTree(tree.rootNode, imports, lines);
+    return imports;
+  }
+  walkTree(node, imports, lines) {
+    if (node.type === "import_statement") {
+      const source = node.childForFieldName("source");
+      if (source) {
+        const modulePath = this.extractStringContent(source.text);
+        if (modulePath) {
+          imports.push({
+            modulePath,
+            line: node.startPosition.row + 1,
+            code: lines[node.startPosition.row]?.trim() || ""
+          });
+        }
+      }
+    }
+    if (node.type === "export_statement") {
+      const source = node.childForFieldName("source");
+      if (source) {
+        const modulePath = this.extractStringContent(source.text);
+        if (modulePath) {
+          imports.push({
+            modulePath,
+            line: node.startPosition.row + 1,
+            code: lines[node.startPosition.row]?.trim() || ""
+          });
+        }
+      }
+    }
+    if (node.type === "call_expression") {
+      const func = node.childForFieldName("function");
+      if (func?.text === "require") {
+        const args = node.childForFieldName("arguments");
+        if (args && args.childCount > 0) {
+          const firstArg = args.child(1);
+          if (firstArg && firstArg.type === "string") {
+            const modulePath = this.extractStringContent(firstArg.text);
+            if (modulePath) {
+              imports.push({
+                modulePath,
+                line: node.startPosition.row + 1,
+                code: lines[node.startPosition.row]?.trim() || ""
+              });
+            }
+          }
+        }
+      }
+    }
+    if (node.type === "call_expression") {
+      const func = node.childForFieldName("function");
+      if (func?.type === "import") {
+        const args = node.childForFieldName("arguments");
+        if (args && args.childCount > 0) {
+          const firstArg = args.child(1);
+          if (firstArg && firstArg.type === "string") {
+            const modulePath = this.extractStringContent(firstArg.text);
+            if (modulePath) {
+              imports.push({
+                modulePath,
+                line: node.startPosition.row + 1,
+                code: lines[node.startPosition.row]?.trim() || ""
+              });
+            }
+          }
+        }
+      }
+    }
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) {
+        this.walkTree(child, imports, lines);
+      }
+    }
+  }
+  extractStringContent(text) {
+    if (text.startsWith("'") && text.endsWith("'")) {
+      return text.slice(1, -1);
+    }
+    if (text.startsWith('"') && text.endsWith('"')) {
+      return text.slice(1, -1);
+    }
+    if (text.startsWith("`") && text.endsWith("`")) {
+      return text.slice(1, -1);
+    }
+    return null;
+  }
+};
+
+// src/language-handlers/lua-handler.ts
+var path3 = __toESM(require("path"));
+var TreeSitter3 = __toESM(require("web-tree-sitter"));
+var LuaHandler = class extends BaseLanguageHandler {
+  constructor() {
+    super(...arguments);
+    this.languageIds = ["Lua"];
+    this.extensions = [".lua"];
+    this.parser = null;
+    this.luaLanguage = null;
+  }
+  async initialize(wasmDir) {
+    if (this.initialized) return;
+    this.parser = new TreeSitter3.Parser();
+    const luaWasmPath = path3.join(wasmDir, "tree-sitter-lua.wasm");
+    this.luaLanguage = await TreeSitter3.Language.load(luaWasmPath);
+    this.initialized = true;
+  }
+  extractImports(content, filePath) {
+    if (!this.parser || !this.luaLanguage) return [];
+    this.parser.setLanguage(this.luaLanguage);
+    const tree = this.parser.parse(content);
+    if (!tree) return [];
+    const imports = [];
+    const lines = content.split("\n");
+    this.walkTree(tree.rootNode, imports, lines);
+    return imports;
+  }
+  walkTree(node, imports, lines) {
+    if (node.type === "function_call") {
+      const nameNode = node.childForFieldName("name");
+      if (nameNode && nameNode.text === "require") {
+        const argsNode = node.childForFieldName("arguments");
+        if (argsNode) {
+          for (let i2 = 0; i2 < argsNode.childCount; i2++) {
+            const child = argsNode.child(i2);
+            if (child && child.type === "string") {
+              const raw = child.text;
+              const lineNum = node.startPosition.row + 1;
+              let modulePath;
+              if (raw.startsWith("[[") && raw.endsWith("]]")) {
+                modulePath = raw.slice(2, -2);
+              } else if (raw.length >= 2) {
+                modulePath = raw.slice(1, -1);
+              } else {
+                continue;
+              }
+              imports.push({
+                modulePath,
+                line: lineNum,
+                code: lines[lineNum - 1]?.trim() || ""
+              });
+            }
+          }
+        }
+      }
+    }
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) {
+        this.walkTree(child, imports, lines);
+      }
+    }
+  }
+};
+
+// src/dashboard-panel.ts
+var vscode5 = __toESM(require("vscode"));
 
 // src/scanner.ts
 var vscode2 = __toESM(require("vscode"));
 
 // src/language-map.ts
-var path = __toESM(require("path"));
+var path4 = __toESM(require("path"));
 var LANGUAGE_MAP = {
   // TypeScript
   ".ts": "TypeScript",
@@ -6491,8 +6762,8 @@ var LANGUAGE_MAP = {
 };
 var DEFAULT_LANGUAGE = "Other";
 function getLanguage(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  const basename3 = path.basename(filePath);
+  const ext = path4.extname(filePath).toLowerCase();
+  const basename3 = path4.basename(filePath);
   if (LANGUAGE_MAP[basename3]) {
     return LANGUAGE_MAP[basename3];
   }
@@ -6501,9 +6772,9 @@ function getLanguage(filePath) {
 
 // src/rules-parser.ts
 var vscode = __toESM(require("vscode"));
-var path2 = __toESM(require("path"));
+var path5 = __toESM(require("path"));
 async function parseClaudeMd(rootPath) {
-  const claudeMdPath = path2.join(rootPath, "CLAUDE.md");
+  const claudeMdPath = path5.join(rootPath, "CLAUDE.md");
   const uri = vscode.Uri.file(claudeMdPath);
   try {
     const content = await vscode.workspace.fs.readFile(uri);
@@ -6590,78 +6861,6 @@ function extractRules(text) {
     }
   }
   return rules;
-}
-
-// src/ast-parser.ts
-var fs = __toESM(require("fs"));
-var path3 = __toESM(require("path"));
-var TreeSitter = __toESM(require("web-tree-sitter"));
-
-// src/language-registry.ts
-var LanguageRegistry = class {
-  constructor() {
-    this.handlers = /* @__PURE__ */ new Map();
-    this.extensionMap = /* @__PURE__ */ new Map();
-  }
-  register(handler) {
-    for (const langId of handler.languageIds) {
-      this.handlers.set(langId, handler);
-    }
-    for (const ext of handler.extensions) {
-      this.extensionMap.set(ext.toLowerCase(), handler);
-    }
-  }
-  getHandlerByExtension(ext) {
-    return this.extensionMap.get(ext.toLowerCase()) || null;
-  }
-  getHandlerByLanguage(language) {
-    return this.handlers.get(language) || null;
-  }
-  async initializeAll(wasmDir) {
-    const uniqueHandlers = new Set(this.handlers.values());
-    await Promise.all([...uniqueHandlers].map((h2) => h2.initialize(wasmDir)));
-  }
-  getSupportedLanguages() {
-    return [...this.handlers.keys()];
-  }
-  isLanguageSupported(language) {
-    return this.handlers.has(language);
-  }
-  isExtensionSupported(ext) {
-    return this.extensionMap.has(ext.toLowerCase());
-  }
-};
-var languageRegistry = new LanguageRegistry();
-
-// src/ast-parser.ts
-var treeSitterInitialized = false;
-function parse(content, filePath, language) {
-  const ext = path3.extname(filePath).toLowerCase();
-  const handler = languageRegistry.getHandlerByExtension(ext);
-  if (!handler) {
-    return { imports: [], status: "unsupported" };
-  }
-  if (!handler.isInitialized()) {
-    return { imports: [], status: "error" };
-  }
-  try {
-    const imports = handler.extractImports(content, filePath);
-    return { imports, status: "parsed" };
-  } catch (error) {
-    console.error(`AST parse error for ${filePath}:`, error);
-    return { imports: [], status: "error" };
-  }
-}
-async function initializeParser(wasmDir) {
-  if (!treeSitterInitialized) {
-    const wasmPath = path3.join(wasmDir, "web-tree-sitter.wasm");
-    const wasmBinary = fs.readFileSync(wasmPath);
-    await TreeSitter.Parser.init({
-      wasmBinary
-    });
-    treeSitterInitialized = true;
-  }
-  await languageRegistry.initializeAll(wasmDir);
 }
 
 // src/scanner.ts
@@ -7148,13 +7347,13 @@ var MultipartBody = class {
 // node_modules/@anthropic-ai/sdk/_shims/node-runtime.mjs
 var import_web = require("node:stream/web");
 var fileFromPathWarned = false;
-async function fileFromPath3(path11, ...args) {
+async function fileFromPath3(path12, ...args) {
   const { fileFromPath: _fileFromPath } = await Promise.resolve().then(() => (init_fileFromPath(), fileFromPath_exports));
   if (!fileFromPathWarned) {
-    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path11)}) instead`);
+    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path12)}) instead`);
     fileFromPathWarned = true;
   }
-  return await _fileFromPath(path11, ...args);
+  return await _fileFromPath(path12, ...args);
 }
 var defaultHttpAgent = new import_agentkeepalive.default({ keepAlive: true, timeout: 5 * 60 * 1e3 });
 var defaultHttpsAgent = new import_agentkeepalive.default.HttpsAgent({ keepAlive: true, timeout: 5 * 60 * 1e3 });
@@ -7873,29 +8072,29 @@ var APIClient = class {
   defaultIdempotencyKey() {
     return `stainless-node-retry-${uuid4()}`;
   }
-  get(path11, opts) {
-    return this.methodRequest("get", path11, opts);
+  get(path12, opts) {
+    return this.methodRequest("get", path12, opts);
   }
-  post(path11, opts) {
-    return this.methodRequest("post", path11, opts);
+  post(path12, opts) {
+    return this.methodRequest("post", path12, opts);
   }
-  patch(path11, opts) {
-    return this.methodRequest("patch", path11, opts);
+  patch(path12, opts) {
+    return this.methodRequest("patch", path12, opts);
   }
-  put(path11, opts) {
-    return this.methodRequest("put", path11, opts);
+  put(path12, opts) {
+    return this.methodRequest("put", path12, opts);
   }
-  delete(path11, opts) {
-    return this.methodRequest("delete", path11, opts);
+  delete(path12, opts) {
+    return this.methodRequest("delete", path12, opts);
   }
-  methodRequest(method, path11, opts) {
+  methodRequest(method, path12, opts) {
     return this.request(Promise.resolve(opts).then(async (opts2) => {
       const body = opts2 && isBlobLike(opts2?.body) ? new DataView(await opts2.body.arrayBuffer()) : opts2?.body instanceof DataView ? opts2.body : opts2?.body instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2?.body) ? new DataView(opts2.body.buffer) : opts2?.body;
-      return { method, path: path11, ...opts2, body };
+      return { method, path: path12, ...opts2, body };
     }));
   }
-  getAPIList(path11, Page2, opts) {
-    return this.requestAPIList(Page2, { method: "get", path: path11, ...opts });
+  getAPIList(path12, Page2, opts) {
+    return this.requestAPIList(Page2, { method: "get", path: path12, ...opts });
   }
   calculateContentLength(body) {
     if (typeof body === "string") {
@@ -7913,10 +8112,10 @@ var APIClient = class {
     return null;
   }
   buildRequest(options, { retryCount = 0 } = {}) {
-    const { method, path: path11, query, headers = {} } = options;
+    const { method, path: path12, query, headers = {} } = options;
     const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
     const contentLength = this.calculateContentLength(body);
-    const url = this.buildURL(path11, query);
+    const url = this.buildURL(path12, query);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     const timeout = options.timeout ?? this.timeout;
@@ -8029,8 +8228,8 @@ var APIClient = class {
     const request = this.makeRequest(options, null);
     return new PagePromise(this, request, Page2);
   }
-  buildURL(path11, query) {
-    const url = isAbsoluteURL(path11) ? new URL(path11) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path11.startsWith("/") ? path11.slice(1) : path11));
+  buildURL(path12, query) {
+    const url = isAbsoluteURL(path12) ? new URL(path12) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path12.startsWith("/") ? path12.slice(1) : path12));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -9980,7 +10179,7 @@ var sdk_default = Anthropic;
 // src/agent.ts
 var vscode3 = __toESM(require("vscode"));
 var fs3 = __toESM(require("fs"));
-var path4 = __toESM(require("path"));
+var path6 = __toESM(require("path"));
 async function analyzeQuery(query, files, rootPath) {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -10050,7 +10249,7 @@ Be concise but helpful. Always use the respond tool to provide your final answer
     for (const toolUse of toolUseBlocks) {
       if (toolUse.name === "read_file") {
         const input = toolUse.input;
-        const filePath = path4.join(rootPath, input.path);
+        const filePath = path6.join(rootPath, input.path);
         try {
           const content = fs3.readFileSync(filePath, "utf8");
           toolResults.push({
@@ -10098,12 +10297,12 @@ function getApiKey() {
 }
 
 // src/dependency-analyzer.ts
-var path7 = __toESM(require("path"));
+var path9 = __toESM(require("path"));
 
 // src/import-resolver.ts
-var path5 = __toESM(require("path"));
+var path7 = __toESM(require("path"));
 function getLanguageType(filePath) {
-  const ext = path5.extname(filePath).toLowerCase();
+  const ext = path7.extname(filePath).toLowerCase();
   if (ext === ".lua") return "lua";
   if (ext === ".py") return "py";
   if (ext === ".go") return "go";
@@ -10113,7 +10312,7 @@ function getLanguageType(filePath) {
 function resolveImports(imports, fromPath, allFiles) {
   const resolvedDetails = [];
   const seenPaths = /* @__PURE__ */ new Set();
-  const fileDir = path5.dirname(fromPath);
+  const fileDir = path7.dirname(fromPath);
   const langType = getLanguageType(fromPath);
   for (const importInfo of imports) {
     const resolvedPath = resolveImport(importInfo.modulePath, fileDir, allFiles, langType, fromPath);
@@ -10151,7 +10350,7 @@ function resolveLuaImport(importPath, fromDir, allFiles, selfPath) {
     if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
   }
   for (const ext of luaExtensions) {
-    const tryPath = path5.normalize(path5.join(fromDir, luaPath)) + ext;
+    const tryPath = path7.normalize(path7.join(fromDir, luaPath)) + ext;
     if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
   }
   const endPattern = "/" + luaPath + ".lua";
@@ -10180,7 +10379,7 @@ function resolvePythonImport(importPath, fromDir, allFiles) {
   let pyPath = importPath;
   let searchDir = "";
   if (pyPath.startsWith("..")) {
-    searchDir = path5.dirname(fromDir);
+    searchDir = path7.dirname(fromDir);
     pyPath = pyPath.slice(2);
   } else if (pyPath.startsWith(".")) {
     searchDir = fromDir;
@@ -10190,7 +10389,7 @@ function resolvePythonImport(importPath, fromDir, allFiles) {
   const pyExtensions = [".py", "/__init__.py"];
   if (searchDir) {
     for (const ext of pyExtensions) {
-      const tryPath = path5.normalize(path5.join(searchDir, modulePath)) + ext;
+      const tryPath = path7.normalize(path7.join(searchDir, modulePath)) + ext;
       if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
     }
   }
@@ -10203,9 +10402,9 @@ function resolvePythonImport(importPath, fromDir, allFiles) {
 function resolveGoImport(importPath, fromDir, allFiles) {
   if (importPath.startsWith("./") || importPath.startsWith("../")) {
     const goPath = importPath.replace(/^\.\//, "");
-    const tryPath = path5.normalize(path5.join(fromDir, goPath)) + ".go";
+    const tryPath = path7.normalize(path7.join(fromDir, goPath)) + ".go";
     if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
-    const dirPath = path5.normalize(path5.join(fromDir, goPath));
+    const dirPath = path7.normalize(path7.join(fromDir, goPath));
     const dirFile = allFiles.find((f2) => f2.path.startsWith(dirPath + "/") && f2.path.endsWith(".go"));
     if (dirFile) return dirFile.path;
   }
@@ -10218,8 +10417,8 @@ function resolveRustImport(importPath, fromDir, allFiles) {
   if (importPath.startsWith("mod:")) {
     const modName = importPath.slice(4);
     const tryPaths = [
-      path5.normalize(path5.join(fromDir, modName + ".rs")),
-      path5.normalize(path5.join(fromDir, modName, "mod.rs"))
+      path7.normalize(path7.join(fromDir, modName + ".rs")),
+      path7.normalize(path7.join(fromDir, modName, "mod.rs"))
     ];
     for (const tryPath of tryPaths) {
       if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
@@ -10232,12 +10431,12 @@ function resolveRustImport(importPath, fromDir, allFiles) {
     }
   } else if (importPath.startsWith("super::")) {
     const rustPath = importPath.slice(7).replace(/::/g, "/");
-    const parentDir = path5.dirname(fromDir);
-    const tryPath = path5.normalize(path5.join(parentDir, rustPath)) + ".rs";
+    const parentDir = path7.dirname(fromDir);
+    const tryPath = path7.normalize(path7.join(parentDir, rustPath)) + ".rs";
     if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
   } else if (importPath.startsWith("self::")) {
     const rustPath = importPath.slice(6).replace(/::/g, "/");
-    const tryPath = path5.normalize(path5.join(fromDir, rustPath)) + ".rs";
+    const tryPath = path7.normalize(path7.join(fromDir, rustPath)) + ".rs";
     if (allFiles.some((f2) => f2.path === tryPath)) return tryPath;
   }
   return null;
@@ -10246,7 +10445,7 @@ function resolveJsImport(importPath, fromDir, allFiles) {
   if (!importPath.startsWith(".") && !importPath.startsWith("/")) {
     return null;
   }
-  const resolved = path5.normalize(path5.join(fromDir, importPath));
+  const resolved = path7.normalize(path7.join(fromDir, importPath));
   const extensions = ["", ".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.js"];
   for (const ext of extensions) {
     const tryPath = resolved + ext;
@@ -10256,10 +10455,10 @@ function resolveJsImport(importPath, fromDir, allFiles) {
 }
 
 // src/anti-pattern-detector.ts
-var path6 = __toESM(require("path"));
+var path8 = __toESM(require("path"));
 var CODE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".lua", ".py", ".go", ".rs"];
 function isCodeFile(filePath) {
-  const ext = path6.extname(filePath).toLowerCase();
+  const ext = path8.extname(filePath).toLowerCase();
   return CODE_EXTENSIONS.includes(ext);
 }
 function detectAntiPatterns(nodes, edges, codeFileCount) {
@@ -10352,7 +10551,7 @@ function findCycles(nodes) {
 var debugInfo = [];
 var CODE_EXTENSIONS2 = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".lua", ".py", ".go", ".rs"];
 function isCodeFile2(filePath) {
-  const ext = path7.extname(filePath).toLowerCase();
+  const ext = path9.extname(filePath).toLowerCase();
   return CODE_EXTENSIONS2.includes(ext);
 }
 function analyzeDependencies(files, rootPath) {
@@ -10405,209 +10604,10 @@ function analyzeDependencies(files, rootPath) {
   return { nodes, edges, antiPatterns };
 }
 
-// src/language-handlers/typescript-handler.ts
-var path8 = __toESM(require("path"));
-var TreeSitter2 = __toESM(require("web-tree-sitter"));
-
-// src/language-handlers/base-handler.ts
-var BaseLanguageHandler = class {
-  constructor() {
-    this.initialized = false;
-  }
-  isInitialized() {
-    return this.initialized;
-  }
-};
-
-// src/language-handlers/typescript-handler.ts
-var TypeScriptHandler = class extends BaseLanguageHandler {
-  constructor() {
-    super(...arguments);
-    this.languageIds = ["TypeScript", "JavaScript"];
-    this.extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
-    this.parser = null;
-    this.tsLanguage = null;
-    this.tsxLanguage = null;
-  }
-  async initialize(wasmDir) {
-    if (this.initialized) return;
-    this.parser = new TreeSitter2.Parser();
-    this.tsLanguage = await TreeSitter2.Language.load(
-      path8.join(wasmDir, "tree-sitter-typescript.wasm")
-    );
-    this.tsxLanguage = await TreeSitter2.Language.load(
-      path8.join(wasmDir, "tree-sitter-tsx.wasm")
-    );
-    this.initialized = true;
-  }
-  extractImports(content, filePath) {
-    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return [];
-    const ext = path8.extname(filePath).toLowerCase();
-    const isTsx = ext === ".tsx" || ext === ".jsx";
-    this.parser.setLanguage(isTsx ? this.tsxLanguage : this.tsLanguage);
-    const tree = this.parser.parse(content);
-    if (!tree) return [];
-    const imports = [];
-    const lines = content.split("\n");
-    this.walkTree(tree.rootNode, imports, lines);
-    return imports;
-  }
-  walkTree(node, imports, lines) {
-    if (node.type === "import_statement") {
-      const source = node.childForFieldName("source");
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || ""
-          });
-        }
-      }
-    }
-    if (node.type === "export_statement") {
-      const source = node.childForFieldName("source");
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || ""
-          });
-        }
-      }
-    }
-    if (node.type === "call_expression") {
-      const func = node.childForFieldName("function");
-      if (func?.text === "require") {
-        const args = node.childForFieldName("arguments");
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1);
-          if (firstArg && firstArg.type === "string") {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || ""
-              });
-            }
-          }
-        }
-      }
-    }
-    if (node.type === "call_expression") {
-      const func = node.childForFieldName("function");
-      if (func?.type === "import") {
-        const args = node.childForFieldName("arguments");
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1);
-          if (firstArg && firstArg.type === "string") {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || ""
-              });
-            }
-          }
-        }
-      }
-    }
-    for (let i2 = 0; i2 < node.childCount; i2++) {
-      const child = node.child(i2);
-      if (child) {
-        this.walkTree(child, imports, lines);
-      }
-    }
-  }
-  extractStringContent(text) {
-    if (text.startsWith("'") && text.endsWith("'")) {
-      return text.slice(1, -1);
-    }
-    if (text.startsWith('"') && text.endsWith('"')) {
-      return text.slice(1, -1);
-    }
-    if (text.startsWith("`") && text.endsWith("`")) {
-      return text.slice(1, -1);
-    }
-    return null;
-  }
-};
-
-// src/language-handlers/lua-handler.ts
-var path9 = __toESM(require("path"));
-var TreeSitter3 = __toESM(require("web-tree-sitter"));
-var LuaHandler = class extends BaseLanguageHandler {
-  constructor() {
-    super(...arguments);
-    this.languageIds = ["Lua"];
-    this.extensions = [".lua"];
-    this.parser = null;
-    this.luaLanguage = null;
-  }
-  async initialize(wasmDir) {
-    if (this.initialized) return;
-    this.parser = new TreeSitter3.Parser();
-    const luaWasmPath = path9.join(wasmDir, "tree-sitter-lua.wasm");
-    this.luaLanguage = await TreeSitter3.Language.load(luaWasmPath);
-    this.initialized = true;
-  }
-  extractImports(content, filePath) {
-    if (!this.parser || !this.luaLanguage) return [];
-    this.parser.setLanguage(this.luaLanguage);
-    const tree = this.parser.parse(content);
-    if (!tree) return [];
-    const imports = [];
-    const lines = content.split("\n");
-    this.walkTree(tree.rootNode, imports, lines);
-    return imports;
-  }
-  walkTree(node, imports, lines) {
-    if (node.type === "function_call") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode && nameNode.text === "require") {
-        const argsNode = node.childForFieldName("arguments");
-        if (argsNode) {
-          for (let i2 = 0; i2 < argsNode.childCount; i2++) {
-            const child = argsNode.child(i2);
-            if (child && child.type === "string") {
-              const raw = child.text;
-              const lineNum = node.startPosition.row + 1;
-              let modulePath;
-              if (raw.startsWith("[[") && raw.endsWith("]]")) {
-                modulePath = raw.slice(2, -2);
-              } else if (raw.length >= 2) {
-                modulePath = raw.slice(1, -1);
-              } else {
-                continue;
-              }
-              imports.push({
-                modulePath,
-                line: lineNum,
-                code: lines[lineNum - 1]?.trim() || ""
-              });
-            }
-          }
-        }
-      }
-    }
-    for (let i2 = 0; i2 < node.childCount; i2++) {
-      const child = node.child(i2);
-      if (child) {
-        this.walkTree(child, imports, lines);
-      }
-    }
-  }
-};
-
-// src/extension.ts
-var currentData = null;
-var currentPanel = null;
-var parserInitPromise = null;
+// src/anti-pattern-rules.ts
+var vscode4 = __toESM(require("vscode"));
+var path10 = __toESM(require("path"));
+var fs4 = __toESM(require("fs"));
 var ANTI_PATTERN_RULES = {
   circular: "**Avoid circular dependencies.** Files should not form import cycles.",
   nexus: "**Avoid nexus/coupling bottlenecks.** Files should not both import many files and be imported by many files.",
@@ -10668,123 +10668,9 @@ async function removeAntiPatternRule(rootPath, patternType) {
     vscode4.window.showErrorMessage(`Failed to update CLAUDE.md: ${msg}`);
   }
 }
-function activate(context) {
-  console.log("Aperture extension is now active");
-  languageRegistry.register(new TypeScriptHandler());
-  languageRegistry.register(new LuaHandler());
-  const wasmDir = path10.join(context.extensionPath, "dist");
-  parserInitPromise = initializeParser(wasmDir).catch((err) => {
-    console.error("AST parser initialization failed:", err);
-  });
-  const disposable = vscode4.commands.registerCommand("aperture.openDashboard", async () => {
-    await openDashboard(context);
-  });
-  context.subscriptions.push(disposable);
-}
-async function openDashboard(context) {
-  const panel = vscode4.window.createWebviewPanel(
-    "apertureDashboard",
-    "Aperture Dashboard",
-    vscode4.ViewColumn.One,
-    { enableScripts: true, retainContextWhenHidden: true }
-  );
-  currentPanel = panel;
-  panel.webview.onDidReceiveMessage(
-    async (message) => {
-      if (message.command === "openFile") {
-        const uri = vscode4.Uri.file(message.path);
-        const doc = await vscode4.window.showTextDocument(uri);
-        if (message.line && message.line > 0) {
-          const line = Math.max(0, message.line - 1);
-          const position = new vscode4.Position(line, 0);
-          doc.selection = new vscode4.Selection(position, position);
-          doc.revealRange(new vscode4.Range(position, position), vscode4.TextEditorRevealType.InCenter);
-        }
-      } else if (message.command === "query" && currentData) {
-        panel.webview.postMessage({ type: "thinking" });
-        try {
-          const response = await analyzeQuery(message.text, currentData.files, currentData.root);
-          panel.webview.postMessage({ type: "response", ...response });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : "Unknown error";
-          panel.webview.postMessage({ type: "response", message: `Error: ${msg}`, relevantFiles: [] });
-        }
-      } else if (message.command === "getDependencies" && currentData) {
-        try {
-          const graph = analyzeDependencies(currentData.files, currentData.root);
-          const serializedGraph = {
-            nodes: Array.from(graph.nodes.entries()).map(([path11, node]) => ({
-              path: path11,
-              imports: node.imports,
-              importedBy: node.importedBy,
-              importDetails: node.importDetails
-            })),
-            edges: graph.edges,
-            antiPatterns: graph.antiPatterns,
-            debug: debugInfo
-          };
-          panel.webview.postMessage({ type: "dependencyGraph", graph: serializedGraph });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : "Unknown error";
-          panel.webview.postMessage({ type: "dependencyError", message: msg });
-        }
-      } else if (message.command === "addRule") {
-        await addAntiPatternRule(currentData?.root || "", message.patternType);
-      } else if (message.command === "removeRule") {
-        await removeAntiPatternRule(currentData?.root || "", message.patternType);
-      }
-    },
-    void 0,
-    context.subscriptions
-  );
-  panel.webview.html = getLoadingContent();
-  try {
-    if (parserInitPromise) {
-      await parserInitPromise;
-    }
-    currentData = await scanWorkspace();
-    const graph = analyzeDependencies(currentData.files, currentData.root);
-    panel.webview.html = getDashboardContent(currentData, graph.antiPatterns);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    panel.webview.html = getErrorContent(message);
-  }
-}
-function getLoadingContent() {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Aperture Dashboard</title>
-  <style>body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }</style>
-</head>
-<body><h1>Aperture Dashboard</h1><p>Scanning workspace...</p></body>
-</html>`;
-}
-function getErrorContent(message) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Aperture Dashboard</title>
-  <style>body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); } .error { color: var(--vscode-errorForeground); }</style>
-</head>
-<body><h1>Aperture Dashboard</h1><p class="error">Error: ${message}</p></body>
-</html>`;
-}
-function getDashboardContent(data, antiPatterns) {
-  const filesJson = JSON.stringify(data.files);
-  const rootPath = JSON.stringify(data.root);
-  const rulesJson = JSON.stringify(data.rules);
-  const antiPatternsJson = JSON.stringify(antiPatterns);
-  const unsupportedCount = data.totals.unsupportedFiles;
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Aperture Dashboard</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <style>
+
+// src/webview/styles.ts
+var DASHBOARD_STYLES = `
     body { font-family: var(--vscode-font-family); padding: 12px 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
     .footer { display: flex; gap: 24px; align-items: center; padding: 10px 0; border-top: 1px solid var(--vscode-widget-border); margin-top: 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
     .footer-stat { display: flex; gap: 6px; align-items: baseline; }
@@ -10909,96 +10795,10 @@ function getDashboardContent(data, antiPatterns) {
     .chord-ribbon.issue-high, .chord-ribbon.issue-medium, .chord-ribbon.issue-low {
       /* No CSS transition - direct JS animation handles fill color and opacity */
     }
-  </style>
-</head>
-<body>
-  <div class="view-controls">
-    <div class="view-toggle">
-      <button id="view-treemap" class="active">Treemap</button>
-      <button id="view-deps">Dependencies</button>
-    </div>
-  </div>
-  <div class="main-split">
-    <div class="main-content">
-      <div class="diagram-area">
-        <div id="treemap"></div>
-        <div id="dep-container" class="dep-container">
-          <div id="dep-chord" class="dep-chord"></div>
-        </div>
-        <div id="legend" class="legend"></div>
-        <div id="dep-controls" class="dep-controls">
-          <div class="dep-control-row">
-            <label>Sort:</label>
-            <select id="sort-mode" style="flex:1;padding:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:3px;">
-              <option value="used">Most Used</option>
-              <option value="deps">Most Dependencies</option>
-            </select>
-          </div>
-          <div class="dep-control-row">
-            <label>Files:</label>
-            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="${data.totals.files}">
-            <span id="depth-value" class="slider-value">${data.totals.files}</span>
-          </div>
-        </div>
-      </div>
-      <div class="chat">
-        <div class="chat-input">
-          <input type="text" id="query" placeholder="Ask about this codebase..." />
-          <button id="send">Ask</button>
-          <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-        </div>
-        <div id="response" class="response" style="display:none;"></div>
-        <div id="rules" class="rules"></div>
-      </div>
-    </div>
-    <div class="main-sidebar">
-      <div id="dep-stats" class="dep-stats"></div>
-      <button id="status" class="status-btn"></button>
-      <div id="anti-patterns" class="anti-patterns">
-        <div id="anti-pattern-list"></div>
-      </div>
-    </div>
-  </div>
-  <div class="tooltip" style="display:none;"></div>
-  <div class="footer">
-    <div class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</div>
-    <div class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> lines of code</div>
-    <div id="footer-dep-stats"></div>
-    ${unsupportedCount > 0 ? `<div class="footer-langs">${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
-  </div>
+`;
 
-<script>
-const vscode = acquireVsCodeApi();
-const files = ${filesJson};
-const rootPath = ${rootPath};
-const rules = ${rulesJson};
-const initialAntiPatterns = ${antiPatternsJson};
-
-let highlightedFiles = [];
-let currentView = 'treemap';
-let depGraph = null;
-let simulation = null;
-let topGroups = [];
-let selectedElement = null;
-let ignoredPatterns = [];  // Array of {type, files, description} for ignored items
-let activeRules = new Set();  // Set of pattern types added as rules
-
-// Build issue file map immediately from embedded anti-patterns
-const issueFileMap = new Map();
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of initialAntiPatterns) {
-    for (const file of ap.files) {
-      const existing = issueFileMap.get(file);
-      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
-        issueFileMap.set(file, ap.severity);
-      }
-    }
-  }
-  document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
-  selectedElement = document.getElementById('status');
-}
-
+// src/webview/treemap.ts
+var TREEMAP_SCRIPT = `
 const COLORS = {
   'TypeScript': '#3178c6', 'JavaScript': '#f0db4f', 'Lua': '#9b59b6',
   'JSON': '#27ae60', 'HTML': '#e34c26', 'CSS': '#e91e63',
@@ -11100,243 +10900,10 @@ function renderLegend() {
     return '<div class="legend-item"><span class="legend-swatch" style="background:' + color + ';"></span>' + lang + '</div>';
   }).join('');
 }
+`;
 
-function renderDepGraph() {
-  if (!depGraph) return;
-
-  const container = document.getElementById('dep-chord');
-  container.innerHTML = '';
-  const tooltip = document.querySelector('.tooltip');
-
-  // Filter to code files with connections
-  const codeNodes = depGraph.nodes.filter(n =>
-    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) && (n.imports.length > 0 || n.importedBy.length > 0)
-  );
-
-  // Render stats
-  renderStats(codeNodes.length, depGraph.edges.length);
-
-  if (codeNodes.length === 0) {
-    const debugLines = (depGraph.debug || []).map(d => '<br>\u2022 ' + d).join('');
-    container.innerHTML = '<p style="padding:20px;color:var(--vscode-descriptionForeground);font-size:12px;">No dependencies found.<br><br><strong>Debug:</strong>' + debugLines + '</p>';
-    return;
-  }
-
-  // Build file-based groups for chord diagram
-  // ALWAYS include issue files, plus top N by imports
-  const maxItems = parseInt(document.getElementById('depth-slider').value) || 30;
-  const sortMode = document.getElementById('sort-mode').value;
-  const sortedFiles = [...codeNodes].sort((a, b) => {
-    if (sortMode === 'used') {
-      return b.importedBy.length - a.importedBy.length;
-    } else {
-      return b.imports.length - a.imports.length;
-    }
-  });
-
-  // Get issue file paths from anti-patterns
-  const issueFilePaths = new Set();
-  if (depGraph.antiPatterns) {
-    for (const ap of depGraph.antiPatterns) {
-      for (const f of ap.files) {
-        issueFilePaths.add(f);
-      }
-    }
-  }
-
-  // Always include issue files first, then fill with top sorted files
-  const includedPaths = new Set();
-  const selectedFiles = [];
-
-  // First add all issue files
-  for (const f of codeNodes) {
-    if (issueFilePaths.has(f.path)) {
-      selectedFiles.push(f);
-      includedPaths.add(f.path);
-    }
-  }
-
-  // Then fill remaining slots with top sorted files
-  for (const f of sortedFiles) {
-    if (selectedFiles.length >= maxItems) break;
-    if (!includedPaths.has(f.path)) {
-      selectedFiles.push(f);
-      includedPaths.add(f.path);
-    }
-  }
-
-  topGroups = selectedFiles.map(f => ({
-    name: f.path.split('/').pop(),
-    fullPath: f.path,
-    files: [f],
-    imports: f.imports.length,
-    importedBy: f.importedBy.length
-  }));
-  const groupIndex = new Map(topGroups.map((g, i) => [g.fullPath, i]));
-
-  // Build adjacency matrix for files
-  const n = topGroups.length;
-  const matrix = Array(n).fill(null).map(() => Array(n).fill(0));
-  for (const edge of depGraph.edges) {
-    const fromIdx = groupIndex.get(edge.from);
-    const toIdx = groupIndex.get(edge.to);
-    if (fromIdx !== undefined && toIdx !== undefined) {
-      matrix[fromIdx][toIdx]++;
-    }
-  }
-
-  // Ensure minimum arc size for all files (prevents invisible arcs)
-  const minArcValue = 2;
-  for (let i = 0; i < n; i++) {
-    matrix[i][i] = Math.max(matrix[i][i], minArcValue);
-  }
-
-  const availableHeight = window.innerHeight - 200;
-  const availableWidth = container.clientWidth;
-  const size = Math.min(availableWidth, availableHeight, 800);
-  const outerRadius = size / 2 - 60;
-  const innerRadius = outerRadius - 24;
-
-  const svg = d3.select('#dep-chord').append('svg')
-    .attr('width', size)
-    .attr('height', size)
-    .append('g')
-    .attr('transform', 'translate(' + size/2 + ',' + size/2 + ')');
-
-  const chord = d3.chord().padAngle(0.04).sortSubgroups(d3.descending);
-  const chords = chord(matrix);
-
-  const arc = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
-  const ribbon = d3.ribbon().radius(innerRadius - 4);
-
-  // Color scale
-  const color = d3.scaleOrdinal()
-    .domain(topGroups.map((_, i) => i))
-    .range(d3.schemeTableau10);
-
-  // Draw arcs (groups)
-  const group = svg.append('g')
-    .selectAll('g')
-    .data(chords.groups)
-    .join('g')
-    .attr('class', 'chord-group');
-
-  // Build a node lookup for getting import details
-  const nodeLookup = new Map();
-  for (const node of depGraph.nodes) {
-    nodeLookup.set(node.path, node);
-  }
-
-  group.append('path')
-    .attr('class', 'chord-arc')
-    .attr('data-path', d => topGroups[d.index].fullPath)
-    .attr('d', arc)
-    .attr('fill', d => color(d.index))
-    .style('cursor', 'pointer')
-    .on('mouseover', (e, d) => {
-      const g = topGroups[d.index];
-      const node = nodeLookup.get(g.fullPath);
-      const pathParts = g.fullPath.split('/');
-      const fileName = pathParts.pop();
-      const folderPath = pathParts.join('/');
-
-      let html = '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + folderPath + '</div>';
-      html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
-      html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + g.imports + ' imports out \xB7 ' + g.importedBy + ' imports in</div>';
-
-      // Show imported files
-      if (node && node.imports && node.imports.length > 0) {
-        html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;"><strong style="font-size:11px;">Imports:</strong></div>';
-        const showImports = node.imports.slice(0, 5);
-        for (const imp of showImports) {
-          const impFile = imp.split('/').pop();
-          html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + impFile + '</div>';
-        }
-        if (node.imports.length > 5) {
-          html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (node.imports.length - 5) + ' more</div>';
-        }
-      }
-      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
-
-      tooltip.style.display = 'block';
-      tooltip.innerHTML = html;
-    })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
-    .on('click', (e, d) => {
-      const g = topGroups[d.index];
-      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + g.fullPath });
-    });
-
-  // Draw labels
-  group.append('text')
-    .attr('class', 'chord-label')
-    .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
-    .attr('dy', '0.35em')
-    .attr('transform', d =>
-      'rotate(' + (d.angle * 180 / Math.PI - 90) + ')' +
-      'translate(' + (outerRadius + 6) + ')' +
-      (d.angle > Math.PI ? 'rotate(180)' : '')
-    )
-    .attr('text-anchor', d => d.angle > Math.PI ? 'end' : null)
-    .text(d => {
-      const name = topGroups[d.index].name;
-      return name.length > 15 ? name.slice(0, 12) + '...' : name;
-    });
-
-  // Build edge lookup for tooltips: key = "from|to", value = edge details
-  const edgeLookup = new Map();
-  for (const edge of depGraph.edges) {
-    const key = edge.from + '|' + edge.to;
-    edgeLookup.set(key, edge);
-  }
-
-  // Draw ribbons (connections)
-  svg.append('g')
-    .selectAll('path')
-    .data(chords)
-    .join('path')
-    .attr('class', 'chord-ribbon')
-    .attr('data-from', d => topGroups[d.source.index].fullPath)
-    .attr('data-to', d => topGroups[d.target.index].fullPath)
-    .attr('d', ribbon)
-    .attr('fill', d => color(d.source.index))
-    .attr('fill-opacity', 0.6)
-    .style('cursor', 'pointer')
-    .on('mouseover', (e, d) => {
-      const fromPath = topGroups[d.source.index].fullPath;
-      const toPath = topGroups[d.target.index].fullPath;
-      const from = topGroups[d.source.index].name;
-      const to = topGroups[d.target.index].name;
-      const edge = edgeLookup.get(fromPath + '|' + toPath);
-
-      let html = '<strong>' + from + '</strong> \u2192 <strong>' + to + '</strong>';
-      if (edge && edge.code) {
-        html += '<br><code style="font-size:11px;background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:2px;display:block;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">' + escapeHtml(edge.code) + '</code>';
-        html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:4px;">Line ' + edge.line + ' \xB7 Click to open</div>';
-      } else {
-        html += '<br>' + d.source.value + ' dependencies';
-      }
-      tooltip.style.display = 'block';
-      tooltip.innerHTML = html;
-    })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
-    .on('click', (e, d) => {
-      const fromPath = topGroups[d.source.index].fullPath;
-      const toPath = topGroups[d.target.index].fullPath;
-      const edge = edgeLookup.get(fromPath + '|' + toPath);
-      if (edge) {
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath, line: edge.line });
-      } else {
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath });
-      }
-    });
-
-  // Apply persistent issue highlights to chord arcs
-  applyPersistentIssueHighlights();
-}
-
+// src/webview/issue-highlights.ts
+var ISSUE_HIGHLIGHTS_SCRIPT = `
 function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -11371,8 +10938,6 @@ function buildIssueFileMap() {
     }
   }
 }
-
-// Hover highlighting removed - only persistent issue highlighting now
 
 function applyPersistentIssueHighlights() {
   // Apply persistent issue classes to treemap nodes
@@ -11417,212 +10982,164 @@ function applyPersistentIssueHighlights() {
     }
   });
 }
+`;
 
+// src/webview/chord-diagram.ts
+var CHORD_SCRIPT = `
+function renderDepGraph() {
+  if (!depGraph) return;
+
+  const container = document.getElementById('dep-chord');
+  container.innerHTML = '';
+  const tooltip = document.querySelector('.tooltip');
+
+  // Filter to code files with connections
+  const codeNodes = depGraph.nodes.filter(n =>
+    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) && (n.imports.length > 0 || n.importedBy.length > 0)
+  );
+
+  renderStats(codeNodes.length, depGraph.edges.length);
+
+  if (codeNodes.length === 0) {
+    const debugLines = (depGraph.debug || []).map(d => '<br>\u2022 ' + d).join('');
+    container.innerHTML = '<p style="padding:20px;color:var(--vscode-descriptionForeground);font-size:12px;">No dependencies found.<br><br><strong>Debug:</strong>' + debugLines + '</p>';
+    return;
+  }
+
+  // Build file-based groups for chord diagram
+  const maxItems = parseInt(document.getElementById('depth-slider').value) || 30;
+  const sortMode = document.getElementById('sort-mode').value;
+  const sortedFiles = [...codeNodes].sort((a, b) =>
+    sortMode === 'used' ? b.importedBy.length - a.importedBy.length : b.imports.length - a.imports.length
+  );
+
+  // Get issue file paths from anti-patterns
+  const issueFilePaths = new Set();
+  if (depGraph.antiPatterns) {
+    for (const ap of depGraph.antiPatterns) {
+      for (const f of ap.files) { issueFilePaths.add(f); }
+    }
+  }
+
+  // Always include issue files first, then fill with top sorted files
+  const includedPaths = new Set();
+  const selectedFiles = [];
+  for (const f of codeNodes) {
+    if (issueFilePaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
+  }
+  for (const f of sortedFiles) {
+    if (selectedFiles.length >= maxItems) break;
+    if (!includedPaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
+  }
+
+  topGroups = selectedFiles.map(f => ({
+    name: f.path.split('/').pop(),
+    fullPath: f.path,
+    files: [f],
+    imports: f.imports.length,
+    importedBy: f.importedBy.length
+  }));
+  const groupIndex = new Map(topGroups.map((g, i) => [g.fullPath, i]));
+
+  // Build adjacency matrix
+  const n = topGroups.length;
+  const matrix = Array(n).fill(null).map(() => Array(n).fill(0));
+  for (const edge of depGraph.edges) {
+    const fromIdx = groupIndex.get(edge.from);
+    const toIdx = groupIndex.get(edge.to);
+    if (fromIdx !== undefined && toIdx !== undefined) { matrix[fromIdx][toIdx]++; }
+  }
+  for (let i = 0; i < n; i++) { matrix[i][i] = Math.max(matrix[i][i], 2); }
+
+  const availableHeight = window.innerHeight - 200;
+  const availableWidth = container.clientWidth;
+  const size = Math.min(availableWidth, availableHeight, 800);
+  const outerRadius = size / 2 - 60;
+  const innerRadius = outerRadius - 24;
+
+  const svg = d3.select('#dep-chord').append('svg')
+    .attr('width', size).attr('height', size)
+    .append('g').attr('transform', 'translate(' + size/2 + ',' + size/2 + ')');
+
+  const chord = d3.chord().padAngle(0.04).sortSubgroups(d3.descending);
+  const chords = chord(matrix);
+  const arc = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
+  const ribbon = d3.ribbon().radius(innerRadius - 4);
+  const color = d3.scaleOrdinal().domain(topGroups.map((_, i) => i)).range(d3.schemeTableau10);
+
+  const group = svg.append('g').selectAll('g').data(chords.groups).join('g').attr('class', 'chord-group');
+  const nodeLookup = new Map();
+  for (const node of depGraph.nodes) { nodeLookup.set(node.path, node); }
+
+  group.append('path')
+    .attr('class', 'chord-arc')
+    .attr('data-path', d => topGroups[d.index].fullPath)
+    .attr('d', arc).attr('fill', d => color(d.index)).style('cursor', 'pointer')
+    .on('mouseover', (e, d) => {
+      const g = topGroups[d.index];
+      const node = nodeLookup.get(g.fullPath);
+      const pathParts = g.fullPath.split('/');
+      const fileName = pathParts.pop();
+      let html = '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + pathParts.join('/') + '</div>';
+      html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
+      html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + g.imports + ' imports out \xB7 ' + g.importedBy + ' imports in</div>';
+      if (node && node.imports && node.imports.length > 0) {
+        html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;"><strong style="font-size:11px;">Imports:</strong></div>';
+        for (const imp of node.imports.slice(0, 5)) { html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + imp.split('/').pop() + '</div>'; }
+        if (node.imports.length > 5) { html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (node.imports.length - 5) + ' more</div>'; }
+      }
+      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+    })
+    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
+    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + topGroups[d.index].fullPath }); });
+
+  group.append('text').attr('class', 'chord-label')
+    .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+    .attr('dy', '0.35em')
+    .attr('transform', d => 'rotate(' + (d.angle * 180 / Math.PI - 90) + ')translate(' + (outerRadius + 6) + ')' + (d.angle > Math.PI ? 'rotate(180)' : ''))
+    .attr('text-anchor', d => d.angle > Math.PI ? 'end' : null)
+    .text(d => { const name = topGroups[d.index].name; return name.length > 15 ? name.slice(0, 12) + '...' : name; });
+
+  const edgeLookup = new Map();
+  for (const edge of depGraph.edges) { edgeLookup.set(edge.from + '|' + edge.to, edge); }
+
+  svg.append('g').selectAll('path').data(chords).join('path')
+    .attr('class', 'chord-ribbon')
+    .attr('data-from', d => topGroups[d.source.index].fullPath)
+    .attr('data-to', d => topGroups[d.target.index].fullPath)
+    .attr('d', ribbon).attr('fill', d => color(d.source.index)).attr('fill-opacity', 0.6).style('cursor', 'pointer')
+    .on('mouseover', (e, d) => {
+      const fromPath = topGroups[d.source.index].fullPath;
+      const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
+      let html = '<strong>' + topGroups[d.source.index].name + '</strong> \u2192 <strong>' + topGroups[d.target.index].name + '</strong>';
+      if (edge && edge.code) {
+        html += '<br><code style="font-size:11px;background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:2px;display:block;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">' + escapeHtml(edge.code) + '</code>';
+        html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:4px;">Line ' + edge.line + ' \xB7 Click to open</div>';
+      } else { html += '<br>' + d.source.value + ' dependencies'; }
+      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+    })
+    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
+    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('click', (e, d) => {
+      const fromPath = topGroups[d.source.index].fullPath;
+      const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
+      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath, line: edge ? edge.line : undefined });
+    });
+
+  applyPersistentIssueHighlights();
+}
+`;
+
+// src/webview/highlight-utils.ts
+var HIGHLIGHT_UTILS_SCRIPT = `
 function isPatternIgnored(ap) {
   return ignoredPatterns.some(ignored =>
     ignored.type === ap.type &&
     ignored.description === ap.description &&
     JSON.stringify(ignored.files) === JSON.stringify(ap.files)
   );
-}
-
-function renderAntiPatterns() {
-  const list = document.getElementById('anti-pattern-list');
-
-  // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-
-  // Filter out ignored patterns
-  const antiPatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
-
-  if (antiPatterns.length === 0 && ignoredPatterns.length === 0) {
-    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
-    return;
-  }
-
-  // Build file->severity map for persistent highlights (excluding ignored)
-  if (depGraph) {
-    buildIssueFileMap();
-  }
-
-  // Group anti-patterns by type
-  const groups = new Map();
-  for (const ap of antiPatterns) {
-    if (!groups.has(ap.type)) {
-      groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [] });
-    }
-    groups.get(ap.type).items.push(ap);
-  }
-
-  // Sort groups by severity (use highest severity in group)
-  const severityOrder = { high: 0, medium: 1, low: 2 };
-  const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-
-  let html = sortedGroups.map((group, gIdx) => {
-    const allFiles = group.items.flatMap(item => item.files);
-    const isRuleActive = activeRules.has(group.type);
-    const itemsHtml = group.items.map((item, iIdx) => {
-      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      const filesData = item.files.join(',');
-      return '<div class="pattern-item" data-files="' + filesData + '" data-group="' + gIdx + '" data-item="' + iIdx + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
-        '<div class="pattern-item-row">' +
-          '<div class="pattern-item-content">' +
-            '<div class="pattern-item-desc">' + item.description + '</div>' +
-            '<div class="pattern-item-file">' + fileName + '</div>' +
-          '</div>' +
-          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '">' +
-      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '" data-type="' + group.type + '">' +
-        '<span class="pattern-chevron">&#9654;</span>' +
-        '<span class="pattern-title">' + group.type + '</span>' +
-        '<span class="pattern-count">' + group.items.length + '</span>' +
-        '<span class="pattern-spacer"></span>' +
-        '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button>' +
-      '</div>' +
-      '<div class="pattern-items">' + itemsHtml + '</div>' +
-    '</div>';
-  }).join('');
-
-  // Add ignored items section if there are any
-  if (ignoredPatterns.length > 0) {
-    const ignoredHtml = ignoredPatterns.map((item, idx) => {
-      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      return '<div class="ignored-item" data-idx="' + idx + '">' +
-        '<span>' + item.type + ': ' + fileName + '</span>' +
-        '<button class="ignored-item-restore" title="Restore this item">restore</button>' +
-      '</div>';
-    }).join('');
-
-    html += '<div class="ignored-section">' +
-      '<div class="ignored-header">' +
-        '<span class="pattern-chevron">&#9654;</span>' +
-        '<span>Ignored items (' + ignoredPatterns.length + ')</span>' +
-      '</div>' +
-      '<div class="ignored-items">' + ignoredHtml + '</div>' +
-    '</div>';
-  }
-
-  list.innerHTML = html;
-
-  // Handle header clicks - expand/collapse and highlight all files
-  list.querySelectorAll('.pattern-header').forEach(header => {
-    const files = header.getAttribute('data-files').split(',').filter(f => f);
-    const group = header.closest('.pattern-group');
-    const chevron = header.querySelector('.pattern-chevron');
-    const items = group.querySelector('.pattern-items');
-
-    header.addEventListener('click', (e) => {
-      // Don't toggle if clicking the rules button
-      if (e.target.classList.contains('pattern-rules-toggle')) return;
-
-      // Toggle expand/collapse
-      chevron.classList.toggle('expanded');
-      items.classList.toggle('expanded');
-
-      // Reset previous selection and track new one
-      if (selectedElement) {
-        selectedElement.style.borderLeftColor = '';
-        selectedElement.style.background = '';
-      }
-      selectedElement = header;
-
-      // Highlight all files in this pattern group
-      highlightIssueFiles(files);
-    });
-  });
-
-  // Handle rules toggle clicks
-  list.querySelectorAll('.pattern-rules-toggle').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const header = btn.closest('.pattern-header');
-      const patternType = header.getAttribute('data-type');
-      const isActive = btn.classList.contains('active');
-
-      if (isActive) {
-        activeRules.delete(patternType);
-        btn.classList.remove('active');
-        btn.textContent = '+ rule';
-        btn.title = 'Add to CLAUDE.md rules';
-        vscode.postMessage({ command: 'removeRule', patternType: patternType });
-      } else {
-        activeRules.add(patternType);
-        btn.classList.add('active');
-        btn.textContent = '- rule';
-        btn.title = 'Remove from CLAUDE.md rules';
-        vscode.postMessage({ command: 'addRule', patternType: patternType });
-      }
-    });
-  });
-
-  // Handle individual item clicks - highlight just that item's files
-  list.querySelectorAll('.pattern-item').forEach(item => {
-    const files = item.getAttribute('data-files').split(',').filter(f => f);
-    const content = item.querySelector('.pattern-item-content');
-
-    content.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Highlight just this item's files
-      highlightIssueFiles(files);
-      // Open the first file
-      if (files.length > 0) {
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0] });
-      }
-    });
-  });
-
-  // Handle ignore button clicks
-  list.querySelectorAll('.pattern-ignore-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = btn.closest('.pattern-item');
-      const files = item.getAttribute('data-files').split(',').filter(f => f);
-      const type = item.getAttribute('data-type');
-      const description = item.getAttribute('data-description');
-
-      // Add to ignored patterns
-      ignoredPatterns.push({ type, files, description });
-
-      // Re-render
-      renderAntiPatterns();
-      buildIssueFileMap();
-      applyPersistentIssueHighlights();
-      updateStatusButton();
-    });
-  });
-
-  // Handle ignored section expand/collapse
-  const ignoredHeader = list.querySelector('.ignored-header');
-  if (ignoredHeader) {
-    ignoredHeader.addEventListener('click', () => {
-      const chevron = ignoredHeader.querySelector('.pattern-chevron');
-      const items = ignoredHeader.nextElementSibling;
-      chevron.classList.toggle('expanded');
-      items.classList.toggle('expanded');
-    });
-  }
-
-  // Handle restore button clicks
-  list.querySelectorAll('.ignored-item-restore').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = btn.closest('.ignored-item');
-      const idx = parseInt(item.getAttribute('data-idx'));
-
-      // Remove from ignored patterns
-      ignoredPatterns.splice(idx, 1);
-
-      // Re-render
-      renderAntiPatterns();
-      buildIssueFileMap();
-      applyPersistentIssueHighlights();
-      updateStatusButton();
-    });
-  });
 }
 
 function updateStatusButton() {
@@ -11703,7 +11220,160 @@ function updateHighlights(relevantFiles) {
   });
   document.getElementById('clear').style.display = relevantFiles.length > 0 ? 'inline-block' : 'none';
 }
+`;
 
+// src/webview/anti-pattern-panel.ts
+var ANTI_PATTERN_PANEL_SCRIPT = `
+function renderAntiPatterns() {
+  const list = document.getElementById('anti-pattern-list');
+  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const antiPatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
+
+  if (antiPatterns.length === 0 && ignoredPatterns.length === 0) {
+    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
+    return;
+  }
+
+  if (depGraph) { buildIssueFileMap(); }
+
+  // Group anti-patterns by type
+  const groups = new Map();
+  for (const ap of antiPatterns) {
+    if (!groups.has(ap.type)) { groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [] }); }
+    groups.get(ap.type).items.push(ap);
+  }
+
+  const severityOrder = { high: 0, medium: 1, low: 2 };
+  const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  let html = sortedGroups.map((group, gIdx) => {
+    const allFiles = group.items.flatMap(item => item.files);
+    const isRuleActive = activeRules.has(group.type);
+    const itemsHtml = group.items.map((item, iIdx) => {
+      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
+      const filesData = item.files.join(',');
+      return '<div class="pattern-item" data-files="' + filesData + '" data-group="' + gIdx + '" data-item="' + iIdx + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
+        '<div class="pattern-item-row"><div class="pattern-item-content">' +
+        '<div class="pattern-item-desc">' + item.description + '</div>' +
+        '<div class="pattern-item-file">' + fileName + '</div></div>' +
+        '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
+    }).join('');
+
+    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '">' +
+      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '" data-type="' + group.type + '">' +
+      '<span class="pattern-chevron">&#9654;</span><span class="pattern-title">' + group.type + '</span>' +
+      '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
+      '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
+      '<div class="pattern-items">' + itemsHtml + '</div></div>';
+  }).join('');
+
+  if (ignoredPatterns.length > 0) {
+    const ignoredHtml = ignoredPatterns.map((item, idx) => {
+      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
+      return '<div class="ignored-item" data-idx="' + idx + '"><span>' + item.type + ': ' + fileName + '</span>' +
+        '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
+    }).join('');
+    html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron">&#9654;</span>' +
+      '<span>Ignored items (' + ignoredPatterns.length + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
+  }
+
+  list.innerHTML = html;
+
+  // Handle header clicks
+  list.querySelectorAll('.pattern-header').forEach(header => {
+    const files = header.getAttribute('data-files').split(',').filter(f => f);
+    const group = header.closest('.pattern-group');
+    const chevron = header.querySelector('.pattern-chevron');
+    const items = group.querySelector('.pattern-items');
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('pattern-rules-toggle')) return;
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+      if (selectedElement) { selectedElement.style.borderLeftColor = ''; selectedElement.style.background = ''; }
+      selectedElement = header;
+      highlightIssueFiles(files);
+    });
+  });
+
+  // Handle rules toggle clicks
+  list.querySelectorAll('.pattern-rules-toggle').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const header = btn.closest('.pattern-header');
+      const patternType = header.getAttribute('data-type');
+      const isActive = btn.classList.contains('active');
+      if (isActive) {
+        activeRules.delete(patternType);
+        btn.classList.remove('active');
+        btn.textContent = '+ rule';
+        btn.title = 'Add to CLAUDE.md rules';
+        vscode.postMessage({ command: 'removeRule', patternType: patternType });
+      } else {
+        activeRules.add(patternType);
+        btn.classList.add('active');
+        btn.textContent = '- rule';
+        btn.title = 'Remove from CLAUDE.md rules';
+        vscode.postMessage({ command: 'addRule', patternType: patternType });
+      }
+    });
+  });
+
+  // Handle individual item clicks
+  list.querySelectorAll('.pattern-item').forEach(item => {
+    const files = item.getAttribute('data-files').split(',').filter(f => f);
+    const content = item.querySelector('.pattern-item-content');
+    content.addEventListener('click', (e) => {
+      e.stopPropagation();
+      highlightIssueFiles(files);
+      if (files.length > 0) { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0] }); }
+    });
+  });
+
+  // Handle ignore button clicks
+  list.querySelectorAll('.pattern-ignore-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const item = btn.closest('.pattern-item');
+      const files = item.getAttribute('data-files').split(',').filter(f => f);
+      const type = item.getAttribute('data-type');
+      const description = item.getAttribute('data-description');
+      ignoredPatterns.push({ type, files, description });
+      renderAntiPatterns();
+      buildIssueFileMap();
+      applyPersistentIssueHighlights();
+      updateStatusButton();
+    });
+  });
+
+  // Handle ignored section
+  const ignoredHeader = list.querySelector('.ignored-header');
+  if (ignoredHeader) {
+    ignoredHeader.addEventListener('click', () => {
+      const chevron = ignoredHeader.querySelector('.pattern-chevron');
+      const items = ignoredHeader.nextElementSibling;
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+    });
+  }
+
+  // Handle restore button clicks
+  list.querySelectorAll('.ignored-item-restore').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const item = btn.closest('.ignored-item');
+      const idx = parseInt(item.getAttribute('data-idx'));
+      ignoredPatterns.splice(idx, 1);
+      renderAntiPatterns();
+      buildIssueFileMap();
+      applyPersistentIssueHighlights();
+      updateStatusButton();
+    });
+  });
+}
+`;
+
+// src/webview/event-handlers.ts
+var EVENT_HANDLERS_SCRIPT = `
 document.getElementById('send').addEventListener('click', () => {
   const input = document.getElementById('query');
   const text = input.value.trim();
@@ -11893,9 +11563,240 @@ function cycleIssueColors() {
 
 // Run animation at 60fps (16ms)
 setInterval(cycleIssueColors, 16);
+`;
+
+// src/dashboard-html.ts
+function getLoadingContent() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aperture Dashboard</title>
+  <style>body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }</style>
+</head>
+<body><h1>Aperture Dashboard</h1><p>Scanning workspace...</p></body>
+</html>`;
+}
+function getErrorContent(message) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aperture Dashboard</title>
+  <style>body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); } .error { color: var(--vscode-errorForeground); }</style>
+</head>
+<body><h1>Aperture Dashboard</h1><p class="error">Error: ${message}</p></body>
+</html>`;
+}
+function getDashboardContent(data, antiPatterns) {
+  const filesJson = JSON.stringify(data.files);
+  const rootPath = JSON.stringify(data.root);
+  const rulesJson = JSON.stringify(data.rules);
+  const antiPatternsJson = JSON.stringify(antiPatterns);
+  const unsupportedCount = data.totals.unsupportedFiles;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aperture Dashboard</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>${DASHBOARD_STYLES}</style>
+</head>
+<body>
+  <div class="view-controls">
+    <div class="view-toggle">
+      <button id="view-treemap" class="active">Treemap</button>
+      <button id="view-deps">Dependencies</button>
+    </div>
+  </div>
+  <div class="main-split">
+    <div class="main-content">
+      <div class="diagram-area">
+        <div id="treemap"></div>
+        <div id="dep-container" class="dep-container">
+          <div id="dep-chord" class="dep-chord"></div>
+        </div>
+        <div id="legend" class="legend"></div>
+        <div id="dep-controls" class="dep-controls">
+          <div class="dep-control-row">
+            <label>Sort:</label>
+            <select id="sort-mode" style="flex:1;padding:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:3px;">
+              <option value="used">Most Used</option>
+              <option value="deps">Most Dependencies</option>
+            </select>
+          </div>
+          <div class="dep-control-row">
+            <label>Files:</label>
+            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="${data.totals.files}">
+            <span id="depth-value" class="slider-value">${data.totals.files}</span>
+          </div>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="chat-input">
+          <input type="text" id="query" placeholder="Ask about this codebase..." />
+          <button id="send">Ask</button>
+          <button class="clear-btn" id="clear" style="display:none;">Clear</button>
+        </div>
+        <div id="response" class="response" style="display:none;"></div>
+        <div id="rules" class="rules"></div>
+      </div>
+    </div>
+    <div class="main-sidebar">
+      <div id="dep-stats" class="dep-stats"></div>
+      <button id="status" class="status-btn"></button>
+      <div id="anti-patterns" class="anti-patterns">
+        <div id="anti-pattern-list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="tooltip" style="display:none;"></div>
+  <div class="footer">
+    <div class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</div>
+    <div class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> lines of code</div>
+    <div id="footer-dep-stats"></div>
+    ${unsupportedCount > 0 ? `<div class="footer-langs">${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
+  </div>
+
+<script>
+const vscode = acquireVsCodeApi();
+const files = ${filesJson};
+const rootPath = ${rootPath};
+const rules = ${rulesJson};
+const initialAntiPatterns = ${antiPatternsJson};
+
+let highlightedFiles = [];
+let currentView = 'treemap';
+let depGraph = null;
+let simulation = null;
+let topGroups = [];
+let selectedElement = null;
+let ignoredPatterns = [];  // Array of {type, files, description} for ignored items
+let activeRules = new Set();  // Set of pattern types added as rules
+
+// Build issue file map immediately from embedded anti-patterns
+const issueFileMap = new Map();
+if (initialAntiPatterns && initialAntiPatterns.length > 0) {
+  const severityRank = { high: 0, medium: 1, low: 2 };
+  for (const ap of initialAntiPatterns) {
+    for (const file of ap.files) {
+      const existing = issueFileMap.get(file);
+      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
+        issueFileMap.set(file, ap.severity);
+      }
+    }
+  }
+  document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
+  selectedElement = document.getElementById('status');
+}
+
+${TREEMAP_SCRIPT}
+
+${ISSUE_HIGHLIGHTS_SCRIPT}
+
+${CHORD_SCRIPT}
+
+${HIGHLIGHT_UTILS_SCRIPT}
+
+${ANTI_PATTERN_PANEL_SCRIPT}
+
+${EVENT_HANDLERS_SCRIPT}
 </script>
 </body>
 </html>`;
+}
+
+// src/dashboard-panel.ts
+var currentData = null;
+var currentPanel = null;
+var parserInitPromise = null;
+function setParserInitPromise(promise) {
+  parserInitPromise = promise;
+}
+async function openDashboard(context) {
+  const panel = vscode5.window.createWebviewPanel(
+    "apertureDashboard",
+    "Aperture Dashboard",
+    vscode5.ViewColumn.One,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+  currentPanel = panel;
+  panel.webview.onDidReceiveMessage(
+    async (message) => {
+      if (message.command === "openFile") {
+        const uri = vscode5.Uri.file(message.path);
+        const doc = await vscode5.window.showTextDocument(uri);
+        if (message.line && message.line > 0) {
+          const line = Math.max(0, message.line - 1);
+          const position = new vscode5.Position(line, 0);
+          doc.selection = new vscode5.Selection(position, position);
+          doc.revealRange(new vscode5.Range(position, position), vscode5.TextEditorRevealType.InCenter);
+        }
+      } else if (message.command === "query" && currentData) {
+        panel.webview.postMessage({ type: "thinking" });
+        try {
+          const response = await analyzeQuery(message.text, currentData.files, currentData.root);
+          panel.webview.postMessage({ type: "response", ...response });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Unknown error";
+          panel.webview.postMessage({ type: "response", message: `Error: ${msg}`, relevantFiles: [] });
+        }
+      } else if (message.command === "getDependencies" && currentData) {
+        try {
+          const graph = analyzeDependencies(currentData.files, currentData.root);
+          const serializedGraph = {
+            nodes: Array.from(graph.nodes.entries()).map(([path12, node]) => ({
+              path: path12,
+              imports: node.imports,
+              importedBy: node.importedBy,
+              importDetails: node.importDetails
+            })),
+            edges: graph.edges,
+            antiPatterns: graph.antiPatterns,
+            debug: debugInfo
+          };
+          panel.webview.postMessage({ type: "dependencyGraph", graph: serializedGraph });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Unknown error";
+          panel.webview.postMessage({ type: "dependencyError", message: msg });
+        }
+      } else if (message.command === "addRule") {
+        await addAntiPatternRule(currentData?.root || "", message.patternType);
+      } else if (message.command === "removeRule") {
+        await removeAntiPatternRule(currentData?.root || "", message.patternType);
+      }
+    },
+    void 0,
+    context.subscriptions
+  );
+  panel.webview.html = getLoadingContent();
+  try {
+    if (parserInitPromise) {
+      await parserInitPromise;
+    }
+    currentData = await scanWorkspace();
+    const graph = analyzeDependencies(currentData.files, currentData.root);
+    panel.webview.html = getDashboardContent(currentData, graph.antiPatterns);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    panel.webview.html = getErrorContent(message);
+  }
+}
+
+// src/extension.ts
+function activate(context) {
+  console.log("Aperture extension is now active");
+  languageRegistry.register(new TypeScriptHandler());
+  languageRegistry.register(new LuaHandler());
+  const wasmDir = path11.join(context.extensionPath, "dist");
+  const parserPromise = initializeParser(wasmDir).catch((err) => {
+    console.error("AST parser initialization failed:", err);
+  });
+  setParserInitPromise(parserPromise);
+  const disposable = vscode6.commands.registerCommand("aperture.openDashboard", async () => {
+    await openDashboard(context);
+  });
+  context.subscriptions.push(disposable);
 }
 function deactivate() {
 }
