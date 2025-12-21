@@ -11407,6 +11407,10 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      // Clear dimming if no active patterns remain
+      if (issueFileMap.size === 0) {
+        highlightIssueFiles([]);
+      }
     });
   });
 
@@ -11432,6 +11436,9 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      // Re-apply highlighting with active pattern files
+      const allFiles = [...issueFileMap.keys()];
+      highlightIssueFiles(allFiles);
     });
   });
 }
@@ -11541,7 +11548,7 @@ if (initialAntiPatterns && initialAntiPatterns.length > 0) {
   highlightIssueFiles(allIssueFiles);
 }
 
-// Status button click - highlight all anti-pattern files
+// Status button click - highlight all active (non-ignored) anti-pattern files
 document.getElementById('status').addEventListener('click', () => {
   // Reset previous selection and track new one
   if (selectedElement) {
@@ -11550,8 +11557,9 @@ document.getElementById('status').addEventListener('click', () => {
   }
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const allFiles = antiPatterns.flatMap(ap => ap.files);
+  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const activePatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
+  const allFiles = activePatterns.flatMap(ap => ap.files);
   highlightIssueFiles(allFiles);
 });
 

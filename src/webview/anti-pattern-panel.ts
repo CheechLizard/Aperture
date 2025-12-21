@@ -117,6 +117,10 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      // Clear dimming if no active patterns remain
+      if (issueFileMap.size === 0) {
+        highlightIssueFiles([]);
+      }
     });
   });
 
@@ -142,6 +146,9 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      // Re-apply highlighting with active pattern files
+      const allFiles = [...issueFileMap.keys()];
+      highlightIssueFiles(allFiles);
     });
   });
 }
