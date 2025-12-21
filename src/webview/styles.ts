@@ -39,7 +39,7 @@ export const DASHBOARD_STYLES = `
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
-    .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+    .legend-swatch { width: 12px; height: 12px; }
     .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }

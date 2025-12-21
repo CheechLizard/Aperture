@@ -10711,7 +10711,7 @@ var DASHBOARD_STYLES = `
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
-    .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+    .legend-swatch { width: 12px; height: 12px; }
     .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
@@ -10942,6 +10942,24 @@ function render() {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path }); });
 
+  // File labels - only show on nodes large enough to fit text
+  const labelMinWidth = 40;
+  const labelMinHeight = 16;
+  const labelsData = leaves.filter(d => (d.x1 - d.x0) >= labelMinWidth && (d.y1 - d.y0) >= labelMinHeight);
+
+  svg.selectAll('text.file-label').data(labelsData).join('text')
+    .attr('class', 'file-label')
+    .attr('x', d => d.x0 + 3).attr('y', d => d.y0 + 11)
+    .attr('fill', '#fff')
+    .attr('font-size', '9px')
+    .attr('pointer-events', 'none')
+    .text(d => {
+      const w = d.x1 - d.x0 - 6;
+      const name = d.data.name;
+      const maxChars = Math.floor(w / 5.5);
+      return name.length > maxChars ? name.slice(0, maxChars - 1) + '\u2026' : name;
+    });
+
   // Depth 1: Top-level headers (folders or patterns)
   const depth1 = hierarchy.descendants().filter(d => d.depth === 1 && (d.x1 - d.x0) > 30);
 
@@ -10980,6 +10998,14 @@ function renderLegend() {
     return '<div class="legend-item"><span class="legend-swatch" style="background:' + color + ';"></span>' + lang + '</div>';
   }).join('');
 }
+
+// Re-render on window resize
+window.addEventListener('resize', () => {
+  if (currentView === 'treemap') {
+    render();
+    applyPersistentIssueHighlights();
+  }
+});
 `;
 
 // src/webview/issue-highlights.ts
@@ -11688,8 +11714,8 @@ function cycleIssueColors() {
   const hue = (cycleTime * 36) % 360;  // 36\xB0/sec = 360\xB0 in 10sec
   const color = hslToHex(hue, 0.85, 0.6);  // 85% saturation, 60% lightness
 
-  // Pulsing opacity: sine wave, period 750ms
-  const pulsePhase = (cycleTime * 1000 / 750) * 2 * Math.PI;
+  // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
+  const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
   const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
   const dimmedAlpha = 0.15 + 0.05 * Math.sin(pulsePhase);  // subtle pulse for dimmed

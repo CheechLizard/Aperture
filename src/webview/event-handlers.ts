@@ -137,8 +137,8 @@ function cycleIssueColors() {
   const hue = (cycleTime * 36) % 360;  // 36°/sec = 360° in 10sec
   const color = hslToHex(hue, 0.85, 0.6);  // 85% saturation, 60% lightness
 
-  // Pulsing opacity: sine wave, period 750ms
-  const pulsePhase = (cycleTime * 1000 / 750) * 2 * Math.PI;
+  // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
+  const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
   const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
   const dimmedAlpha = 0.15 + 0.05 * Math.sin(pulsePhase);  // subtle pulse for dimmed
