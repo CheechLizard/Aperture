@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { scanWorkspace } from './scanner';
-import { ProjectData } from './types';
+import { ProjectData, AntiPattern } from './types';
 import { analyzeQuery } from './agent';
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
 import { languageRegistry } from './language-registry';
@@ -96,7 +96,11 @@ async function openDashboard(context: vscode.ExtensionContext) {
       await parserInitPromise;
     }
     currentData = await scanWorkspace();
-    panel.webview.html = getDashboardContent(currentData);
+
+    // Run dependency analysis to get anti-patterns for treemap highlighting
+    const graph = analyzeDependencies(currentData.files, currentData.root);
+
+    panel.webview.html = getDashboardContent(currentData, graph.antiPatterns);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     panel.webview.html = getErrorContent(message);
@@ -127,10 +131,11 @@ function getErrorContent(message: string): string {
 </html>`;
 }
 
-function getDashboardContent(data: ProjectData): string {
+function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): string {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
+  const antiPatternsJson = JSON.stringify(antiPatterns);
   const unsupportedCount = data.totals.unsupportedFiles;
 
   return `<!DOCTYPE html>
@@ -230,13 +235,11 @@ function getDashboardContent(data: ProjectData): string {
     .unsupported-label { color: var(--vscode-descriptionForeground); margin-right: 8px; }
     .unsupported-lang { display: inline-block; padding: 2px 8px; margin: 2px 4px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); }
 
-    /* Issue highlighting - smooth color transitions */
-    .node.issue-high, .node.issue-medium, .node.issue-low {
-      transition: stroke 0.3s ease-in-out, stroke-width 0.2s;
-    }
+    /* Issue highlighting - JS animation at 60fps for color cycling + alpha pulsing on fills */
+    .node.issue-high, .node.issue-medium, .node.issue-low,
     .chord-arc.issue-high, .chord-arc.issue-medium, .chord-arc.issue-low,
     .chord-ribbon.issue-high, .chord-ribbon.issue-medium, .chord-ribbon.issue-low {
-      /* No transition - direct JS animation at 60fps */
+      /* No CSS transition - direct JS animation handles fill color and opacity */
     }
   </style>
 </head>
@@ -305,11 +308,28 @@ const vscode = acquireVsCodeApi();
 const files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
+const initialAntiPatterns = ${antiPatternsJson};
+
 let highlightedFiles = [];
 let currentView = 'treemap';
 let depGraph = null;
 let simulation = null;
 let topGroups = [];
+
+// Build issue file map immediately from embedded anti-patterns
+const issueFileMap = new Map();
+if (initialAntiPatterns && initialAntiPatterns.length > 0) {
+  const severityRank = { high: 0, medium: 1, low: 2 };
+  for (const ap of initialAntiPatterns) {
+    for (const file of ap.files) {
+      const existing = issueFileMap.get(file);
+      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
+        issueFileMap.set(file, ap.severity);
+      }
+    }
+  }
+  document.getElementById('status').textContent = initialAntiPatterns.length + ' issues found';
+}
 
 const COLORS = {
   'TypeScript': '#3178c6', 'JavaScript': '#f0db4f', 'Lua': '#9b59b6',
@@ -652,9 +672,7 @@ function renderStats(nodeCount, edgeCount) {
     '<div style="font-size:0.8em;color:var(--vscode-descriptionForeground);margin-top:4px;">' + parserType + '</div>';
 }
 
-// Map of file path -> highest severity issue affecting it
-let issueFileMap = new Map();
-
+// Rebuild issue file map when dependency graph updates
 function buildIssueFileMap() {
   issueFileMap.clear();
   if (!depGraph || !depGraph.antiPatterns) return;
@@ -900,12 +918,14 @@ function cycleIssueColors() {
   const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
 
-  // Cycle treemap node strokes - include ALL severity levels
-  const nodes = document.querySelectorAll('.node.issue-high, .node.issue-medium, .node.issue-low');
-  nodes.forEach(node => {
-    node.setAttribute('stroke', color);
-    node.setAttribute('stroke-width', '8');
-    node.setAttribute('stroke-opacity', alpha.toString());
+  // Cycle treemap node fills - check issueFileMap directly like chord arcs
+  const allNodes = document.querySelectorAll('.node');
+  allNodes.forEach(node => {
+    const nodePath = node.getAttribute('data-path');
+    if (nodePath && issueFileMap.has(nodePath)) {
+      node.style.setProperty('fill', color, 'important');
+      node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+    }
   });
 
   // Cycle chord arc fills - check issueFileMap directly

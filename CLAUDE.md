@@ -9,12 +9,15 @@ For what this project is, see `README.md`. For design intent, see `../Specs/AI_P
 ```bash
 # Development
 npm install              # Install dependencies
-npm run compile          # Compile TypeScript
-npm run watch            # Watch mode for development
+npm run bundle           # Bundle extension to dist/ (REQUIRED for VS Code to load changes)
+npm run compile          # Type-check only (outputs to out/, not loaded by VS Code)
 
 # Testing
 F5 in VSCode             # Launch extension in debug mode
+Developer: Reload Window # Reload after bundling to pick up changes
 ```
+
+**Critical**: VS Code loads `dist/extension.js`. Always use `npm run bundle` after changes.
 
 ## Architecture Rules
 

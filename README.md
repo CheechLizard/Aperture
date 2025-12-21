@@ -33,19 +33,24 @@ cd Aperture
 # Install dependencies
 npm install
 
-# Compile
-npm run compile
+# Bundle the extension
+npm run bundle
 ```
 
 ## Development
 
 ```bash
-# Watch mode for development
-npm run watch
+# Bundle after making changes (required for VS Code to load updates)
+npm run bundle
+
+# Type-check only (outputs to out/, not loaded by VS Code)
+npm run compile
 
 # Launch extension in debug mode
-# Press F5 in VSCode
+# Press F5 in VSCode, then reload window to pick up changes
 ```
+
+**Important**: VS Code loads the extension from `dist/extension.js`. Use `npm run bundle` (not `npm run compile`) to update the extension after making changes.
 
 ## Usage
 
