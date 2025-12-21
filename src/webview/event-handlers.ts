@@ -94,6 +94,7 @@ renderLegend();
 renderRules();
 renderAntiPatterns();
 applyPersistentIssueHighlights();
+renderFooterStats();
 
 // Apply initial dimming if anti-patterns exist
 if (initialAntiPatterns && initialAntiPatterns.length > 0) {

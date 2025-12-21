@@ -104,10 +104,12 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
   </div>
   <div class="tooltip" style="display:none;"></div>
   <div class="footer">
-    <div class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</div>
-    <div class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> lines of code</div>
-    <div id="footer-dep-stats"></div>
-    ${unsupportedCount > 0 ? `<div class="footer-langs">${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
+    <div class="footer-stats">
+      <span class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</span>
+      <span class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> LOC</span>
+      <span id="footer-dep-stats"></span>
+    </div>
+    ${unsupportedCount > 0 ? `<div class="footer-warning"><span class="footer-warning-icon">⚠</span><span class="footer-warning-text">Missing AST parsers for:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
   </div>
 
 <script>

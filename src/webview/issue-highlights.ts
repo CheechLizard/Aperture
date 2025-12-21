@@ -3,13 +3,22 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderStats(nodeCount, edgeCount) {
-  // Update footer stats
+function renderFooterStats(nodeCount, edgeCount) {
   const footerStats = document.getElementById('footer-dep-stats');
-  footerStats.innerHTML =
-    '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>' +
-    '<span class="footer-stat" style="margin-left:16px;"><strong>' + edgeCount + '</strong> dependencies</span>' +
-    '<span class="footer-stat" style="margin-left:16px;"><strong>' + depGraph.antiPatterns.length + '</strong> issues</span>';
+  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const activeCount = antiPatterns ? antiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
+
+  let html = '';
+  if (nodeCount !== undefined && edgeCount !== undefined) {
+    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
+    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
+  }
+  html += '<span class="footer-stat"><strong>' + activeCount + '</strong> issues</span>';
+  footerStats.innerHTML = html;
+}
+
+function renderStats(nodeCount, edgeCount) {
+  renderFooterStats(nodeCount, edgeCount);
 }
 
 // Rebuild issue file map when dependency graph updates

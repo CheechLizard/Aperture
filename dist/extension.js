@@ -10672,11 +10672,14 @@ async function removeAntiPatternRule(rootPath, patternType) {
 // src/webview/styles.ts
 var DASHBOARD_STYLES = `
     body { font-family: var(--vscode-font-family); padding: 12px 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
-    .footer { display: flex; gap: 24px; align-items: center; padding: 10px 0; border-top: 1px solid var(--vscode-widget-border); margin-top: 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
-    .footer-stat { display: flex; gap: 6px; align-items: baseline; }
+    .footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--vscode-widget-border); margin-top: 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+    .footer-stats { display: flex; gap: 16px; align-items: center; }
+    .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
-    .footer-langs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-    .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
+    .footer-warning { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(204, 167, 0, 0.15); border: 1px solid rgba(204, 167, 0, 0.4); border-radius: 4px; }
+    .footer-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1em; }
+    .footer-warning-text { color: var(--vscode-editorWarning-foreground, #cca700); margin-right: 4px; }
+    .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.25); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
     #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
@@ -10985,13 +10988,22 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderStats(nodeCount, edgeCount) {
-  // Update footer stats
+function renderFooterStats(nodeCount, edgeCount) {
   const footerStats = document.getElementById('footer-dep-stats');
-  footerStats.innerHTML =
-    '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>' +
-    '<span class="footer-stat" style="margin-left:16px;"><strong>' + edgeCount + '</strong> dependencies</span>' +
-    '<span class="footer-stat" style="margin-left:16px;"><strong>' + depGraph.antiPatterns.length + '</strong> issues</span>';
+  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const activeCount = antiPatterns ? antiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
+
+  let html = '';
+  if (nodeCount !== undefined && edgeCount !== undefined) {
+    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
+    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
+  }
+  html += '<span class="footer-stat"><strong>' + activeCount + '</strong> issues</span>';
+  footerStats.innerHTML = html;
+}
+
+function renderStats(nodeCount, edgeCount) {
+  renderFooterStats(nodeCount, edgeCount);
 }
 
 // Rebuild issue file map when dependency graph updates
@@ -11448,6 +11460,7 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      renderFooterStats();
       // Clear dimming if no active patterns remain
       if (issueFileMap.size === 0) {
         highlightIssueFiles([]);
@@ -11479,6 +11492,7 @@ function renderAntiPatterns() {
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
+      renderFooterStats();
       // Re-apply highlighting with active pattern files
       const allFiles = [...issueFileMap.keys()];
       highlightIssueFiles(allFiles);
@@ -11631,6 +11645,7 @@ renderLegend();
 renderRules();
 renderAntiPatterns();
 applyPersistentIssueHighlights();
+renderFooterStats();
 
 // Apply initial dimming if anti-patterns exist
 if (initialAntiPatterns && initialAntiPatterns.length > 0) {
@@ -11858,10 +11873,12 @@ function getDashboardContent(data, antiPatterns) {
   </div>
   <div class="tooltip" style="display:none;"></div>
   <div class="footer">
-    <div class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</div>
-    <div class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> lines of code</div>
-    <div id="footer-dep-stats"></div>
-    ${unsupportedCount > 0 ? `<div class="footer-langs">${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
+    <div class="footer-stats">
+      <span class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</span>
+      <span class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> LOC</span>
+      <span id="footer-dep-stats"></span>
+    </div>
+    ${unsupportedCount > 0 ? `<div class="footer-warning"><span class="footer-warning-icon">\u26A0</span><span class="footer-warning-text">Missing AST parsers for:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
   </div>
 
 <script>
