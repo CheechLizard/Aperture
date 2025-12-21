@@ -1,4 +1,35 @@
 export const ANTI_PATTERN_PANEL_SCRIPT = `
+function getExpandedState() {
+  const state = { groups: new Set(), ignored: false };
+  document.querySelectorAll('.pattern-group').forEach(group => {
+    if (group.querySelector('.pattern-items.expanded')) {
+      state.groups.add(group.getAttribute('data-type'));
+    }
+  });
+  const ignoredItems = document.querySelector('.ignored-items');
+  if (ignoredItems && ignoredItems.classList.contains('expanded')) {
+    state.ignored = true;
+  }
+  return state;
+}
+
+function restoreExpandedState(state) {
+  document.querySelectorAll('.pattern-group').forEach(group => {
+    const type = group.getAttribute('data-type');
+    if (state.groups.has(type)) {
+      group.querySelector('.pattern-chevron').classList.add('expanded');
+      group.querySelector('.pattern-items').classList.add('expanded');
+    }
+  });
+  if (state.ignored) {
+    const ignoredHeader = document.querySelector('.ignored-header');
+    if (ignoredHeader) {
+      ignoredHeader.querySelector('.pattern-chevron').classList.add('expanded');
+      ignoredHeader.nextElementSibling.classList.add('expanded');
+    }
+  }
+}
+
 function renderAntiPatterns() {
   const list = document.getElementById('anti-pattern-list');
   const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
@@ -113,7 +144,9 @@ function renderAntiPatterns() {
       const type = item.getAttribute('data-type');
       const description = item.getAttribute('data-description');
       ignoredPatterns.push({ type, files, description });
+      const expandedState = getExpandedState();
       renderAntiPatterns();
+      restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
@@ -142,7 +175,9 @@ function renderAntiPatterns() {
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
       ignoredPatterns.splice(idx, 1);
+      const expandedState = getExpandedState();
       renderAntiPatterns();
+      restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();

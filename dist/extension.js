@@ -10683,7 +10683,15 @@ var DASHBOARD_STYLES = `
     .node.dimmed { opacity: 0.2; }
     .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
-    .chat { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
+    .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
+    .chat-panel.collapsed .chat-body { display: none; }
+    .chat-panel.collapsed { width: auto; }
+    .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--vscode-titleBar-activeBackground); border-radius: 8px 8px 0 0; cursor: move; user-select: none; }
+    .chat-panel.collapsed .chat-header { border-radius: 8px; }
+    .chat-title { font-weight: 600; font-size: 0.9em; }
+    .chat-collapse-btn { background: none; border: none; color: var(--vscode-foreground); cursor: pointer; font-size: 1.2em; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+    .chat-collapse-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .chat-body { padding: 12px; max-height: 300px; overflow-y: auto; }
     .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
     .chat-input input { flex: 1; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); color: var(--vscode-input-foreground); }
     .chat-input button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
@@ -11289,6 +11297,37 @@ function updateHighlights(relevantFiles) {
 
 // src/webview/anti-pattern-panel.ts
 var ANTI_PATTERN_PANEL_SCRIPT = `
+function getExpandedState() {
+  const state = { groups: new Set(), ignored: false };
+  document.querySelectorAll('.pattern-group').forEach(group => {
+    if (group.querySelector('.pattern-items.expanded')) {
+      state.groups.add(group.getAttribute('data-type'));
+    }
+  });
+  const ignoredItems = document.querySelector('.ignored-items');
+  if (ignoredItems && ignoredItems.classList.contains('expanded')) {
+    state.ignored = true;
+  }
+  return state;
+}
+
+function restoreExpandedState(state) {
+  document.querySelectorAll('.pattern-group').forEach(group => {
+    const type = group.getAttribute('data-type');
+    if (state.groups.has(type)) {
+      group.querySelector('.pattern-chevron').classList.add('expanded');
+      group.querySelector('.pattern-items').classList.add('expanded');
+    }
+  });
+  if (state.ignored) {
+    const ignoredHeader = document.querySelector('.ignored-header');
+    if (ignoredHeader) {
+      ignoredHeader.querySelector('.pattern-chevron').classList.add('expanded');
+      ignoredHeader.nextElementSibling.classList.add('expanded');
+    }
+  }
+}
+
 function renderAntiPatterns() {
   const list = document.getElementById('anti-pattern-list');
   const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
@@ -11403,7 +11442,9 @@ function renderAntiPatterns() {
       const type = item.getAttribute('data-type');
       const description = item.getAttribute('data-description');
       ignoredPatterns.push({ type, files, description });
+      const expandedState = getExpandedState();
       renderAntiPatterns();
+      restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
@@ -11432,7 +11473,9 @@ function renderAntiPatterns() {
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
       ignoredPatterns.splice(idx, 1);
+      const expandedState = getExpandedState();
       renderAntiPatterns();
+      restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
@@ -11442,6 +11485,53 @@ function renderAntiPatterns() {
     });
   });
 }
+`;
+
+// src/webview/chat-panel.ts
+var CHAT_PANEL_SCRIPT = `
+// Chat panel collapse/expand
+const chatPanel = document.getElementById('chat-panel');
+const chatCollapseBtn = document.getElementById('chat-collapse');
+const chatHeader = document.getElementById('chat-header');
+
+chatCollapseBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isCollapsed = chatPanel.classList.toggle('collapsed');
+  chatCollapseBtn.textContent = isCollapsed ? '+' : '\u2212';
+});
+
+// Chat panel drag functionality
+let isDragging = false;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+
+chatHeader.addEventListener('mousedown', (e) => {
+  if (e.target === chatCollapseBtn) return;
+  isDragging = true;
+  const rect = chatPanel.getBoundingClientRect();
+  dragOffsetX = e.clientX - rect.left;
+  dragOffsetY = e.clientY - rect.top;
+  chatPanel.style.transition = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const x = e.clientX - dragOffsetX;
+  const y = e.clientY - dragOffsetY;
+  const maxX = window.innerWidth - chatPanel.offsetWidth;
+  const maxY = window.innerHeight - chatPanel.offsetHeight;
+  chatPanel.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+  chatPanel.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+  chatPanel.style.right = 'auto';
+  chatPanel.style.bottom = 'auto';
+});
+
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    chatPanel.style.transition = '';
+  }
+});
 `;
 
 // src/webview/event-handlers.ts
@@ -11742,15 +11832,6 @@ function getDashboardContent(data, antiPatterns) {
           </div>
         </div>
       </div>
-      <div class="chat">
-        <div class="chat-input">
-          <input type="text" id="query" placeholder="Ask about this codebase..." />
-          <button id="send">Ask</button>
-          <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-        </div>
-        <div id="response" class="response" style="display:none;"></div>
-        <div id="rules" class="rules"></div>
-      </div>
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
@@ -11758,6 +11839,21 @@ function getDashboardContent(data, antiPatterns) {
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
+    </div>
+  </div>
+  <div id="chat-panel" class="chat-panel">
+    <div class="chat-header" id="chat-header">
+      <span class="chat-title">Ask AI</span>
+      <button class="chat-collapse-btn" id="chat-collapse">\u2212</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="chat-input">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <button id="send">Ask</button>
+        <button class="clear-btn" id="clear" style="display:none;">Clear</button>
+      </div>
+      <div id="response" class="response" style="display:none;"></div>
+      <div id="rules" class="rules"></div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
@@ -11811,6 +11907,8 @@ ${CHORD_SCRIPT}
 ${HIGHLIGHT_UTILS_SCRIPT}
 
 ${ANTI_PATTERN_PANEL_SCRIPT}
+
+${CHAT_PANEL_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>

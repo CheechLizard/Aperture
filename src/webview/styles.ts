@@ -11,7 +11,15 @@ export const DASHBOARD_STYLES = `
     .node.dimmed { opacity: 0.2; }
     .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
-    .chat { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
+    .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
+    .chat-panel.collapsed .chat-body { display: none; }
+    .chat-panel.collapsed { width: auto; }
+    .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--vscode-titleBar-activeBackground); border-radius: 8px 8px 0 0; cursor: move; user-select: none; }
+    .chat-panel.collapsed .chat-header { border-radius: 8px; }
+    .chat-title { font-weight: 600; font-size: 0.9em; }
+    .chat-collapse-btn { background: none; border: none; color: var(--vscode-foreground); cursor: pointer; font-size: 1.2em; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+    .chat-collapse-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .chat-body { padding: 12px; max-height: 300px; overflow-y: auto; }
     .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
     .chat-input input { flex: 1; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); color: var(--vscode-input-foreground); }
     .chat-input button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }

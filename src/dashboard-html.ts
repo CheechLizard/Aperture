@@ -6,6 +6,7 @@ import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
 import { HIGHLIGHT_UTILS_SCRIPT } from './webview/highlight-utils';
 import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
+import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
 
 export function getLoadingContent(): string {
@@ -77,15 +78,6 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
           </div>
         </div>
       </div>
-      <div class="chat">
-        <div class="chat-input">
-          <input type="text" id="query" placeholder="Ask about this codebase..." />
-          <button id="send">Ask</button>
-          <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-        </div>
-        <div id="response" class="response" style="display:none;"></div>
-        <div id="rules" class="rules"></div>
-      </div>
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
@@ -93,6 +85,21 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
+    </div>
+  </div>
+  <div id="chat-panel" class="chat-panel">
+    <div class="chat-header" id="chat-header">
+      <span class="chat-title">Ask AI</span>
+      <button class="chat-collapse-btn" id="chat-collapse">−</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="chat-input">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <button id="send">Ask</button>
+        <button class="clear-btn" id="clear" style="display:none;">Clear</button>
+      </div>
+      <div id="response" class="response" style="display:none;"></div>
+      <div id="rules" class="rules"></div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
@@ -146,6 +153,8 @@ ${CHORD_SCRIPT}
 ${HIGHLIGHT_UTILS_SCRIPT}
 
 ${ANTI_PATTERN_PANEL_SCRIPT}
+
+${CHAT_PANEL_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>
