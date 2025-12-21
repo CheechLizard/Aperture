@@ -28,6 +28,8 @@ document.getElementById('view-treemap').addEventListener('click', () => {
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('dep-controls').classList.remove('visible');
+    // Re-render in case window was resized while on deps tab
+    render();
     applyPersistentIssueHighlights();
     // Restore current selection
     if (currentHighlightedFiles.length > 0) {

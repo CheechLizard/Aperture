@@ -124,6 +124,16 @@ function renderLegend() {
 window.addEventListener('resize', () => {
   if (currentView === 'treemap') {
     render();
+    // Restore current selection after re-render
+    if (currentHighlightedFiles.length > 0) {
+      highlightIssueFiles(currentHighlightedFiles);
+    }
+  } else if (currentView === 'deps' && depGraph) {
+    renderDepGraph();
+    // Restore current selection after re-render
+    if (currentHighlightedFiles.length > 0) {
+      highlightIssueFiles(currentHighlightedFiles);
+    }
   }
 });
 `;
