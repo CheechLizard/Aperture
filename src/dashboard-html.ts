@@ -72,9 +72,12 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
             </select>
           </div>
           <div class="dep-control-row">
-            <label>Files:</label>
-            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="${data.totals.files}">
-            <span id="depth-value" class="slider-value">${data.totals.files}</span>
+            <label>Depth:</label>
+            <input type="range" id="depth-slider" min="1" max="10" value="10">
+            <span id="depth-value" class="slider-value">10</span>
+          </div>
+          <div class="dep-control-row">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="show-orphans"> Show orphans</label>
           </div>
         </div>
       </div>

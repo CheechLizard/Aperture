@@ -5,9 +5,11 @@ function renderDepGraph() {
   const container = document.getElementById('dep-chord');
   container.innerHTML = '';
 
-  // Filter to code files with connections
+  // Filter to code files, optionally including orphans
+  const showOrphans = document.getElementById('show-orphans').checked;
   const codeNodes = depGraph.nodes.filter(n =>
-    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) && (n.imports.length > 0 || n.importedBy.length > 0)
+    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) &&
+    (showOrphans || n.imports.length > 0 || n.importedBy.length > 0)
   );
 
   renderStats(codeNodes.length, depGraph.edges.length);
@@ -18,40 +20,54 @@ function renderDepGraph() {
     return;
   }
 
-  // Build file-based groups for chord diagram
-  const maxItems = parseInt(document.getElementById('depth-slider').value) || 30;
+  // Calculate max depth and update slider
+  const maxDepth = Math.max(...codeNodes.map(n => n.path.split('/').length));
+  const depthSlider = document.getElementById('depth-slider');
+  depthSlider.max = maxDepth;
+  if (parseInt(depthSlider.value) > maxDepth) depthSlider.value = maxDepth;
+  const depthLevel = parseInt(depthSlider.value) || maxDepth;
+  document.getElementById('depth-value').textContent = depthLevel;
+
+  function getGroupKey(path, depth) {
+    const parts = path.split('/');
+    if (depth >= parts.length) return path; // Individual file
+    return parts.slice(0, depth).join('/');
+  }
+
+  // Build groups by folder depth
+  const groups = new Map();
+  for (const node of codeNodes) {
+    const key = getGroupKey(node.path, depthLevel);
+    if (!groups.has(key)) {
+      const isFile = depthLevel >= node.path.split('/').length;
+      groups.set(key, {
+        name: key.split('/').pop() + (isFile ? '' : '/'),
+        fullPath: key,
+        files: [],
+        imports: 0,
+        importedBy: 0,
+        isFolder: !isFile
+      });
+    }
+    const g = groups.get(key);
+    g.files.push(node);
+    g.imports += node.imports.length;
+    g.importedBy += node.importedBy.length;
+  }
+
+  // Sort groups based on sort mode
   const sortMode = document.getElementById('sort-mode').value;
-  const sortedFiles = [...codeNodes].sort((a, b) =>
-    sortMode === 'used' ? b.importedBy.length - a.importedBy.length : b.imports.length - a.imports.length
+  topGroups = [...groups.values()].sort((a, b) =>
+    sortMode === 'used' ? b.importedBy - a.importedBy : b.imports - a.imports
   );
 
-  // Get issue file paths from anti-patterns
-  const issueFilePaths = new Set();
-  if (depGraph.antiPatterns) {
-    for (const ap of depGraph.antiPatterns) {
-      for (const f of ap.files) { issueFilePaths.add(f); }
+  // Build index mapping file paths to their group index
+  const groupIndex = new Map();
+  topGroups.forEach((g, i) => {
+    for (const f of g.files) {
+      groupIndex.set(f.path, i);
     }
-  }
-
-  // Always include issue files first, then fill with top sorted files
-  const includedPaths = new Set();
-  const selectedFiles = [];
-  for (const f of codeNodes) {
-    if (issueFilePaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
-  }
-  for (const f of sortedFiles) {
-    if (selectedFiles.length >= maxItems) break;
-    if (!includedPaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
-  }
-
-  topGroups = selectedFiles.map(f => ({
-    name: f.path.split('/').pop(),
-    fullPath: f.path,
-    files: [f],
-    imports: f.imports.length,
-    importedBy: f.importedBy.length
-  }));
-  const groupIndex = new Map(topGroups.map((g, i) => [g.fullPath, i]));
+  });
 
   // Build adjacency matrix
   const n = topGroups.length;
@@ -61,7 +77,11 @@ function renderDepGraph() {
     const toIdx = groupIndex.get(edge.to);
     if (fromIdx !== undefined && toIdx !== undefined) { matrix[fromIdx][toIdx]++; }
   }
-  for (let i = 0; i < n; i++) { matrix[i][i] = Math.max(matrix[i][i], 2); }
+  // Only set diagonal for groups with connections (not orphans)
+  for (let i = 0; i < n; i++) {
+    const hasConnections = topGroups[i].imports > 0 || topGroups[i].importedBy > 0;
+    if (hasConnections) { matrix[i][i] = Math.max(matrix[i][i], 2); }
+  }
 
   const availableHeight = window.innerHeight - 200;
   const availableWidth = container.clientWidth;
@@ -94,8 +114,10 @@ function renderDepGraph() {
         path: g.fullPath,
         imports: g.imports,
         importedBy: g.importedBy,
-        showImportsList: true,
-        nodeData: node
+        showImportsList: !g.isFolder,
+        nodeData: node,
+        fileCount: g.files.length,
+        isFolder: g.isFolder
       });
       showTooltip(html, e);
     })

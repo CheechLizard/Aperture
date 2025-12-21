@@ -17,7 +17,7 @@ function hideTooltip() {
 }
 
 function buildFileTooltip(opts) {
-  const { path, language, loc, imports, importedBy, showImportsList, nodeData } = opts;
+  const { path, language, loc, imports, importedBy, showImportsList, nodeData, fileCount, isFolder } = opts;
   const pathParts = path.split('/');
   const fileName = pathParts.pop();
   const dirPath = pathParts.join('/');
@@ -26,9 +26,11 @@ function buildFileTooltip(opts) {
   if (dirPath) {
     html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + dirPath + '</div>';
   }
-  html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
+  html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + (isFolder ? '/' : '') + '</div>';
 
-  if (language && loc !== undefined) {
+  if (isFolder && fileCount) {
+    html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + fileCount + ' files</div>';
+  } else if (language && loc !== undefined) {
     html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + language + ' · ' + loc.toLocaleString() + ' lines</div>';
   }
 
@@ -50,7 +52,9 @@ function buildFileTooltip(opts) {
     }
   }
 
-  html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+  if (!isFolder) {
+    html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+  }
   return html;
 }
 

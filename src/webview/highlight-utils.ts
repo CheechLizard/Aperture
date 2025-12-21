@@ -44,9 +44,9 @@ function highlightIssueFiles(files) {
 
   // Highlight ribbons where source or target matches
   document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
-    const source = ribbon.getAttribute('data-source');
-    const target = ribbon.getAttribute('data-target');
-    if (files.includes(source) || files.includes(target)) {
+    const from = ribbon.getAttribute('data-from');
+    const to = ribbon.getAttribute('data-to');
+    if (files.includes(from) || files.includes(to)) {
       ribbon.classList.add('highlighted');
     }
   });

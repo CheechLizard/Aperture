@@ -76,6 +76,12 @@ document.getElementById('sort-mode').addEventListener('change', () => {
   }
 });
 
+document.getElementById('show-orphans').addEventListener('change', () => {
+  if (depGraph) {
+    renderDepGraph();
+  }
+});
+
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
@@ -157,7 +163,7 @@ function cycleIssueColors() {
 
   // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0
+  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);  // 0.65 to 0.75
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
 
   // Cycle highlighted treemap nodes

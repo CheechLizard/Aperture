@@ -10683,7 +10683,7 @@ var DASHBOARD_STYLES = `
     #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
+    .node.highlighted { }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
     .chat-panel.collapsed .chat-body { display: none; }
@@ -10740,7 +10740,7 @@ var DASHBOARD_STYLES = `
     .view-toggle button:not(.active):hover { background: var(--vscode-list-hoverBackground); }
     .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
-    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
+    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
     .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -10754,7 +10754,7 @@ var DASHBOARD_STYLES = `
     .chord-group { cursor: pointer; }
     .chord-group:hover .chord-arc { opacity: 0.8; }
     .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; transition: opacity 0.2s; }
-    .chord-arc.highlighted { stroke: #fff; stroke-width: 3px; }
+    .chord-arc.highlighted { }
     .chord-ribbon { fill-opacity: 0.6; transition: opacity 0.2s; }
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
@@ -10825,7 +10825,7 @@ function hideTooltip() {
 }
 
 function buildFileTooltip(opts) {
-  const { path, language, loc, imports, importedBy, showImportsList, nodeData } = opts;
+  const { path, language, loc, imports, importedBy, showImportsList, nodeData, fileCount, isFolder } = opts;
   const pathParts = path.split('/');
   const fileName = pathParts.pop();
   const dirPath = pathParts.join('/');
@@ -10834,9 +10834,11 @@ function buildFileTooltip(opts) {
   if (dirPath) {
     html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + dirPath + '</div>';
   }
-  html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
+  html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + (isFolder ? '/' : '') + '</div>';
 
-  if (language && loc !== undefined) {
+  if (isFolder && fileCount) {
+    html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + fileCount + ' files</div>';
+  } else if (language && loc !== undefined) {
     html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + language + ' \xB7 ' + loc.toLocaleString() + ' lines</div>';
   }
 
@@ -10858,7 +10860,9 @@ function buildFileTooltip(opts) {
     }
   }
 
-  html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+  if (!isFolder) {
+    html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+  }
   return html;
 }
 
@@ -11113,9 +11117,11 @@ function renderDepGraph() {
   const container = document.getElementById('dep-chord');
   container.innerHTML = '';
 
-  // Filter to code files with connections
+  // Filter to code files, optionally including orphans
+  const showOrphans = document.getElementById('show-orphans').checked;
   const codeNodes = depGraph.nodes.filter(n =>
-    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) && (n.imports.length > 0 || n.importedBy.length > 0)
+    /\\.(ts|tsx|js|jsx|lua|py|go|rs)$/.test(n.path) &&
+    (showOrphans || n.imports.length > 0 || n.importedBy.length > 0)
   );
 
   renderStats(codeNodes.length, depGraph.edges.length);
@@ -11126,40 +11132,54 @@ function renderDepGraph() {
     return;
   }
 
-  // Build file-based groups for chord diagram
-  const maxItems = parseInt(document.getElementById('depth-slider').value) || 30;
+  // Calculate max depth and update slider
+  const maxDepth = Math.max(...codeNodes.map(n => n.path.split('/').length));
+  const depthSlider = document.getElementById('depth-slider');
+  depthSlider.max = maxDepth;
+  if (parseInt(depthSlider.value) > maxDepth) depthSlider.value = maxDepth;
+  const depthLevel = parseInt(depthSlider.value) || maxDepth;
+  document.getElementById('depth-value').textContent = depthLevel;
+
+  function getGroupKey(path, depth) {
+    const parts = path.split('/');
+    if (depth >= parts.length) return path; // Individual file
+    return parts.slice(0, depth).join('/');
+  }
+
+  // Build groups by folder depth
+  const groups = new Map();
+  for (const node of codeNodes) {
+    const key = getGroupKey(node.path, depthLevel);
+    if (!groups.has(key)) {
+      const isFile = depthLevel >= node.path.split('/').length;
+      groups.set(key, {
+        name: key.split('/').pop() + (isFile ? '' : '/'),
+        fullPath: key,
+        files: [],
+        imports: 0,
+        importedBy: 0,
+        isFolder: !isFile
+      });
+    }
+    const g = groups.get(key);
+    g.files.push(node);
+    g.imports += node.imports.length;
+    g.importedBy += node.importedBy.length;
+  }
+
+  // Sort groups based on sort mode
   const sortMode = document.getElementById('sort-mode').value;
-  const sortedFiles = [...codeNodes].sort((a, b) =>
-    sortMode === 'used' ? b.importedBy.length - a.importedBy.length : b.imports.length - a.imports.length
+  topGroups = [...groups.values()].sort((a, b) =>
+    sortMode === 'used' ? b.importedBy - a.importedBy : b.imports - a.imports
   );
 
-  // Get issue file paths from anti-patterns
-  const issueFilePaths = new Set();
-  if (depGraph.antiPatterns) {
-    for (const ap of depGraph.antiPatterns) {
-      for (const f of ap.files) { issueFilePaths.add(f); }
+  // Build index mapping file paths to their group index
+  const groupIndex = new Map();
+  topGroups.forEach((g, i) => {
+    for (const f of g.files) {
+      groupIndex.set(f.path, i);
     }
-  }
-
-  // Always include issue files first, then fill with top sorted files
-  const includedPaths = new Set();
-  const selectedFiles = [];
-  for (const f of codeNodes) {
-    if (issueFilePaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
-  }
-  for (const f of sortedFiles) {
-    if (selectedFiles.length >= maxItems) break;
-    if (!includedPaths.has(f.path)) { selectedFiles.push(f); includedPaths.add(f.path); }
-  }
-
-  topGroups = selectedFiles.map(f => ({
-    name: f.path.split('/').pop(),
-    fullPath: f.path,
-    files: [f],
-    imports: f.imports.length,
-    importedBy: f.importedBy.length
-  }));
-  const groupIndex = new Map(topGroups.map((g, i) => [g.fullPath, i]));
+  });
 
   // Build adjacency matrix
   const n = topGroups.length;
@@ -11169,7 +11189,11 @@ function renderDepGraph() {
     const toIdx = groupIndex.get(edge.to);
     if (fromIdx !== undefined && toIdx !== undefined) { matrix[fromIdx][toIdx]++; }
   }
-  for (let i = 0; i < n; i++) { matrix[i][i] = Math.max(matrix[i][i], 2); }
+  // Only set diagonal for groups with connections (not orphans)
+  for (let i = 0; i < n; i++) {
+    const hasConnections = topGroups[i].imports > 0 || topGroups[i].importedBy > 0;
+    if (hasConnections) { matrix[i][i] = Math.max(matrix[i][i], 2); }
+  }
 
   const availableHeight = window.innerHeight - 200;
   const availableWidth = container.clientWidth;
@@ -11202,8 +11226,10 @@ function renderDepGraph() {
         path: g.fullPath,
         imports: g.imports,
         importedBy: g.importedBy,
-        showImportsList: true,
-        nodeData: node
+        showImportsList: !g.isFolder,
+        nodeData: node,
+        fileCount: g.files.length,
+        isFolder: g.isFolder
       });
       showTooltip(html, e);
     })
@@ -11296,9 +11322,9 @@ function highlightIssueFiles(files) {
 
   // Highlight ribbons where source or target matches
   document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
-    const source = ribbon.getAttribute('data-source');
-    const target = ribbon.getAttribute('data-target');
-    if (files.includes(source) || files.includes(target)) {
+    const from = ribbon.getAttribute('data-from');
+    const to = ribbon.getAttribute('data-to');
+    if (files.includes(from) || files.includes(to)) {
       ribbon.classList.add('highlighted');
     }
   });
@@ -11695,6 +11721,12 @@ document.getElementById('sort-mode').addEventListener('change', () => {
   }
 });
 
+document.getElementById('show-orphans').addEventListener('change', () => {
+  if (depGraph) {
+    renderDepGraph();
+  }
+});
+
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
@@ -11776,7 +11808,7 @@ function cycleIssueColors() {
 
   // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0
+  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);  // 0.65 to 0.75
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
 
   // Cycle highlighted treemap nodes
@@ -11872,9 +11904,12 @@ function getDashboardContent(data, antiPatterns) {
             </select>
           </div>
           <div class="dep-control-row">
-            <label>Files:</label>
-            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="${data.totals.files}">
-            <span id="depth-value" class="slider-value">${data.totals.files}</span>
+            <label>Depth:</label>
+            <input type="range" id="depth-slider" min="1" max="10" value="10">
+            <span id="depth-value" class="slider-value">10</span>
+          </div>
+          <div class="dep-control-row">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="show-orphans"> Show orphans</label>
           </div>
         </div>
       </div>

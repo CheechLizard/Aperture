@@ -11,7 +11,7 @@ export const DASHBOARD_STYLES = `
     #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
+    .node.highlighted { }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
     .chat-panel.collapsed .chat-body { display: none; }
@@ -68,7 +68,7 @@ export const DASHBOARD_STYLES = `
     .view-toggle button:not(.active):hover { background: var(--vscode-list-hoverBackground); }
     .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
-    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
+    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
     .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -82,7 +82,7 @@ export const DASHBOARD_STYLES = `
     .chord-group { cursor: pointer; }
     .chord-group:hover .chord-arc { opacity: 0.8; }
     .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; transition: opacity 0.2s; }
-    .chord-arc.highlighted { stroke: #fff; stroke-width: 3px; }
+    .chord-arc.highlighted { }
     .chord-ribbon { fill-opacity: 0.6; transition: opacity 0.2s; }
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
