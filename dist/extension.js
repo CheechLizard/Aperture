@@ -10683,7 +10683,6 @@ var DASHBOARD_STYLES = `
     #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .node.dimmed { opacity: 0.2; }
     .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
@@ -10755,10 +10754,8 @@ var DASHBOARD_STYLES = `
     .chord-group { cursor: pointer; }
     .chord-group:hover .chord-arc { opacity: 0.8; }
     .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; transition: opacity 0.2s; }
-    .chord-arc.dimmed { opacity: 0.15; }
     .chord-arc.highlighted { stroke: #fff; stroke-width: 3px; }
     .chord-ribbon { fill-opacity: 0.6; transition: opacity 0.2s; }
-    .chord-ribbon.dimmed { opacity: 0.1; }
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
@@ -10879,12 +10876,12 @@ function buildEdgeTooltip(opts) {
 // src/webview/treemap.ts
 var TREEMAP_SCRIPT = `
 const COLORS = {
-  'TypeScript': '#3178c6', 'JavaScript': '#f0db4f', 'Lua': '#9b59b6',
-  'JSON': '#27ae60', 'HTML': '#e34c26', 'CSS': '#e91e63',
-  'Markdown': '#795548', 'Python': '#2ecc71', 'Shell': '#89e051',
-  'Go': '#00add8', 'Rust': '#dea584'
+  'TypeScript': '#1e4a75', 'JavaScript': '#8a7a20', 'Lua': '#5c3570',
+  'JSON': '#1a6b3d', 'HTML': '#8a2d15', 'CSS': '#8a1745',
+  'Markdown': '#4a3328', 'Python': '#1c7a45', 'Shell': '#527a30',
+  'Go': '#006a85', 'Rust': '#8a6350'
 };
-const DEFAULT_COLOR = '#808080';
+const DEFAULT_COLOR = '#4a4a4a';
 
 function buildHierarchy(files) {
   const root = { name: 'root', children: [] };
@@ -11003,7 +11000,6 @@ function renderLegend() {
 window.addEventListener('resize', () => {
   if (currentView === 'treemap') {
     render();
-    applyPersistentIssueHighlights();
   }
 });
 `;
@@ -11260,23 +11256,20 @@ function updateStatusButton() {
 }
 
 function highlightIssueFiles(files) {
-  // Clear previous highlights
+  // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
-  });
-  document.querySelectorAll('.node.dimmed, .chord-arc.dimmed, .chord-ribbon.dimmed').forEach(el => {
-    el.classList.remove('dimmed');
+    el.style.removeProperty('fill');
+    el.style.removeProperty('fill-opacity');
   });
 
   if (files.length === 0) return;
 
-  // Dim all nodes and highlight matching ones
+  // Highlight matching nodes
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
     if (files.includes(path)) {
       node.classList.add('highlighted');
-    } else {
-      node.classList.add('dimmed');
     }
   });
 
@@ -11285,8 +11278,6 @@ function highlightIssueFiles(files) {
     const path = arc.getAttribute('data-path');
     if (files.includes(path)) {
       arc.classList.add('highlighted');
-    } else {
-      arc.classList.add('dimmed');
     }
   });
 
@@ -11296,8 +11287,6 @@ function highlightIssueFiles(files) {
     const target = ribbon.getAttribute('data-target');
     if (files.includes(source) || files.includes(target)) {
       ribbon.classList.add('highlighted');
-    } else {
-      ribbon.classList.add('dimmed');
     }
   });
 }
@@ -11319,13 +11308,9 @@ function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
-    if (relevantFiles.length === 0) {
-      node.classList.remove('dimmed', 'highlighted');
-    } else if (relevantFiles.includes(path)) {
-      node.classList.remove('dimmed');
+    if (relevantFiles.includes(path)) {
       node.classList.add('highlighted');
     } else {
-      node.classList.add('dimmed');
       node.classList.remove('highlighted');
     }
   });
@@ -11479,6 +11464,11 @@ function renderAntiPatterns() {
       const files = item.getAttribute('data-files').split(',').filter(f => f);
       const type = item.getAttribute('data-type');
       const description = item.getAttribute('data-description');
+      // Save selected element type before DOM rebuild
+      const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
+        ? selectedElement.getAttribute('data-type') : null;
+      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
+
       ignoredPatterns.push({ type, files, description });
       const expandedState = getExpandedState();
       renderAntiPatterns();
@@ -11487,10 +11477,19 @@ function renderAntiPatterns() {
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
-      // Clear dimming if no active patterns remain
-      if (issueFileMap.size === 0) {
-        highlightIssueFiles([]);
+
+      // Restore selectedElement reference after DOM rebuild
+      if (selectedType) {
+        const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
+        if (newHeader) selectedElement = newHeader;
+      } else if (wasStatusSelected) {
+        selectedElement = document.getElementById('status');
       }
+
+      // Update selection: keep only files still in issueFileMap
+      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
+      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
+      highlightIssueFiles(stillValid);
     });
   });
 
@@ -11511,6 +11510,14 @@ function renderAntiPatterns() {
       e.stopPropagation();
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
+      const restoredItem = ignoredPatterns[idx];
+      const restoredType = restoredItem.type;
+
+      // Check if a pattern header of the same type is currently selected
+      const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
+        ? selectedElement.getAttribute('data-type') : null;
+      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
+
       ignoredPatterns.splice(idx, 1);
       const expandedState = getExpandedState();
       renderAntiPatterns();
@@ -11519,9 +11526,31 @@ function renderAntiPatterns() {
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
-      // Re-apply highlighting with active pattern files
-      const allFiles = [...issueFileMap.keys()];
-      highlightIssueFiles(allFiles);
+
+      // Restore selectedElement reference after DOM rebuild
+      if (wasStatusSelected) {
+        selectedElement = document.getElementById('status');
+      } else if (selectedType && selectedType !== restoredType) {
+        // Different type was selected, restore that reference
+        const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
+        if (newHeader) selectedElement = newHeader;
+      }
+
+      // If restored item's type matches selected type, re-select the group to include restored files
+      if (selectedType === restoredType) {
+        const newHeader = document.querySelector('.pattern-header[data-type="' + restoredType + '"]');
+        if (newHeader) {
+          selectedElement = newHeader;
+          const allFiles = newHeader.getAttribute('data-files').split(',').filter(f => f);
+          highlightIssueFiles(allFiles);
+          return;
+        }
+      }
+
+      // Otherwise keep current highlights, filtering out invalid
+      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
+      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
+      highlightIssueFiles(stillValid);
     });
   });
 }
@@ -11673,12 +11702,6 @@ renderAntiPatterns();
 applyPersistentIssueHighlights();
 renderFooterStats();
 
-// Apply initial dimming if anti-patterns exist
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const allIssueFiles = initialAntiPatterns.flatMap(ap => ap.files);
-  highlightIssueFiles(allIssueFiles);
-}
-
 // Status button click - highlight all active (non-ignored) anti-pattern files
 document.getElementById('status').addEventListener('click', () => {
   // Reset previous selection and track new one
@@ -11716,83 +11739,28 @@ function cycleIssueColors() {
 
   // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
-  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
-  const dimmedAlpha = 0.15 + 0.05 * Math.sin(pulsePhase);  // subtle pulse for dimmed
+  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
 
-  // Cycle treemap node fills - only highlighted nodes get rainbow, dimmed just pulse
-  const allNodes = document.querySelectorAll('.node');
-  allNodes.forEach(node => {
-    const nodePath = node.getAttribute('data-path');
-    const isHighlighted = node.classList.contains('highlighted');
-    const isDimmed = node.classList.contains('dimmed');
-    if (nodePath && issueFileMap.has(nodePath)) {
-      if (isHighlighted) {
-        node.style.setProperty('fill', color, 'important');
-        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      } else if (isDimmed) {
-        node.style.removeProperty('fill');
-        node.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
-      } else {
-        node.style.setProperty('fill', color, 'important');
-        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      }
-    } else {
-      node.style.removeProperty('fill');
-      node.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted treemap nodes
+  document.querySelectorAll('.node.highlighted').forEach(node => {
+    node.style.setProperty('fill', color, 'important');
+    node.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle chord arc fills - only highlighted arcs get rainbow
-  const allArcs = document.querySelectorAll('.chord-arc');
-  allArcs.forEach(arc => {
-    const arcPath = arc.getAttribute('data-path');
-    const isHighlighted = arc.classList.contains('highlighted');
-    const isDimmed = arc.classList.contains('dimmed');
-    if (arcPath && issueFileMap.has(arcPath)) {
-      if (isHighlighted) {
-        arc.style.setProperty('fill', color, 'important');
-        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      } else if (isDimmed) {
-        arc.style.removeProperty('fill');
-        arc.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
-      } else {
-        arc.style.setProperty('fill', color, 'important');
-        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      }
-    } else {
-      arc.style.removeProperty('fill');
-      arc.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted chord arcs
+  document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
+    arc.style.setProperty('fill', color, 'important');
+    arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle chord ribbon fills - only highlighted ribbons get rainbow
-  const allRibbons = document.querySelectorAll('.chord-ribbon');
-  allRibbons.forEach(ribbon => {
-    const fromPath = ribbon.getAttribute('data-from');
-    const toPath = ribbon.getAttribute('data-to');
-    const fromIssue = fromPath && issueFileMap.has(fromPath);
-    const toIssue = toPath && issueFileMap.has(toPath);
-    const isHighlighted = ribbon.classList.contains('highlighted');
-    const isDimmed = ribbon.classList.contains('dimmed');
-    if (fromIssue || toIssue) {
-      if (isHighlighted) {
-        ribbon.style.setProperty('fill', color, 'important');
-        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
-      } else if (isDimmed) {
-        ribbon.style.removeProperty('fill');
-        ribbon.style.setProperty('fill-opacity', (dimmedAlpha * 0.5).toString(), 'important');
-      } else {
-        ribbon.style.setProperty('fill', color, 'important');
-        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
-      }
-    } else {
-      ribbon.style.removeProperty('fill');
-      ribbon.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted chord ribbons
+  document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
+    ribbon.style.setProperty('fill', color, 'important');
+    ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
   });
 
-  // Only cycle the selected button if it's still in the DOM
+  // Cycle the selected sidebar button
   if (selectedElement && selectedElement.isConnected) {
     const bgColor = color.replace('#', 'rgba(')
       .replace(/(..)(..)(..)/, (_, r, g, b) =>

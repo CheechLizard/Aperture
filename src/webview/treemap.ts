@@ -1,11 +1,11 @@
 export const TREEMAP_SCRIPT = `
 const COLORS = {
-  'TypeScript': '#3178c6', 'JavaScript': '#f0db4f', 'Lua': '#9b59b6',
-  'JSON': '#27ae60', 'HTML': '#e34c26', 'CSS': '#e91e63',
-  'Markdown': '#795548', 'Python': '#2ecc71', 'Shell': '#89e051',
-  'Go': '#00add8', 'Rust': '#dea584'
+  'TypeScript': '#1e4a75', 'JavaScript': '#8a7a20', 'Lua': '#5c3570',
+  'JSON': '#1a6b3d', 'HTML': '#8a2d15', 'CSS': '#8a1745',
+  'Markdown': '#4a3328', 'Python': '#1c7a45', 'Shell': '#527a30',
+  'Go': '#006a85', 'Rust': '#8a6350'
 };
-const DEFAULT_COLOR = '#808080';
+const DEFAULT_COLOR = '#4a4a4a';
 
 function buildHierarchy(files) {
   const root = { name: 'root', children: [] };
@@ -124,7 +124,6 @@ function renderLegend() {
 window.addEventListener('resize', () => {
   if (currentView === 'treemap') {
     render();
-    applyPersistentIssueHighlights();
   }
 });
 `;

@@ -143,6 +143,11 @@ function renderAntiPatterns() {
       const files = item.getAttribute('data-files').split(',').filter(f => f);
       const type = item.getAttribute('data-type');
       const description = item.getAttribute('data-description');
+      // Save selected element type before DOM rebuild
+      const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
+        ? selectedElement.getAttribute('data-type') : null;
+      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
+
       ignoredPatterns.push({ type, files, description });
       const expandedState = getExpandedState();
       renderAntiPatterns();
@@ -151,10 +156,19 @@ function renderAntiPatterns() {
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
-      // Clear dimming if no active patterns remain
-      if (issueFileMap.size === 0) {
-        highlightIssueFiles([]);
+
+      // Restore selectedElement reference after DOM rebuild
+      if (selectedType) {
+        const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
+        if (newHeader) selectedElement = newHeader;
+      } else if (wasStatusSelected) {
+        selectedElement = document.getElementById('status');
       }
+
+      // Update selection: keep only files still in issueFileMap
+      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
+      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
+      highlightIssueFiles(stillValid);
     });
   });
 
@@ -175,6 +189,14 @@ function renderAntiPatterns() {
       e.stopPropagation();
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
+      const restoredItem = ignoredPatterns[idx];
+      const restoredType = restoredItem.type;
+
+      // Check if a pattern header of the same type is currently selected
+      const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
+        ? selectedElement.getAttribute('data-type') : null;
+      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
+
       ignoredPatterns.splice(idx, 1);
       const expandedState = getExpandedState();
       renderAntiPatterns();
@@ -183,9 +205,31 @@ function renderAntiPatterns() {
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
-      // Re-apply highlighting with active pattern files
-      const allFiles = [...issueFileMap.keys()];
-      highlightIssueFiles(allFiles);
+
+      // Restore selectedElement reference after DOM rebuild
+      if (wasStatusSelected) {
+        selectedElement = document.getElementById('status');
+      } else if (selectedType && selectedType !== restoredType) {
+        // Different type was selected, restore that reference
+        const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
+        if (newHeader) selectedElement = newHeader;
+      }
+
+      // If restored item's type matches selected type, re-select the group to include restored files
+      if (selectedType === restoredType) {
+        const newHeader = document.querySelector('.pattern-header[data-type="' + restoredType + '"]');
+        if (newHeader) {
+          selectedElement = newHeader;
+          const allFiles = newHeader.getAttribute('data-files').split(',').filter(f => f);
+          highlightIssueFiles(allFiles);
+          return;
+        }
+      }
+
+      // Otherwise keep current highlights, filtering out invalid
+      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
+      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
+      highlightIssueFiles(stillValid);
     });
   });
 }

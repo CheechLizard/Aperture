@@ -96,12 +96,6 @@ renderAntiPatterns();
 applyPersistentIssueHighlights();
 renderFooterStats();
 
-// Apply initial dimming if anti-patterns exist
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const allIssueFiles = initialAntiPatterns.flatMap(ap => ap.files);
-  highlightIssueFiles(allIssueFiles);
-}
-
 // Status button click - highlight all active (non-ignored) anti-pattern files
 document.getElementById('status').addEventListener('click', () => {
   // Reset previous selection and track new one
@@ -139,83 +133,28 @@ function cycleIssueColors() {
 
   // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
-  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
-  const dimmedAlpha = 0.15 + 0.05 * Math.sin(pulsePhase);  // subtle pulse for dimmed
+  const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
 
-  // Cycle treemap node fills - only highlighted nodes get rainbow, dimmed just pulse
-  const allNodes = document.querySelectorAll('.node');
-  allNodes.forEach(node => {
-    const nodePath = node.getAttribute('data-path');
-    const isHighlighted = node.classList.contains('highlighted');
-    const isDimmed = node.classList.contains('dimmed');
-    if (nodePath && issueFileMap.has(nodePath)) {
-      if (isHighlighted) {
-        node.style.setProperty('fill', color, 'important');
-        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      } else if (isDimmed) {
-        node.style.removeProperty('fill');
-        node.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
-      } else {
-        node.style.setProperty('fill', color, 'important');
-        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      }
-    } else {
-      node.style.removeProperty('fill');
-      node.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted treemap nodes
+  document.querySelectorAll('.node.highlighted').forEach(node => {
+    node.style.setProperty('fill', color, 'important');
+    node.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle chord arc fills - only highlighted arcs get rainbow
-  const allArcs = document.querySelectorAll('.chord-arc');
-  allArcs.forEach(arc => {
-    const arcPath = arc.getAttribute('data-path');
-    const isHighlighted = arc.classList.contains('highlighted');
-    const isDimmed = arc.classList.contains('dimmed');
-    if (arcPath && issueFileMap.has(arcPath)) {
-      if (isHighlighted) {
-        arc.style.setProperty('fill', color, 'important');
-        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      } else if (isDimmed) {
-        arc.style.removeProperty('fill');
-        arc.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
-      } else {
-        arc.style.setProperty('fill', color, 'important');
-        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
-      }
-    } else {
-      arc.style.removeProperty('fill');
-      arc.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted chord arcs
+  document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
+    arc.style.setProperty('fill', color, 'important');
+    arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle chord ribbon fills - only highlighted ribbons get rainbow
-  const allRibbons = document.querySelectorAll('.chord-ribbon');
-  allRibbons.forEach(ribbon => {
-    const fromPath = ribbon.getAttribute('data-from');
-    const toPath = ribbon.getAttribute('data-to');
-    const fromIssue = fromPath && issueFileMap.has(fromPath);
-    const toIssue = toPath && issueFileMap.has(toPath);
-    const isHighlighted = ribbon.classList.contains('highlighted');
-    const isDimmed = ribbon.classList.contains('dimmed');
-    if (fromIssue || toIssue) {
-      if (isHighlighted) {
-        ribbon.style.setProperty('fill', color, 'important');
-        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
-      } else if (isDimmed) {
-        ribbon.style.removeProperty('fill');
-        ribbon.style.setProperty('fill-opacity', (dimmedAlpha * 0.5).toString(), 'important');
-      } else {
-        ribbon.style.setProperty('fill', color, 'important');
-        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
-      }
-    } else {
-      ribbon.style.removeProperty('fill');
-      ribbon.style.removeProperty('fill-opacity');
-    }
+  // Cycle highlighted chord ribbons
+  document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
+    ribbon.style.setProperty('fill', color, 'important');
+    ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
   });
 
-  // Only cycle the selected button if it's still in the DOM
+  // Cycle the selected sidebar button
   if (selectedElement && selectedElement.isConnected) {
     const bgColor = color.replace('#', 'rgba(')
       .replace(/(..)(..)(..)/, (_, r, g, b) =>

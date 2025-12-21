@@ -14,23 +14,20 @@ function updateStatusButton() {
 }
 
 function highlightIssueFiles(files) {
-  // Clear previous highlights
+  // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
-  });
-  document.querySelectorAll('.node.dimmed, .chord-arc.dimmed, .chord-ribbon.dimmed').forEach(el => {
-    el.classList.remove('dimmed');
+    el.style.removeProperty('fill');
+    el.style.removeProperty('fill-opacity');
   });
 
   if (files.length === 0) return;
 
-  // Dim all nodes and highlight matching ones
+  // Highlight matching nodes
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
     if (files.includes(path)) {
       node.classList.add('highlighted');
-    } else {
-      node.classList.add('dimmed');
     }
   });
 
@@ -39,8 +36,6 @@ function highlightIssueFiles(files) {
     const path = arc.getAttribute('data-path');
     if (files.includes(path)) {
       arc.classList.add('highlighted');
-    } else {
-      arc.classList.add('dimmed');
     }
   });
 
@@ -50,8 +45,6 @@ function highlightIssueFiles(files) {
     const target = ribbon.getAttribute('data-target');
     if (files.includes(source) || files.includes(target)) {
       ribbon.classList.add('highlighted');
-    } else {
-      ribbon.classList.add('dimmed');
     }
   });
 }
@@ -73,13 +66,9 @@ function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
-    if (relevantFiles.length === 0) {
-      node.classList.remove('dimmed', 'highlighted');
-    } else if (relevantFiles.includes(path)) {
-      node.classList.remove('dimmed');
+    if (relevantFiles.includes(path)) {
       node.classList.add('highlighted');
     } else {
-      node.classList.add('dimmed');
       node.classList.remove('highlighted');
     }
   });

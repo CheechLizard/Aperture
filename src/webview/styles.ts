@@ -11,7 +11,6 @@ export const DASHBOARD_STYLES = `
     #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .node.dimmed { opacity: 0.2; }
     .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
@@ -83,10 +82,8 @@ export const DASHBOARD_STYLES = `
     .chord-group { cursor: pointer; }
     .chord-group:hover .chord-arc { opacity: 0.8; }
     .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; transition: opacity 0.2s; }
-    .chord-arc.dimmed { opacity: 0.15; }
     .chord-arc.highlighted { stroke: #fff; stroke-width: 3px; }
     .chord-ribbon { fill-opacity: 0.6; transition: opacity 0.2s; }
-    .chord-ribbon.dimmed { opacity: 0.1; }
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
