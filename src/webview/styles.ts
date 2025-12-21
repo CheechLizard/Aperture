@@ -5,11 +5,11 @@ export const DASHBOARD_STYLES = `
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-langs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
-    #treemap { width: 100%; height: 100%; }
+    #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.dimmed { opacity: 0.2; }
-    .node.highlighted { stroke: #fff; stroke-width: 3px; }
+    .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
     .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -59,8 +59,8 @@ export const DASHBOARD_STYLES = `
     .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
-    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; }
-    .dep-container { display: none; width: 100%; height: 100%; }
+    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
     .dep-chord svg { display: block; }
     .dep-controls { display: none; position: absolute; bottom: 20px; left: 20px; background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; border: 1px solid var(--vscode-widget-border); z-index: 10; }

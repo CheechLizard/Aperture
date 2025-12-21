@@ -1,5 +1,6 @@
 import { ProjectData, AntiPattern } from './types';
 import { DASHBOARD_STYLES } from './webview/styles';
+import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_SCRIPT } from './webview/treemap';
 import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
@@ -133,6 +134,8 @@ if (initialAntiPatterns && initialAntiPatterns.length > 0) {
   document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
   selectedElement = document.getElementById('status');
 }
+
+${TOOLTIP_SCRIPT}
 
 ${TREEMAP_SCRIPT}
 

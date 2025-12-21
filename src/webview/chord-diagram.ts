@@ -4,7 +4,6 @@ function renderDepGraph() {
 
   const container = document.getElementById('dep-chord');
   container.innerHTML = '';
-  const tooltip = document.querySelector('.tooltip');
 
   // Filter to code files with connections
   const codeNodes = depGraph.nodes.filter(n =>
@@ -91,21 +90,17 @@ function renderDepGraph() {
     .on('mouseover', (e, d) => {
       const g = topGroups[d.index];
       const node = nodeLookup.get(g.fullPath);
-      const pathParts = g.fullPath.split('/');
-      const fileName = pathParts.pop();
-      let html = '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + pathParts.join('/') + '</div>';
-      html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
-      html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + g.imports + ' imports out · ' + g.importedBy + ' imports in</div>';
-      if (node && node.imports && node.imports.length > 0) {
-        html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;"><strong style="font-size:11px;">Imports:</strong></div>';
-        for (const imp of node.imports.slice(0, 5)) { html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + imp.split('/').pop() + '</div>'; }
-        if (node.imports.length > 5) { html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (node.imports.length - 5) + ' more</div>'; }
-      }
-      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
-      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+      const html = buildFileTooltip({
+        path: g.fullPath,
+        imports: g.imports,
+        importedBy: g.importedBy,
+        showImportsList: true,
+        nodeData: node
+      });
+      showTooltip(html, e);
     })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + topGroups[d.index].fullPath }); });
 
   group.append('text').attr('class', 'chord-label')
@@ -126,15 +121,16 @@ function renderDepGraph() {
     .on('mouseover', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
-      let html = '<strong>' + topGroups[d.source.index].name + '</strong> → <strong>' + topGroups[d.target.index].name + '</strong>';
-      if (edge && edge.code) {
-        html += '<br><code style="font-size:11px;background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:2px;display:block;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">' + escapeHtml(edge.code) + '</code>';
-        html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:4px;">Line ' + edge.line + ' · Click to open</div>';
-      } else { html += '<br>' + d.source.value + ' dependencies'; }
-      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+      const html = buildEdgeTooltip({
+        fromName: topGroups[d.source.index].name,
+        toName: topGroups[d.target.index].name,
+        code: edge ? edge.code : null,
+        line: edge ? edge.line : null
+      });
+      showTooltip(html, e);
     })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);

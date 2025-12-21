@@ -31,7 +31,6 @@ function render() {
   container.innerHTML = '';
   const width = container.clientWidth;
   const height = container.clientHeight || 400;
-  const tooltip = document.querySelector('.tooltip');
 
   const rootData = buildHierarchy(files);
   const hierarchy = d3.hierarchy(rootData).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
@@ -49,7 +48,6 @@ function render() {
   const leaves = hierarchy.leaves();
 
   const getColor = (d) => COLORS[d.data.language] || DEFAULT_COLOR;
-  const getTooltip = (d) => '<strong>' + d.data.path + '</strong><br>' + d.data.language + ' · ' + d.value.toLocaleString() + ' LOC';
 
   svg.selectAll('rect.node').data(leaves).join('rect')
     .attr('class', 'node')
@@ -57,9 +55,12 @@ function render() {
     .attr('x', d => d.x0).attr('y', d => d.y0)
     .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
     .attr('fill', getColor)
-    .on('mouseover', (e, d) => { tooltip.style.display = 'block'; tooltip.innerHTML = getTooltip(d); })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mouseover', (e, d) => {
+      const html = buildFileTooltip({ path: d.data.path, language: d.data.language, loc: d.value });
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path }); });
 
   // Depth 1: Top-level headers (folders or patterns)

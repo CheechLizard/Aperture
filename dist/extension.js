@@ -10677,11 +10677,11 @@ var DASHBOARD_STYLES = `
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-langs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
-    #treemap { width: 100%; height: 100%; }
+    #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.dimmed { opacity: 0.2; }
-    .node.highlighted { stroke: #fff; stroke-width: 3px; }
+    .node.highlighted { stroke: rgba(255,255,255,0.6); stroke-width: 1.5px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
     .chat { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
     .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -10731,8 +10731,8 @@ var DASHBOARD_STYLES = `
     .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
-    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; }
-    .dep-container { display: none; width: 100%; height: 100%; }
+    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
     .dep-chord svg { display: block; }
     .dep-controls { display: none; position: absolute; bottom: 20px; left: 20px; background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; border: 1px solid var(--vscode-widget-border); z-index: 10; }
@@ -10797,6 +10797,74 @@ var DASHBOARD_STYLES = `
     }
 `;
 
+// src/webview/tooltip.ts
+var TOOLTIP_SCRIPT = `
+const tooltipEl = document.querySelector('.tooltip');
+
+function showTooltip(html, e) {
+  tooltipEl.innerHTML = html;
+  tooltipEl.style.display = 'block';
+  positionTooltip(e);
+}
+
+function positionTooltip(e) {
+  tooltipEl.style.left = (e.pageX + 10) + 'px';
+  tooltipEl.style.top = (e.pageY + 10) + 'px';
+}
+
+function hideTooltip() {
+  tooltipEl.style.display = 'none';
+}
+
+function buildFileTooltip(opts) {
+  const { path, language, loc, imports, importedBy, showImportsList, nodeData } = opts;
+  const pathParts = path.split('/');
+  const fileName = pathParts.pop();
+  const dirPath = pathParts.join('/');
+
+  let html = '';
+  if (dirPath) {
+    html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + dirPath + '</div>';
+  }
+  html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
+
+  if (language && loc !== undefined) {
+    html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + language + ' \xB7 ' + loc.toLocaleString() + ' lines</div>';
+  }
+
+  if (imports !== undefined || importedBy !== undefined) {
+    const stats = [];
+    if (imports !== undefined) stats.push(imports + ' imports out');
+    if (importedBy !== undefined) stats.push(importedBy + ' imports in');
+    html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + stats.join(' \xB7 ') + '</div>';
+  }
+
+  if (showImportsList && nodeData && nodeData.imports && nodeData.imports.length > 0) {
+    html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;">';
+    html += '<strong style="font-size:11px;">Imports:</strong></div>';
+    for (const imp of nodeData.imports.slice(0, 5)) {
+      html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + imp.split('/').pop() + '</div>';
+    }
+    if (nodeData.imports.length > 5) {
+      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (nodeData.imports.length - 5) + ' more</div>';
+    }
+  }
+
+  html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
+  return html;
+}
+
+function buildEdgeTooltip(opts) {
+  const { fromName, toName, code, line } = opts;
+  let html = '<strong>' + fromName + '</strong> \u2192 <strong>' + toName + '</strong>';
+  if (code) {
+    html += '<br><code style="font-size:11px;background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:2px;display:block;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">' + escapeHtml(code) + '</code>';
+    html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:4px;">Line ' + line + ' \xB7 Click to open</div>';
+  }
+  return html;
+}
+`;
+
 // src/webview/treemap.ts
 var TREEMAP_SCRIPT = `
 const COLORS = {
@@ -10831,7 +10899,6 @@ function render() {
   container.innerHTML = '';
   const width = container.clientWidth;
   const height = container.clientHeight || 400;
-  const tooltip = document.querySelector('.tooltip');
 
   const rootData = buildHierarchy(files);
   const hierarchy = d3.hierarchy(rootData).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
@@ -10849,7 +10916,6 @@ function render() {
   const leaves = hierarchy.leaves();
 
   const getColor = (d) => COLORS[d.data.language] || DEFAULT_COLOR;
-  const getTooltip = (d) => '<strong>' + d.data.path + '</strong><br>' + d.data.language + ' \xB7 ' + d.value.toLocaleString() + ' LOC';
 
   svg.selectAll('rect.node').data(leaves).join('rect')
     .attr('class', 'node')
@@ -10857,9 +10923,12 @@ function render() {
     .attr('x', d => d.x0).attr('y', d => d.y0)
     .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
     .attr('fill', getColor)
-    .on('mouseover', (e, d) => { tooltip.style.display = 'block'; tooltip.innerHTML = getTooltip(d); })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mouseover', (e, d) => {
+      const html = buildFileTooltip({ path: d.data.path, language: d.data.language, loc: d.value });
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path }); });
 
   // Depth 1: Top-level headers (folders or patterns)
@@ -10991,7 +11060,6 @@ function renderDepGraph() {
 
   const container = document.getElementById('dep-chord');
   container.innerHTML = '';
-  const tooltip = document.querySelector('.tooltip');
 
   // Filter to code files with connections
   const codeNodes = depGraph.nodes.filter(n =>
@@ -11078,21 +11146,17 @@ function renderDepGraph() {
     .on('mouseover', (e, d) => {
       const g = topGroups[d.index];
       const node = nodeLookup.get(g.fullPath);
-      const pathParts = g.fullPath.split('/');
-      const fileName = pathParts.pop();
-      let html = '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + pathParts.join('/') + '</div>';
-      html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
-      html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + g.imports + ' imports out \xB7 ' + g.importedBy + ' imports in</div>';
-      if (node && node.imports && node.imports.length > 0) {
-        html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;"><strong style="font-size:11px;">Imports:</strong></div>';
-        for (const imp of node.imports.slice(0, 5)) { html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + imp.split('/').pop() + '</div>'; }
-        if (node.imports.length > 5) { html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (node.imports.length - 5) + ' more</div>'; }
-      }
-      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
-      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+      const html = buildFileTooltip({
+        path: g.fullPath,
+        imports: g.imports,
+        importedBy: g.importedBy,
+        showImportsList: true,
+        nodeData: node
+      });
+      showTooltip(html, e);
     })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + topGroups[d.index].fullPath }); });
 
   group.append('text').attr('class', 'chord-label')
@@ -11113,15 +11177,16 @@ function renderDepGraph() {
     .on('mouseover', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
-      let html = '<strong>' + topGroups[d.source.index].name + '</strong> \u2192 <strong>' + topGroups[d.target.index].name + '</strong>';
-      if (edge && edge.code) {
-        html += '<br><code style="font-size:11px;background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:2px;display:block;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">' + escapeHtml(edge.code) + '</code>';
-        html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:4px;">Line ' + edge.line + ' \xB7 Click to open</div>';
-      } else { html += '<br>' + d.source.value + ' dependencies'; }
-      tooltip.style.display = 'block'; tooltip.innerHTML = html;
+      const html = buildEdgeTooltip({
+        fromName: topGroups[d.source.index].name,
+        toName: topGroups[d.target.index].name,
+        code: edge ? edge.code : null,
+        line: edge ? edge.line : null
+      });
+      showTooltip(html, e);
     })
-    .on('mousemove', e => { tooltip.style.left = (e.pageX + 10) + 'px'; tooltip.style.top = (e.pageY + 10) + 'px'; })
-    .on('mouseout', () => { tooltip.style.display = 'none'; })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
@@ -11470,6 +11535,12 @@ renderRules();
 renderAntiPatterns();
 applyPersistentIssueHighlights();
 
+// Apply initial dimming if anti-patterns exist
+if (initialAntiPatterns && initialAntiPatterns.length > 0) {
+  const allIssueFiles = initialAntiPatterns.flatMap(ap => ap.files);
+  highlightIssueFiles(allIssueFiles);
+}
+
 // Status button click - highlight all anti-pattern files
 document.getElementById('status').addEventListener('click', () => {
   // Reset previous selection and track new one
@@ -11508,43 +11579,74 @@ function cycleIssueColors() {
   const pulsePhase = (cycleTime * 1000 / 750) * 2 * Math.PI;
   const alpha = 0.6 + 0.4 * Math.sin(pulsePhase);  // 0.2 to 1.0 for arcs
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5 for ribbons
+  const dimmedAlpha = 0.15 + 0.05 * Math.sin(pulsePhase);  // subtle pulse for dimmed
 
-  // Cycle treemap node fills - check issueFileMap directly like chord arcs
+  // Cycle treemap node fills - only highlighted nodes get rainbow, dimmed just pulse
   const allNodes = document.querySelectorAll('.node');
   allNodes.forEach(node => {
     const nodePath = node.getAttribute('data-path');
+    const isHighlighted = node.classList.contains('highlighted');
+    const isDimmed = node.classList.contains('dimmed');
     if (nodePath && issueFileMap.has(nodePath)) {
-      node.style.setProperty('fill', color, 'important');
-      node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      if (isHighlighted) {
+        node.style.setProperty('fill', color, 'important');
+        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      } else if (isDimmed) {
+        node.style.removeProperty('fill');
+        node.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
+      } else {
+        node.style.setProperty('fill', color, 'important');
+        node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      }
     } else {
       node.style.removeProperty('fill');
       node.style.removeProperty('fill-opacity');
     }
   });
 
-  // Cycle chord arc fills - check issueFileMap directly
+  // Cycle chord arc fills - only highlighted arcs get rainbow
   const allArcs = document.querySelectorAll('.chord-arc');
   allArcs.forEach(arc => {
     const arcPath = arc.getAttribute('data-path');
+    const isHighlighted = arc.classList.contains('highlighted');
+    const isDimmed = arc.classList.contains('dimmed');
     if (arcPath && issueFileMap.has(arcPath)) {
-      arc.style.setProperty('fill', color, 'important');
-      arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      if (isHighlighted) {
+        arc.style.setProperty('fill', color, 'important');
+        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      } else if (isDimmed) {
+        arc.style.removeProperty('fill');
+        arc.style.setProperty('fill-opacity', dimmedAlpha.toString(), 'important');
+      } else {
+        arc.style.setProperty('fill', color, 'important');
+        arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      }
     } else {
       arc.style.removeProperty('fill');
       arc.style.removeProperty('fill-opacity');
     }
   });
 
-  // Cycle chord ribbon fills - check issueFileMap directly for each ribbon
+  // Cycle chord ribbon fills - only highlighted ribbons get rainbow
   const allRibbons = document.querySelectorAll('.chord-ribbon');
   allRibbons.forEach(ribbon => {
     const fromPath = ribbon.getAttribute('data-from');
     const toPath = ribbon.getAttribute('data-to');
     const fromIssue = fromPath && issueFileMap.has(fromPath);
     const toIssue = toPath && issueFileMap.has(toPath);
+    const isHighlighted = ribbon.classList.contains('highlighted');
+    const isDimmed = ribbon.classList.contains('dimmed');
     if (fromIssue || toIssue) {
-      ribbon.style.setProperty('fill', color, 'important');
-      ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+      if (isHighlighted) {
+        ribbon.style.setProperty('fill', color, 'important');
+        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+      } else if (isDimmed) {
+        ribbon.style.removeProperty('fill');
+        ribbon.style.setProperty('fill-opacity', (dimmedAlpha * 0.5).toString(), 'important');
+      } else {
+        ribbon.style.setProperty('fill', color, 'important');
+        ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+      }
     } else {
       ribbon.style.removeProperty('fill');
       ribbon.style.removeProperty('fill-opacity');
@@ -11689,6 +11791,8 @@ if (initialAntiPatterns && initialAntiPatterns.length > 0) {
   document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
   selectedElement = document.getElementById('status');
 }
+
+${TOOLTIP_SCRIPT}
 
 ${TREEMAP_SCRIPT}
 
