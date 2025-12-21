@@ -279,8 +279,8 @@ function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): st
           </div>
           <div class="dep-control-row">
             <label>Files:</label>
-            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="30">
-            <span id="depth-value" class="slider-value">30</span>
+            <input type="range" id="depth-slider" min="5" max="${data.totals.files}" value="${data.totals.files}">
+            <span id="depth-value" class="slider-value">${data.totals.files}</span>
           </div>
         </div>
         <div id="dep-stats" class="dep-stats"></div>
@@ -517,6 +517,12 @@ function renderDepGraph() {
     }
   }
 
+  // Ensure minimum arc size for all files (prevents invisible arcs)
+  const minArcValue = 2;
+  for (let i = 0; i < n; i++) {
+    matrix[i][i] = Math.max(matrix[i][i], minArcValue);
+  }
+
   const availableHeight = window.innerHeight - 200;
   const availableWidth = container.clientWidth;
   const size = Math.min(availableWidth, availableHeight, 800);
@@ -562,22 +568,27 @@ function renderDepGraph() {
     .on('mouseover', (e, d) => {
       const g = topGroups[d.index];
       const node = nodeLookup.get(g.fullPath);
-      let html = '<strong>' + g.fullPath + '</strong>';
-      html += '<br>' + g.imports + ' imports out · ' + g.importedBy + ' imports in';
+      const pathParts = g.fullPath.split('/');
+      const fileName = pathParts.pop();
+      const folderPath = pathParts.join('/');
 
-      // Show first few imports with code
-      if (node && node.importDetails && node.importDetails.length > 0) {
-        html += '<div style="margin-top:8px;border-top:1px solid var(--vscode-widget-border);padding-top:6px;"><strong>Imports:</strong></div>';
-        const showImports = node.importDetails.slice(0, 3);
+      let html = '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">' + folderPath + '</div>';
+      html += '<div style="font-size:16px;font-weight:bold;margin:4px 0 8px 0;">' + fileName + '</div>';
+      html += '<div style="font-size:11px;color:var(--vscode-descriptionForeground);">' + g.imports + ' imports out · ' + g.importedBy + ' imports in</div>';
+
+      // Show imported files
+      if (node && node.imports && node.imports.length > 0) {
+        html += '<div style="margin-top:10px;border-top:1px solid var(--vscode-widget-border);padding-top:8px;"><strong style="font-size:11px;">Imports:</strong></div>';
+        const showImports = node.imports.slice(0, 5);
         for (const imp of showImports) {
-          html += '<div style="font-size:10px;margin-top:4px;"><span style="color:var(--vscode-textLink-foreground);">' + imp.targetPath.split('/').pop() + '</span>';
-          html += '<code style="font-size:10px;background:rgba(0,0,0,0.3);padding:1px 3px;border-radius:2px;margin-left:4px;display:inline-block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(imp.code) + '</code></div>';
+          const impFile = imp.split('/').pop();
+          html += '<div style="font-size:10px;color:var(--vscode-textLink-foreground);margin-top:3px;">' + impFile + '</div>';
         }
-        if (node.importDetails.length > 3) {
-          html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);">...and ' + (node.importDetails.length - 3) + ' more</div>';
+        if (node.imports.length > 5) {
+          html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:3px;">...and ' + (node.imports.length - 5) + ' more</div>';
         }
       }
-      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:6px;">Click to open file</div>';
+      html += '<div style="font-size:10px;color:var(--vscode-descriptionForeground);margin-top:8px;">Click to open file</div>';
 
       tooltip.style.display = 'block';
       tooltip.innerHTML = html;
@@ -602,7 +613,7 @@ function renderDepGraph() {
     .attr('text-anchor', d => d.angle > Math.PI ? 'end' : null)
     .text(d => {
       const name = topGroups[d.index].name;
-      return name.length > 15 ? '...' + name.slice(-12) : name;
+      return name.length > 15 ? name.slice(0, 12) + '...' : name;
     });
 
   // Build edge lookup for tooltips: key = "from|to", value = edge details
