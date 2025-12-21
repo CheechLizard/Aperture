@@ -318,19 +318,20 @@ function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): st
     .pattern-header.low { background: rgba(127, 140, 141, 0.2); border-left: 3px solid #7f8c8d; }
     .pattern-chevron { transition: transform 0.2s; font-size: 0.8em; }
     .pattern-chevron.expanded { transform: rotate(90deg); }
-    .pattern-title { flex: 1; font-weight: 600; }
-    .pattern-count { font-size: 0.8em; color: #fff; background: #555; padding: 2px 6px; border-radius: 10px; }
+    .pattern-title { font-weight: 600; }
+    .pattern-count { font-size: 0.8em; color: #fff; background: #555; padding: 2px 6px; border-radius: 10px; margin-left: 6px; }
+    .pattern-spacer { flex: 1; }
     .pattern-items { display: none; padding-left: 16px; margin-top: 4px; }
     .pattern-items.expanded { display: block; }
     .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); }
     .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
     .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
     .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
-    .pattern-item-row { display: flex; align-items: flex-start; gap: 8px; }
+    .pattern-item-row { display: flex; align-items: center; gap: 8px; }
     .pattern-item-content { flex: 1; }
-    .pattern-ignore-btn { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 0; font-size: 1em; line-height: 1; opacity: 0.6; }
-    .pattern-ignore-btn:hover { opacity: 1; color: var(--vscode-errorForeground); }
-    .pattern-rules-toggle { background: none; border: 1px solid var(--vscode-descriptionForeground); color: var(--vscode-descriptionForeground); cursor: pointer; padding: 2px 6px; font-size: 0.7em; border-radius: 3px; margin-left: 4px; }
+    .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; color: #000; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; font-size: 0.7em; line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
+    .pattern-ignore-btn:hover { opacity: 1; background: var(--vscode-errorForeground); }
+    .pattern-rules-toggle { background: none; border: 1px solid var(--vscode-descriptionForeground); color: var(--vscode-descriptionForeground); cursor: pointer; padding: 4px 8px; font-size: 0.8em; border-radius: 3px; }
     .pattern-rules-toggle:hover { border-color: var(--vscode-focusBorder); color: var(--vscode-foreground); }
     .pattern-rules-toggle.active { background: var(--vscode-button-background); border-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }
     .ignored-section { margin-top: 12px; border-top: 1px solid var(--vscode-widget-border); padding-top: 8px; }
@@ -920,7 +921,8 @@ function renderAntiPatterns() {
         '<span class="pattern-chevron">&#9654;</span>' +
         '<span class="pattern-title">' + group.type + '</span>' +
         '<span class="pattern-count">' + group.items.length + '</span>' +
-        '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="Add to CLAUDE.md rules">rules</button>' +
+        '<span class="pattern-spacer"></span>' +
+        '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button>' +
       '</div>' +
       '<div class="pattern-items">' + itemsHtml + '</div>' +
     '</div>';
@@ -985,10 +987,14 @@ function renderAntiPatterns() {
       if (isActive) {
         activeRules.delete(patternType);
         btn.classList.remove('active');
+        btn.textContent = '+ rule';
+        btn.title = 'Add to CLAUDE.md rules';
         vscode.postMessage({ command: 'removeRule', patternType: patternType });
       } else {
         activeRules.add(patternType);
         btn.classList.add('active');
+        btn.textContent = '- rule';
+        btn.title = 'Remove from CLAUDE.md rules';
         vscode.postMessage({ command: 'addRule', patternType: patternType });
       }
     });
