@@ -10720,18 +10720,19 @@ function getDashboardContent(data, antiPatterns) {
   <title>Aperture Dashboard</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
-    h1 { margin: 0 0 10px 0; font-size: 1.5em; }
-    .summary { display: flex; gap: 30px; margin-bottom: 15px; }
-    .stat-value { font-size: 1.8em; font-weight: bold; color: var(--vscode-textLink-foreground); }
-    .stat-label { color: var(--vscode-descriptionForeground); font-size: 0.9em; }
-    #treemap { width: 100%; height: 400px; }
+    body { font-family: var(--vscode-font-family); padding: 12px 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
+    .footer { display: flex; gap: 24px; align-items: center; padding: 10px 0; border-top: 1px solid var(--vscode-widget-border); margin-top: 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+    .footer-stat { display: flex; gap: 6px; align-items: baseline; }
+    .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
+    .footer-langs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
+    #treemap { width: 100%; height: 100%; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.dimmed { opacity: 0.2; }
     .node.highlighted { stroke: #fff; stroke-width: 3px; }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
-    .chat { margin-top: 20px; border-top: 1px solid var(--vscode-widget-border); padding-top: 15px; }
+    .chat { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
     .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
     .chat-input input { flex: 1; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); color: var(--vscode-input-foreground); }
     .chat-input button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
@@ -10749,7 +10750,7 @@ function getDashboardContent(data, antiPatterns) {
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
-    .view-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
+    .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -10772,43 +10773,51 @@ function getDashboardContent(data, antiPatterns) {
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .view-toggle { display: flex; border: 1px solid var(--vscode-widget-border); border-radius: 4px; overflow: hidden; margin-right: 10px; }
-    .view-toggle button { padding: 6px 12px; border: none; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 0.85em; }
+    .view-toggle { display: flex; border: 1px solid var(--vscode-widget-border); border-radius: 6px; overflow: hidden; }
+    .view-toggle button { padding: 10px 20px; border: none; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 1.1em; font-weight: 500; }
     .view-toggle button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
     .view-toggle button:not(.active):hover { background: var(--vscode-list-hoverBackground); }
-    .dep-container { display: none; width: 100%; }
-    .dep-split { display: flex; gap: 16px; height: calc(100vh - 180px); }
-    .dep-chord { flex: 3; display: flex; align-items: center; justify-content: center; }
+    .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
+    .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
+    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
+    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+    .dep-container { display: none; width: 100%; height: 100%; }
+    .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
     .dep-chord svg { display: block; }
-    .dep-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; }
-    .dep-controls { margin-bottom: 12px; }
+    .dep-controls { display: none; position: absolute; bottom: 20px; left: 20px; background: var(--vscode-editor-background); padding: 8px; border-radius: 6px; border: 1px solid var(--vscode-widget-border); z-index: 10; }
+    .dep-controls.visible { display: block; }
     .dep-control-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 6px; }
     .dep-control-row label { font-size: 0.85em; white-space: nowrap; }
     .dep-control-row input[type="range"] { flex: 1; min-width: 80px; }
     .dep-control-row .slider-value { font-size: 0.85em; min-width: 24px; text-align: right; color: var(--vscode-textLink-foreground); font-weight: bold; }
     .chord-group { cursor: pointer; }
     .chord-group:hover .chord-arc { opacity: 0.8; }
-    .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; }
-    .chord-ribbon { fill-opacity: 0.6; }
+    .chord-arc { stroke: var(--vscode-editor-background); stroke-width: 1px; transition: opacity 0.2s; }
+    .chord-arc.dimmed { opacity: 0.15; }
+    .chord-arc.highlighted { stroke: #fff; stroke-width: 3px; }
+    .chord-ribbon { fill-opacity: 0.6; transition: opacity 0.2s; }
+    .chord-ribbon.dimmed { opacity: 0.1; }
+    .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
     .anti-patterns { margin: 0; }
-    .anti-patterns h3 { margin: 0 0 12px 0; font-size: 1em; border-bottom: 1px solid var(--vscode-widget-border); padding-bottom: 8px; }
-    .anti-pattern { padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; }
-    .anti-pattern:hover { opacity: 0.9; }
-    .anti-pattern.high { background: rgba(231, 76, 60, 0.2); border-left: 3px solid #e74c3c; }
-    .anti-pattern.medium { background: rgba(243, 156, 18, 0.2); border-left: 3px solid #f39c12; }
-    .anti-pattern.low { background: rgba(127, 140, 141, 0.2); border-left: 3px solid #7f8c8d; }
-    .anti-pattern-type { font-weight: 600; text-transform: uppercase; font-size: 0.7em; margin-bottom: 4px; letter-spacing: 0.5px; }
-    .anti-pattern-desc { color: var(--vscode-foreground); line-height: 1.4; }
-    .anti-pattern-files { font-size: 0.8em; color: var(--vscode-descriptionForeground); margin-top: 4px; }
-    .dep-stats { padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 12px; font-size: 0.85em; }
-    .dep-stats div { margin-bottom: 4px; }
-    .dep-stats strong { color: var(--vscode-textLink-foreground); }
-    .stat-warning { color: var(--vscode-editorWarning-foreground, #cca700); }
-    .unsupported-langs { margin-bottom: 15px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; font-size: 0.85em; }
-    .unsupported-label { color: var(--vscode-descriptionForeground); margin-right: 8px; }
-    .unsupported-lang { display: inline-block; padding: 2px 8px; margin: 2px 4px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); }
+    .pattern-group { margin-bottom: 8px; }
+    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .pattern-header:hover { opacity: 0.9; }
+    .pattern-header.high { background: rgba(231, 76, 60, 0.2); border-left: 3px solid #e74c3c; }
+    .pattern-header.medium { background: rgba(243, 156, 18, 0.2); border-left: 3px solid #f39c12; }
+    .pattern-header.low { background: rgba(127, 140, 141, 0.2); border-left: 3px solid #7f8c8d; }
+    .pattern-chevron { transition: transform 0.2s; font-size: 0.8em; }
+    .pattern-chevron.expanded { transform: rotate(90deg); }
+    .pattern-title { flex: 1; font-weight: 600; }
+    .pattern-count { font-size: 0.8em; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); padding: 2px 6px; border-radius: 10px; }
+    .pattern-items { display: none; padding-left: 16px; margin-top: 4px; }
+    .pattern-items.expanded { display: block; }
+    .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
+    .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
+    .dep-stats { display: none; }
 
     /* Issue highlighting - JS animation at 60fps for color cycling + alpha pulsing on fills */
     .node.issue-high, .node.issue-medium, .node.issue-low,
@@ -10819,32 +10828,21 @@ function getDashboardContent(data, antiPatterns) {
   </style>
 </head>
 <body>
-  <h1>Aperture Dashboard</h1>
-  <div class="summary">
-    <div><span class="stat-value">${data.totals.files.toLocaleString()}</span><br><span class="stat-label">Files</span></div>
-    <div><span class="stat-value">${data.totals.loc.toLocaleString()}</span><br><span class="stat-label">Lines of Code</span></div>
-    ${unsupportedCount > 0 ? `<div><span class="stat-value stat-warning">${unsupportedCount}</span><br><span class="stat-label">Unparsed Files</span></div>` : ""}
-  </div>
-  ${unsupportedCount > 0 ? `
-  <div class="unsupported-langs">
-    <span class="unsupported-label">Languages without AST support:</span>
-    ${data.languageSupport.filter((l2) => !l2.isSupported).map(
-    (l2) => '<span class="unsupported-lang">' + l2.language + " (" + l2.fileCount + ")</span>"
-  ).join("")}
-  </div>` : ""}
   <div class="view-controls">
     <div class="view-toggle">
       <button id="view-treemap" class="active">Treemap</button>
       <button id="view-deps">Dependencies</button>
     </div>
-    <span id="status" class="progress-text"></span>
   </div>
-  <div id="treemap"></div>
-  <div id="dep-container" class="dep-container">
-    <div class="dep-split">
-      <div id="dep-chord" class="dep-chord"></div>
-      <div class="dep-sidebar">
-        <div class="dep-controls">
+  <div class="main-split">
+    <div class="main-content">
+      <div class="diagram-area">
+        <div id="treemap"></div>
+        <div id="dep-container" class="dep-container">
+          <div id="dep-chord" class="dep-chord"></div>
+        </div>
+        <div id="legend" class="legend"></div>
+        <div id="dep-controls" class="dep-controls">
           <div class="dep-control-row">
             <label>Sort:</label>
             <select id="sort-mode" style="flex:1;padding:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:3px;">
@@ -10858,24 +10856,31 @@ function getDashboardContent(data, antiPatterns) {
             <span id="depth-value" class="slider-value">${data.totals.files}</span>
           </div>
         </div>
-        <div id="dep-stats" class="dep-stats"></div>
-        <div id="anti-patterns" class="anti-patterns">
-          <h3>Issues Found</h3>
-          <div id="anti-pattern-list"></div>
+      </div>
+      <div class="chat">
+        <div class="chat-input">
+          <input type="text" id="query" placeholder="Ask about this codebase..." />
+          <button id="send">Ask</button>
+          <button class="clear-btn" id="clear" style="display:none;">Clear</button>
         </div>
+        <div id="response" class="response" style="display:none;"></div>
+        <div id="rules" class="rules"></div>
+      </div>
+    </div>
+    <div class="main-sidebar">
+      <div id="dep-stats" class="dep-stats"></div>
+      <div id="status" class="progress-text" style="margin-bottom:12px;"></div>
+      <div id="anti-patterns" class="anti-patterns">
+        <div id="anti-pattern-list"></div>
       </div>
     </div>
   </div>
-  <div id="legend" class="legend"></div>
   <div class="tooltip" style="display:none;"></div>
-  <div class="chat">
-    <div class="chat-input">
-      <input type="text" id="query" placeholder="Ask about this codebase..." />
-      <button id="send">Ask</button>
-      <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-    </div>
-    <div id="response" class="response" style="display:none;"></div>
-    <div id="rules" class="rules"></div>
+  <div class="footer">
+    <div class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</div>
+    <div class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> lines of code</div>
+    <div id="footer-dep-stats"></div>
+    ${unsupportedCount > 0 ? `<div class="footer-langs">${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
   </div>
 
 <script>
@@ -10937,7 +10942,7 @@ function render() {
   const container = document.getElementById('treemap');
   container.innerHTML = '';
   const width = container.clientWidth;
-  const height = 400;
+  const height = container.clientHeight || 400;
   const tooltip = document.querySelector('.tooltip');
 
   const rootData = buildHierarchy(files);
@@ -11249,13 +11254,12 @@ function escapeHtml(text) {
 }
 
 function renderStats(nodeCount, edgeCount) {
-  const stats = document.getElementById('dep-stats');
-  const parserType = (depGraph.debug || []).find(d => d.startsWith('Parser:')) || 'Parser: unknown';
-  stats.innerHTML =
-    '<div><strong>' + nodeCount + '</strong> connected files</div>' +
-    '<div><strong>' + edgeCount + '</strong> dependencies</div>' +
-    '<div><strong>' + depGraph.antiPatterns.length + '</strong> issues found</div>' +
-    '<div style="font-size:0.8em;color:var(--vscode-descriptionForeground);margin-top:4px;">' + parserType + '</div>';
+  // Update footer stats
+  const footerStats = document.getElementById('footer-dep-stats');
+  footerStats.innerHTML =
+    '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>' +
+    '<span class="footer-stat" style="margin-left:16px;"><strong>' + edgeCount + '</strong> dependencies</span>' +
+    '<span class="footer-stat" style="margin-left:16px;"><strong>' + depGraph.antiPatterns.length + '</strong> issues</span>';
 }
 
 // Rebuild issue file map when dependency graph updates
@@ -11323,37 +11327,125 @@ function applyPersistentIssueHighlights() {
 function renderAntiPatterns() {
   const list = document.getElementById('anti-pattern-list');
 
-  if (!depGraph || depGraph.antiPatterns.length === 0) {
+  // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
+  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+
+  if (!antiPatterns || antiPatterns.length === 0) {
     list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
     return;
   }
 
   // Build file->severity map for persistent highlights
-  buildIssueFileMap();
+  if (depGraph) {
+    buildIssueFileMap();
+  }
 
-  // Sort by severity
-  const sorted = [...depGraph.antiPatterns].sort((a, b) => {
-    const order = { high: 0, medium: 1, low: 2 };
-    return order[a.severity] - order[b.severity];
-  });
+  // Group anti-patterns by type
+  const groups = new Map();
+  for (const ap of antiPatterns) {
+    if (!groups.has(ap.type)) {
+      groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [] });
+    }
+    groups.get(ap.type).items.push(ap);
+  }
 
-  list.innerHTML = sorted.map((ap, idx) => {
-    const fileNames = ap.files.map(f => f.split('/').pop()).join(', ');
-    return '<div class="anti-pattern ' + ap.severity + '" data-files="' + ap.files.join(',') + '" data-severity="' + ap.severity + '">' +
-      '<div class="anti-pattern-type">' + ap.type + '</div>' +
-      '<div class="anti-pattern-desc">' + ap.description + '</div>' +
-      '<div class="anti-pattern-files">' + fileNames + '</div>' +
+  // Sort groups by severity (use highest severity in group)
+  const severityOrder = { high: 0, medium: 1, low: 2 };
+  const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  list.innerHTML = sortedGroups.map((group, gIdx) => {
+    const allFiles = group.items.flatMap(item => item.files);
+    const itemsHtml = group.items.map((item, iIdx) => {
+      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
+      return '<div class="pattern-item" data-files="' + item.files.join(',') + '" data-group="' + gIdx + '" data-item="' + iIdx + '">' +
+        '<div class="pattern-item-desc">' + item.description + '</div>' +
+        '<div class="pattern-item-file">' + fileName + '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="pattern-group" data-group="' + gIdx + '">' +
+      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '">' +
+        '<span class="pattern-chevron">&#9654;</span>' +
+        '<span class="pattern-title">' + group.type + '</span>' +
+        '<span class="pattern-count">' + group.items.length + '</span>' +
+      '</div>' +
+      '<div class="pattern-items">' + itemsHtml + '</div>' +
     '</div>';
   }).join('');
 
-  list.querySelectorAll('.anti-pattern').forEach(el => {
-    const files = el.getAttribute('data-files').split(',');
+  // Handle header clicks - expand/collapse and highlight all files
+  list.querySelectorAll('.pattern-header').forEach(header => {
+    const files = header.getAttribute('data-files').split(',').filter(f => f);
+    const group = header.closest('.pattern-group');
+    const chevron = header.querySelector('.pattern-chevron');
+    const items = group.querySelector('.pattern-items');
 
-    el.addEventListener('click', () => {
+    header.addEventListener('click', (e) => {
+      // Toggle expand/collapse
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+
+      // Highlight all files in this pattern group
+      highlightIssueFiles(files);
+    });
+  });
+
+  // Handle individual item clicks - highlight just that item's files
+  list.querySelectorAll('.pattern-item').forEach(item => {
+    const files = item.getAttribute('data-files').split(',').filter(f => f);
+
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Highlight just this item's files
+      highlightIssueFiles(files);
+      // Open the first file
       if (files.length > 0) {
         vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0] });
       }
     });
+  });
+}
+
+function highlightIssueFiles(files) {
+  // Clear previous highlights
+  document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
+    el.classList.remove('highlighted');
+  });
+  document.querySelectorAll('.node.dimmed, .chord-arc.dimmed, .chord-ribbon.dimmed').forEach(el => {
+    el.classList.remove('dimmed');
+  });
+
+  if (files.length === 0) return;
+
+  // Dim all nodes and highlight matching ones
+  document.querySelectorAll('.node').forEach(node => {
+    const path = node.getAttribute('data-path');
+    if (files.includes(path)) {
+      node.classList.add('highlighted');
+    } else {
+      node.classList.add('dimmed');
+    }
+  });
+
+  // Highlight chord arcs
+  document.querySelectorAll('.chord-arc').forEach(arc => {
+    const path = arc.getAttribute('data-path');
+    if (files.includes(path)) {
+      arc.classList.add('highlighted');
+    } else {
+      arc.classList.add('dimmed');
+    }
+  });
+
+  // Highlight ribbons where source or target matches
+  document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
+    const source = ribbon.getAttribute('data-source');
+    const target = ribbon.getAttribute('data-target');
+    if (files.includes(source) || files.includes(target)) {
+      ribbon.classList.add('highlighted');
+    } else {
+      ribbon.classList.add('dimmed');
+    }
   });
 }
 
@@ -11412,6 +11504,7 @@ document.getElementById('view-treemap').addEventListener('click', () => {
     document.getElementById('treemap').style.display = 'block';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('legend').style.display = 'flex';
+    document.getElementById('dep-controls').classList.remove('visible');
     // Apply issue highlights to treemap if dependency data is available
     if (depGraph) {
       applyPersistentIssueHighlights();
@@ -11427,6 +11520,7 @@ document.getElementById('view-deps').addEventListener('click', () => {
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'block';
     document.getElementById('legend').style.display = 'none';
+    document.getElementById('dep-controls').classList.add('visible');
 
     if (!depGraph) {
       document.getElementById('status').textContent = 'Analyzing dependencies...';
@@ -11478,6 +11572,8 @@ window.addEventListener('message', event => {
 render();
 renderLegend();
 renderRules();
+renderAntiPatterns();
+applyPersistentIssueHighlights();
 
 // JavaScript-driven color cycling for issue highlights
 // Smooth sine-wave rainbow cycle (inspired by GLSL shader)
