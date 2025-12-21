@@ -225,6 +225,9 @@ function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): st
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
+    .status-btn { display: block; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; border-left: 3px solid #888; color: var(--vscode-foreground); text-align: left; }
+    .status-btn:hover { opacity: 0.9; }
+    .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
     .pattern-group { margin-bottom: 8px; }
     .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; }
@@ -294,7 +297,7 @@ function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): st
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
-      <div id="status" class="progress-text" style="margin-bottom:12px;"></div>
+      <button id="status" class="status-btn"></button>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
@@ -320,6 +323,7 @@ let currentView = 'treemap';
 let depGraph = null;
 let simulation = null;
 let topGroups = [];
+let selectedElement = null;
 
 // Build issue file map immediately from embedded anti-patterns
 const issueFileMap = new Map();
@@ -333,7 +337,8 @@ if (initialAntiPatterns && initialAntiPatterns.length > 0) {
       }
     }
   }
-  document.getElementById('status').textContent = initialAntiPatterns.length + ' issues found';
+  document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
+  selectedElement = document.getElementById('status');
 }
 
 const COLORS = {
@@ -810,6 +815,13 @@ function renderAntiPatterns() {
       chevron.classList.toggle('expanded');
       items.classList.toggle('expanded');
 
+      // Reset previous selection and track new one
+      if (selectedElement) {
+        selectedElement.style.borderLeftColor = '';
+        selectedElement.style.background = '';
+      }
+      selectedElement = header;
+
       // Highlight all files in this pattern group
       highlightIssueFiles(files);
     });
@@ -1000,6 +1012,20 @@ renderRules();
 renderAntiPatterns();
 applyPersistentIssueHighlights();
 
+// Status button click - highlight all anti-pattern files
+document.getElementById('status').addEventListener('click', () => {
+  // Reset previous selection and track new one
+  if (selectedElement) {
+    selectedElement.style.borderLeftColor = '';
+    selectedElement.style.background = '';
+  }
+  const statusBtn = document.getElementById('status');
+  selectedElement = statusBtn;
+  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const allFiles = antiPatterns.flatMap(ap => ap.files);
+  highlightIssueFiles(allFiles);
+});
+
 // JavaScript-driven color cycling for issue highlights
 // Smooth sine-wave rainbow cycle (inspired by GLSL shader)
 let cycleTime = 0;
@@ -1057,6 +1083,15 @@ function cycleIssueColors() {
       ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
     }
   });
+
+  // Only cycle the selected button
+  if (selectedElement) {
+    const bgColor = color.replace('#', 'rgba(')
+      .replace(/(..)(..)(..)/, (_, r, g, b) =>
+        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
+    selectedElement.style.borderLeftColor = color;
+    selectedElement.style.background = bgColor;
+  }
 }
 
 // Run animation at 60fps (16ms)
