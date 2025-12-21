@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { scanWorkspace } from './scanner';
 import { ProjectData, AntiPattern } from './types';
 import { analyzeQuery } from './agent';
@@ -12,6 +13,82 @@ import { LuaHandler } from './language-handlers/lua-handler';
 let currentData: ProjectData | null = null;
 let currentPanel: vscode.WebviewPanel | null = null;
 let parserInitPromise: Promise<void> | null = null;
+
+const ANTI_PATTERN_RULES: Record<string, string> = {
+  circular: '**Avoid circular dependencies.** Files should not form import cycles.',
+  nexus: '**Avoid nexus/coupling bottlenecks.** Files should not both import many files and be imported by many files.',
+  hub: '**Avoid hub files.** Files should not import a large percentage of the codebase.',
+  orphan: '**Avoid orphan files.** Code files should have imports or dependents.',
+};
+
+const APERTURE_RULES_MARKER = '<!-- Aperture Anti-Pattern Rules -->';
+
+async function addAntiPatternRule(rootPath: string, patternType: string): Promise<void> {
+  const claudeMdPath = path.join(rootPath, 'CLAUDE.md');
+  const rule = ANTI_PATTERN_RULES[patternType];
+  if (!rule) return;
+
+  try {
+    let content = '';
+    if (fs.existsSync(claudeMdPath)) {
+      content = fs.readFileSync(claudeMdPath, 'utf-8');
+    }
+
+    // Check if rule already exists
+    if (content.includes(rule)) return;
+
+    // Find or create the Aperture rules section
+    const ruleEntry = `- ${rule}`;
+    if (content.includes(APERTURE_RULES_MARKER)) {
+      // Add rule to existing section
+      const markerIndex = content.indexOf(APERTURE_RULES_MARKER);
+      const insertIndex = markerIndex + APERTURE_RULES_MARKER.length;
+      content = content.slice(0, insertIndex) + '\n' + ruleEntry + content.slice(insertIndex);
+    } else {
+      // Create new section at end of file
+      const section = `\n\n${APERTURE_RULES_MARKER}\n## Anti-Pattern Rules\n\n${ruleEntry}`;
+      content = content.trimEnd() + section + '\n';
+    }
+
+    fs.writeFileSync(claudeMdPath, content);
+    vscode.window.showInformationMessage(`Added "${patternType}" rule to CLAUDE.md`);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    vscode.window.showErrorMessage(`Failed to update CLAUDE.md: ${msg}`);
+  }
+}
+
+async function removeAntiPatternRule(rootPath: string, patternType: string): Promise<void> {
+  const claudeMdPath = path.join(rootPath, 'CLAUDE.md');
+  const rule = ANTI_PATTERN_RULES[patternType];
+  if (!rule) return;
+
+  try {
+    if (!fs.existsSync(claudeMdPath)) return;
+
+    let content = fs.readFileSync(claudeMdPath, 'utf-8');
+    const ruleEntry = `- ${rule}`;
+
+    if (!content.includes(ruleEntry)) return;
+
+    // Remove the rule line
+    content = content.replace(ruleEntry + '\n', '').replace(ruleEntry, '');
+
+    // Clean up empty section if no rules remain
+    const hasOtherRules = Object.values(ANTI_PATTERN_RULES).some(r => r !== rule && content.includes(r));
+    if (!hasOtherRules && content.includes(APERTURE_RULES_MARKER)) {
+      // Remove the entire section
+      const sectionRegex = new RegExp(`\\n*${APERTURE_RULES_MARKER}\\n## Anti-Pattern Rules\\n*`, 'g');
+      content = content.replace(sectionRegex, '');
+    }
+
+    fs.writeFileSync(claudeMdPath, content.trimEnd() + '\n');
+    vscode.window.showInformationMessage(`Removed "${patternType}" rule from CLAUDE.md`);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    vscode.window.showErrorMessage(`Failed to update CLAUDE.md: ${msg}`);
+  }
+}
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Aperture extension is now active');
@@ -82,6 +159,10 @@ async function openDashboard(context: vscode.ExtensionContext) {
           const msg = error instanceof Error ? error.message : 'Unknown error';
           panel.webview.postMessage({ type: 'dependencyError', message: msg });
         }
+      } else if (message.command === 'addRule') {
+        await addAntiPatternRule(currentData?.root || '', message.patternType);
+      } else if (message.command === 'removeRule') {
+        await removeAntiPatternRule(currentData?.root || '', message.patternType);
       }
     },
     undefined,
@@ -238,13 +319,28 @@ function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): st
     .pattern-chevron { transition: transform 0.2s; font-size: 0.8em; }
     .pattern-chevron.expanded { transform: rotate(90deg); }
     .pattern-title { flex: 1; font-weight: 600; }
-    .pattern-count { font-size: 0.8em; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); padding: 2px 6px; border-radius: 10px; }
+    .pattern-count { font-size: 0.8em; color: #fff; background: #555; padding: 2px 6px; border-radius: 10px; }
     .pattern-items { display: none; padding-left: 16px; margin-top: 4px; }
     .pattern-items.expanded { display: block; }
     .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); }
     .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
     .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
     .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
+    .pattern-item-row { display: flex; align-items: flex-start; gap: 8px; }
+    .pattern-item-content { flex: 1; }
+    .pattern-ignore-btn { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 0; font-size: 1em; line-height: 1; opacity: 0.6; }
+    .pattern-ignore-btn:hover { opacity: 1; color: var(--vscode-errorForeground); }
+    .pattern-rules-toggle { background: none; border: 1px solid var(--vscode-descriptionForeground); color: var(--vscode-descriptionForeground); cursor: pointer; padding: 2px 6px; font-size: 0.7em; border-radius: 3px; margin-left: 4px; }
+    .pattern-rules-toggle:hover { border-color: var(--vscode-focusBorder); color: var(--vscode-foreground); }
+    .pattern-rules-toggle.active { background: var(--vscode-button-background); border-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .ignored-section { margin-top: 12px; border-top: 1px solid var(--vscode-widget-border); padding-top: 8px; }
+    .ignored-header { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 0; color: var(--vscode-descriptionForeground); font-size: 0.8em; }
+    .ignored-header:hover { color: var(--vscode-foreground); }
+    .ignored-items { display: none; padding-left: 8px; }
+    .ignored-items.expanded { display: block; }
+    .ignored-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; margin-bottom: 4px; border-radius: 3px; font-size: 0.75em; background: var(--vscode-editor-inactiveSelectionBackground); color: var(--vscode-descriptionForeground); }
+    .ignored-item-restore { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 0; font-size: 1em; }
+    .ignored-item-restore:hover { text-decoration: underline; }
     .dep-stats { display: none; }
 
     /* Issue highlighting - JS animation at 60fps for color cycling + alpha pulsing on fills */
@@ -324,6 +420,8 @@ let depGraph = null;
 let simulation = null;
 let topGroups = [];
 let selectedElement = null;
+let ignoredPatterns = [];  // Array of {type, files, description} for ignored items
+let activeRules = new Set();  // Set of pattern types added as rules
 
 // Build issue file map immediately from embedded anti-patterns
 const issueFileMap = new Map();
@@ -695,10 +793,16 @@ function renderStats(nodeCount, edgeCount) {
 // Rebuild issue file map when dependency graph updates
 function buildIssueFileMap() {
   issueFileMap.clear();
-  if (!depGraph || !depGraph.antiPatterns) return;
+
+  // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
+  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  if (!antiPatterns) return;
 
   const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of depGraph.antiPatterns) {
+  for (const ap of antiPatterns) {
+    // Skip ignored patterns
+    if (isPatternIgnored(ap)) continue;
+
     for (const file of ap.files) {
       const existing = issueFileMap.get(file);
       if (!existing || severityRank[ap.severity] < severityRank[existing]) {
@@ -754,18 +858,29 @@ function applyPersistentIssueHighlights() {
   });
 }
 
+function isPatternIgnored(ap) {
+  return ignoredPatterns.some(ignored =>
+    ignored.type === ap.type &&
+    ignored.description === ap.description &&
+    JSON.stringify(ignored.files) === JSON.stringify(ap.files)
+  );
+}
+
 function renderAntiPatterns() {
   const list = document.getElementById('anti-pattern-list');
 
   // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
 
-  if (!antiPatterns || antiPatterns.length === 0) {
+  // Filter out ignored patterns
+  const antiPatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
+
+  if (antiPatterns.length === 0 && ignoredPatterns.length === 0) {
     list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
     return;
   }
 
-  // Build file->severity map for persistent highlights
+  // Build file->severity map for persistent highlights (excluding ignored)
   if (depGraph) {
     buildIssueFileMap();
   }
@@ -783,25 +898,54 @@ function renderAntiPatterns() {
   const severityOrder = { high: 0, medium: 1, low: 2 };
   const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-  list.innerHTML = sortedGroups.map((group, gIdx) => {
+  let html = sortedGroups.map((group, gIdx) => {
     const allFiles = group.items.flatMap(item => item.files);
+    const isRuleActive = activeRules.has(group.type);
     const itemsHtml = group.items.map((item, iIdx) => {
       const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      return '<div class="pattern-item" data-files="' + item.files.join(',') + '" data-group="' + gIdx + '" data-item="' + iIdx + '">' +
-        '<div class="pattern-item-desc">' + item.description + '</div>' +
-        '<div class="pattern-item-file">' + fileName + '</div>' +
+      const filesData = item.files.join(',');
+      return '<div class="pattern-item" data-files="' + filesData + '" data-group="' + gIdx + '" data-item="' + iIdx + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
+        '<div class="pattern-item-row">' +
+          '<div class="pattern-item-content">' +
+            '<div class="pattern-item-desc">' + item.description + '</div>' +
+            '<div class="pattern-item-file">' + fileName + '</div>' +
+          '</div>' +
+          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button>' +
+        '</div>' +
       '</div>';
     }).join('');
 
-    return '<div class="pattern-group" data-group="' + gIdx + '">' +
-      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '">' +
+    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '">' +
+      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '" data-type="' + group.type + '">' +
         '<span class="pattern-chevron">&#9654;</span>' +
         '<span class="pattern-title">' + group.type + '</span>' +
         '<span class="pattern-count">' + group.items.length + '</span>' +
+        '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="Add to CLAUDE.md rules">rules</button>' +
       '</div>' +
       '<div class="pattern-items">' + itemsHtml + '</div>' +
     '</div>';
   }).join('');
+
+  // Add ignored items section if there are any
+  if (ignoredPatterns.length > 0) {
+    const ignoredHtml = ignoredPatterns.map((item, idx) => {
+      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
+      return '<div class="ignored-item" data-idx="' + idx + '">' +
+        '<span>' + item.type + ': ' + fileName + '</span>' +
+        '<button class="ignored-item-restore" title="Restore this item">restore</button>' +
+      '</div>';
+    }).join('');
+
+    html += '<div class="ignored-section">' +
+      '<div class="ignored-header">' +
+        '<span class="pattern-chevron">&#9654;</span>' +
+        '<span>Ignored items (' + ignoredPatterns.length + ')</span>' +
+      '</div>' +
+      '<div class="ignored-items">' + ignoredHtml + '</div>' +
+    '</div>';
+  }
+
+  list.innerHTML = html;
 
   // Handle header clicks - expand/collapse and highlight all files
   list.querySelectorAll('.pattern-header').forEach(header => {
@@ -811,6 +955,9 @@ function renderAntiPatterns() {
     const items = group.querySelector('.pattern-items');
 
     header.addEventListener('click', (e) => {
+      // Don't toggle if clicking the rules button
+      if (e.target.classList.contains('pattern-rules-toggle')) return;
+
       // Toggle expand/collapse
       chevron.classList.toggle('expanded');
       items.classList.toggle('expanded');
@@ -827,11 +974,32 @@ function renderAntiPatterns() {
     });
   });
 
+  // Handle rules toggle clicks
+  list.querySelectorAll('.pattern-rules-toggle').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const header = btn.closest('.pattern-header');
+      const patternType = header.getAttribute('data-type');
+      const isActive = btn.classList.contains('active');
+
+      if (isActive) {
+        activeRules.delete(patternType);
+        btn.classList.remove('active');
+        vscode.postMessage({ command: 'removeRule', patternType: patternType });
+      } else {
+        activeRules.add(patternType);
+        btn.classList.add('active');
+        vscode.postMessage({ command: 'addRule', patternType: patternType });
+      }
+    });
+  });
+
   // Handle individual item clicks - highlight just that item's files
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
+    const content = item.querySelector('.pattern-item-content');
 
-    item.addEventListener('click', (e) => {
+    content.addEventListener('click', (e) => {
       e.stopPropagation();
       // Highlight just this item's files
       highlightIssueFiles(files);
@@ -841,6 +1009,61 @@ function renderAntiPatterns() {
       }
     });
   });
+
+  // Handle ignore button clicks
+  list.querySelectorAll('.pattern-ignore-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const item = btn.closest('.pattern-item');
+      const files = item.getAttribute('data-files').split(',').filter(f => f);
+      const type = item.getAttribute('data-type');
+      const description = item.getAttribute('data-description');
+
+      // Add to ignored patterns
+      ignoredPatterns.push({ type, files, description });
+
+      // Re-render
+      renderAntiPatterns();
+      buildIssueFileMap();
+      applyPersistentIssueHighlights();
+      updateStatusButton();
+    });
+  });
+
+  // Handle ignored section expand/collapse
+  const ignoredHeader = list.querySelector('.ignored-header');
+  if (ignoredHeader) {
+    ignoredHeader.addEventListener('click', () => {
+      const chevron = ignoredHeader.querySelector('.pattern-chevron');
+      const items = ignoredHeader.nextElementSibling;
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+    });
+  }
+
+  // Handle restore button clicks
+  list.querySelectorAll('.ignored-item-restore').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const item = btn.closest('.ignored-item');
+      const idx = parseInt(item.getAttribute('data-idx'));
+
+      // Remove from ignored patterns
+      ignoredPatterns.splice(idx, 1);
+
+      // Re-render
+      renderAntiPatterns();
+      buildIssueFileMap();
+      applyPersistentIssueHighlights();
+      updateStatusButton();
+    });
+  });
+}
+
+function updateStatusButton() {
+  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
+  const activeCount = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
+  document.getElementById('status').textContent = activeCount + ' anti-patterns found';
 }
 
 function highlightIssueFiles(files) {
@@ -1058,6 +1281,9 @@ function cycleIssueColors() {
     if (nodePath && issueFileMap.has(nodePath)) {
       node.style.setProperty('fill', color, 'important');
       node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+    } else {
+      node.style.removeProperty('fill');
+      node.style.removeProperty('fill-opacity');
     }
   });
 
@@ -1068,6 +1294,9 @@ function cycleIssueColors() {
     if (arcPath && issueFileMap.has(arcPath)) {
       arc.style.setProperty('fill', color, 'important');
       arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+    } else {
+      arc.style.removeProperty('fill');
+      arc.style.removeProperty('fill-opacity');
     }
   });
 
@@ -1081,11 +1310,14 @@ function cycleIssueColors() {
     if (fromIssue || toIssue) {
       ribbon.style.setProperty('fill', color, 'important');
       ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+    } else {
+      ribbon.style.removeProperty('fill');
+      ribbon.style.removeProperty('fill-opacity');
     }
   });
 
-  // Only cycle the selected button
-  if (selectedElement) {
+  // Only cycle the selected button if it's still in the DOM
+  if (selectedElement && selectedElement.isConnected) {
     const bgColor = color.replace('#', 'rgba(')
       .replace(/(..)(..)(..)/, (_, r, g, b) =>
         parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
