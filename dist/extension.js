@@ -11157,7 +11157,15 @@ Be concise but helpful. Always use the respond tool to provide your final answer
         }
       } else if (toolUse.name === "respond") {
         const input = toolUse.input;
-        return { ...input, usage };
+        return {
+          ...input,
+          usage: {
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            totalTokens: totalInputTokens + totalOutputTokens,
+            contextLimit: CONTEXT_LIMIT
+          }
+        };
       }
     }
     messages.push({ role: "assistant", content: response.content });
@@ -11586,16 +11594,16 @@ var DASHBOARD_STYLES = `
     .header-center { position: relative; }
     .ai-input-wrapper { display: flex; align-items: center; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 5px 5px 5px 0; }
     .ai-input-wrapper:focus-within { border-color: var(--vscode-focusBorder); }
-    .ai-input-wrapper input { width: 260px; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
+    .ai-input-wrapper input { width: 520px; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
     .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     /* AI Dropdown Panel */
-    .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
+    .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
     .ai-dropdown.visible { display: block; }
-    .ai-response { padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; white-space: pre-wrap; margin-top: 8px; display: none; font-size: 0.85em; }
+    .ai-response { padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; white-space: pre-wrap; display: none; font-size: 0.9em; line-height: 1.5; }
     .ai-response.visible { display: block; }
     .ai-dropdown .clear-btn { display: none; margin-top: 8px; padding: 4px 10px; font-size: 0.8em; background: transparent; border: 1px solid var(--vscode-widget-border); color: var(--vscode-foreground); border-radius: 4px; cursor: pointer; }
     .ai-dropdown .clear-btn.visible { display: inline-block; }
@@ -11612,10 +11620,12 @@ var DASHBOARD_STYLES = `
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.highlighted { }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
-    .thinking { display: inline-block; } .thinking::after { content: ''; animation: dots 1.5s infinite; } @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60%, 100% { content: '...'; } }
-    .rules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-    .rule-btn { padding: 4px 10px; font-size: 0.75em; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; cursor: pointer; }
-    .rule-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .thinking { display: flex; align-items: center; gap: 10px; padding: 12px; }
+    .thinking-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rules { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .rule-btn { padding: 6px 14px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; transition: background 0.15s; }
+    .rule-btn:hover { background: rgba(255, 255, 255, 0.2); }
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
@@ -12839,7 +12849,7 @@ window.addEventListener('message', event => {
   if (msg.type === 'thinking') {
     const resp = document.getElementById('response');
     resp.classList.add('visible');
-    resp.innerHTML = '<span class="thinking">Analyzing</span>';
+    resp.innerHTML = '<div class="thinking"><div class="thinking-spinner"></div><span>Analyzing...</span></div>';
     document.getElementById('ai-dropdown').classList.add('visible');
   } else if (msg.type === 'response') {
     document.getElementById('response').classList.remove('thinking');
@@ -13492,8 +13502,8 @@ function getDashboardContent(data, architectureIssues) {
         </div>
       </div>
       <div id="ai-dropdown" class="ai-dropdown">
-        <div id="rules" class="rules"></div>
         <div id="response" class="ai-response"></div>
+        <div id="rules" class="rules"></div>
         <button class="clear-btn" id="clear">Clear</button>
       </div>
     </div>

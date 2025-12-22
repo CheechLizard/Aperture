@@ -84,7 +84,7 @@ window.addEventListener('message', event => {
   if (msg.type === 'thinking') {
     const resp = document.getElementById('response');
     resp.classList.add('visible');
-    resp.innerHTML = '<span class="thinking">Analyzing</span>';
+    resp.innerHTML = '<div class="thinking"><div class="thinking-spinner"></div><span>Analyzing...</span></div>';
     document.getElementById('ai-dropdown').classList.add('visible');
   } else if (msg.type === 'response') {
     document.getElementById('response').classList.remove('thinking');
