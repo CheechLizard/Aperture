@@ -13113,7 +13113,7 @@ function renderDistributionChart() {
         .sum(d => d.value || 0)
         .sort((a, b) => b.value - a.value);
 
-      d3.treemap().size([width, height]).padding(2)(funcHierarchy);
+      d3.treemap().size([width, height]).paddingTop(18).paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(2)(funcHierarchy);
       funcLeaves = funcHierarchy.leaves();
     }
   }
