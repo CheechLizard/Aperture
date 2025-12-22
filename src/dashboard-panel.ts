@@ -31,13 +31,17 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
   panel.webview.onDidReceiveMessage(
     async (message) => {
       if (message.command === 'openFile') {
-        const uri = vscode.Uri.file(message.path);
-        const doc = await vscode.window.showTextDocument(uri);
-        if (message.line && message.line > 0) {
-          const line = Math.max(0, message.line - 1);
-          const position = new vscode.Position(line, 0);
-          doc.selection = new vscode.Selection(position, position);
-          doc.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+        try {
+          const uri = vscode.Uri.file(message.path);
+          const options: { selection?: vscode.Range } = {};
+          if (message.line && message.line > 0) {
+            const line = Math.max(0, message.line - 1);
+            options.selection = new vscode.Range(line, 0, line, 0);
+          }
+          await vscode.commands.executeCommand('vscode.open', uri, options);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          vscode.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
         }
       } else if (message.command === 'query' && currentData) {
         panel.webview.postMessage({ type: 'thinking' });
