@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { scanWorkspace } from './scanner';
 import { ProjectData } from './types';
 import { analyzeQuery } from './agent';
@@ -46,7 +48,26 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
       } else if (message.command === 'query' && currentData) {
         panel.webview.postMessage({ type: 'thinking' });
         try {
-          const response = await analyzeQuery(message.text, currentData.files, currentData.root);
+          // Read file contents for highlighted files
+          const fileContents: Record<string, string> = {};
+          if (message.context?.files) {
+            for (const filePath of message.context.files) {
+              const fullPath = path.join(currentData.root, filePath);
+              try {
+                fileContents[filePath] = fs.readFileSync(fullPath, 'utf8');
+              } catch {
+                // Skip unreadable files
+              }
+            }
+          }
+
+          const context = message.context ? {
+            highlightedFiles: message.context.files || [],
+            issues: message.context.issues || [],
+            fileContents
+          } : undefined;
+
+          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context);
           panel.webview.postMessage({ type: 'response', ...response });
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Unknown error';

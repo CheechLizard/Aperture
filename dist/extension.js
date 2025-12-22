@@ -765,14 +765,14 @@ var require_url_state_machine = __commonJS({
       return url.replace(/\u0009|\u000A|\u000D/g, "");
     }
     function shortenPath(url) {
-      const path12 = url.path;
-      if (path12.length === 0) {
+      const path13 = url.path;
+      if (path13.length === 0) {
         return;
       }
-      if (url.scheme === "file" && path12.length === 1 && isNormalizedWindowsDriveLetter(path12[0])) {
+      if (url.scheme === "file" && path13.length === 1 && isNormalizedWindowsDriveLetter(path13[0])) {
         return;
       }
-      path12.pop();
+      path13.pop();
     }
     function includesCredentials(url) {
       return url.username !== "" || url.password !== "";
@@ -6351,14 +6351,14 @@ __export(fileFromPath_exports, {
   fileFromPathSync: () => fileFromPathSync,
   isFile: () => isFile
 });
-function createFileFromPath(path12, { mtimeMs, size }, filenameOrOptions, options = {}) {
+function createFileFromPath(path13, { mtimeMs, size }, filenameOrOptions, options = {}) {
   let filename;
   if (isPlainObject_default2(filenameOrOptions)) {
     [options, filename] = [filenameOrOptions, void 0];
   } else {
     filename = filenameOrOptions;
   }
-  const file = new FileFromPath({ path: path12, size, lastModified: mtimeMs });
+  const file = new FileFromPath({ path: path13, size, lastModified: mtimeMs });
   if (!filename) {
     filename = file.name;
   }
@@ -6367,13 +6367,13 @@ function createFileFromPath(path12, { mtimeMs, size }, filenameOrOptions, option
     lastModified: file.lastModified
   });
 }
-function fileFromPathSync(path12, filenameOrOptions, options = {}) {
-  const stats = (0, import_fs.statSync)(path12);
-  return createFileFromPath(path12, stats, filenameOrOptions, options);
+function fileFromPathSync(path13, filenameOrOptions, options = {}) {
+  const stats = (0, import_fs.statSync)(path13);
+  return createFileFromPath(path13, stats, filenameOrOptions, options);
 }
-async function fileFromPath2(path12, filenameOrOptions, options) {
-  const stats = await import_fs.promises.stat(path12);
-  return createFileFromPath(path12, stats, filenameOrOptions, options);
+async function fileFromPath2(path13, filenameOrOptions, options) {
+  const stats = await import_fs.promises.stat(path13);
+  return createFileFromPath(path13, stats, filenameOrOptions, options);
 }
 var import_fs, import_path, import_node_domexception, __classPrivateFieldSet4, __classPrivateFieldGet5, _FileFromPath_path, _FileFromPath_start, MESSAGE, FileFromPath;
 var init_fileFromPath = __esm({
@@ -6441,7 +6441,7 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 var vscode6 = __toESM(require("vscode"));
-var path11 = __toESM(require("path"));
+var path12 = __toESM(require("path"));
 
 // src/language-registry.ts
 var LanguageRegistry = class {
@@ -7086,6 +7086,8 @@ var LuaHandler = class extends BaseLanguageHandler {
 
 // src/dashboard-panel.ts
 var vscode5 = __toESM(require("vscode"));
+var fs5 = __toESM(require("fs"));
+var path11 = __toESM(require("path"));
 
 // src/scanner.ts
 var vscode2 = __toESM(require("vscode"));
@@ -8233,13 +8235,13 @@ var MultipartBody = class {
 // node_modules/@anthropic-ai/sdk/_shims/node-runtime.mjs
 var import_web = require("node:stream/web");
 var fileFromPathWarned = false;
-async function fileFromPath3(path12, ...args) {
+async function fileFromPath3(path13, ...args) {
   const { fileFromPath: _fileFromPath } = await Promise.resolve().then(() => (init_fileFromPath(), fileFromPath_exports));
   if (!fileFromPathWarned) {
-    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path12)}) instead`);
+    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path13)}) instead`);
     fileFromPathWarned = true;
   }
-  return await _fileFromPath(path12, ...args);
+  return await _fileFromPath(path13, ...args);
 }
 var defaultHttpAgent = new import_agentkeepalive.default({ keepAlive: true, timeout: 5 * 60 * 1e3 });
 var defaultHttpsAgent = new import_agentkeepalive.default.HttpsAgent({ keepAlive: true, timeout: 5 * 60 * 1e3 });
@@ -8958,29 +8960,29 @@ var APIClient = class {
   defaultIdempotencyKey() {
     return `stainless-node-retry-${uuid4()}`;
   }
-  get(path12, opts) {
-    return this.methodRequest("get", path12, opts);
+  get(path13, opts) {
+    return this.methodRequest("get", path13, opts);
   }
-  post(path12, opts) {
-    return this.methodRequest("post", path12, opts);
+  post(path13, opts) {
+    return this.methodRequest("post", path13, opts);
   }
-  patch(path12, opts) {
-    return this.methodRequest("patch", path12, opts);
+  patch(path13, opts) {
+    return this.methodRequest("patch", path13, opts);
   }
-  put(path12, opts) {
-    return this.methodRequest("put", path12, opts);
+  put(path13, opts) {
+    return this.methodRequest("put", path13, opts);
   }
-  delete(path12, opts) {
-    return this.methodRequest("delete", path12, opts);
+  delete(path13, opts) {
+    return this.methodRequest("delete", path13, opts);
   }
-  methodRequest(method, path12, opts) {
+  methodRequest(method, path13, opts) {
     return this.request(Promise.resolve(opts).then(async (opts2) => {
       const body = opts2 && isBlobLike(opts2?.body) ? new DataView(await opts2.body.arrayBuffer()) : opts2?.body instanceof DataView ? opts2.body : opts2?.body instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2?.body) ? new DataView(opts2.body.buffer) : opts2?.body;
-      return { method, path: path12, ...opts2, body };
+      return { method, path: path13, ...opts2, body };
     }));
   }
-  getAPIList(path12, Page2, opts) {
-    return this.requestAPIList(Page2, { method: "get", path: path12, ...opts });
+  getAPIList(path13, Page2, opts) {
+    return this.requestAPIList(Page2, { method: "get", path: path13, ...opts });
   }
   calculateContentLength(body) {
     if (typeof body === "string") {
@@ -8998,10 +9000,10 @@ var APIClient = class {
     return null;
   }
   buildRequest(options, { retryCount = 0 } = {}) {
-    const { method, path: path12, query, headers = {} } = options;
+    const { method, path: path13, query, headers = {} } = options;
     const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
     const contentLength = this.calculateContentLength(body);
-    const url = this.buildURL(path12, query);
+    const url = this.buildURL(path13, query);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     const timeout = options.timeout ?? this.timeout;
@@ -9114,8 +9116,8 @@ var APIClient = class {
     const request = this.makeRequest(options, null);
     return new PagePromise(this, request, Page2);
   }
-  buildURL(path12, query) {
-    const url = isAbsoluteURL(path12) ? new URL(path12) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path12.startsWith("/") ? path12.slice(1) : path12));
+  buildURL(path13, query) {
+    const url = isAbsoluteURL(path13) ? new URL(path13) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path13.startsWith("/") ? path13.slice(1) : path13));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -11066,7 +11068,7 @@ var sdk_default = Anthropic;
 var vscode3 = __toESM(require("vscode"));
 var fs3 = __toESM(require("fs"));
 var path6 = __toESM(require("path"));
-async function analyzeQuery(query, files, rootPath) {
+async function analyzeQuery(query, files, rootPath, context) {
   const apiKey = getApiKey();
   if (!apiKey) {
     return {
@@ -11105,7 +11107,7 @@ async function analyzeQuery(query, files, rootPath) {
       }
     }
   ];
-  const systemPrompt = `You are analyzing a codebase to answer questions about it.
+  let systemPrompt = `You are analyzing a codebase to answer questions about it.
 You have access to a file list and can read specific files to understand the code.
 
 Files in this project:
@@ -11117,6 +11119,43 @@ When the user asks a question:
 3. Use respond to give your answer with the list of relevant files
 
 Be concise but helpful. Always use the respond tool to provide your final answer.`;
+  if (context && context.highlightedFiles.length > 0) {
+    systemPrompt += `
+
+## Current Focus
+The user is looking at these files:
+`;
+    for (const file of context.highlightedFiles) {
+      systemPrompt += `- ${file}
+`;
+    }
+    if (context.issues.length > 0) {
+      systemPrompt += `
+## Detected Issues
+These issues were detected by static analysis:
+`;
+      for (const issue of context.issues) {
+        const files2 = issue.locations.map((l2) => l2.file).join(", ");
+        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${files2})
+`;
+      }
+    }
+    if (Object.keys(context.fileContents).length > 0) {
+      systemPrompt += `
+## File Contents
+Here are the contents of the highlighted files:
+`;
+      for (const [filePath, content] of Object.entries(context.fileContents)) {
+        const truncated = content.length > 5e3 ? content.slice(0, 5e3) + "\n...(truncated)" : content;
+        systemPrompt += `
+### ${filePath}
+\`\`\`
+${truncated}
+\`\`\`
+`;
+      }
+    }
+  }
   const messages = [
     { role: "user", content: query }
   ];
@@ -12229,6 +12268,9 @@ function highlightIssueFiles(files) {
   // Track for tab switching
   currentHighlightedFiles = files;
 
+  // Update dynamic prompts based on new selection
+  renderDynamicPrompts();
+
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -12264,18 +12306,57 @@ function highlightIssueFiles(files) {
   });
 }
 
-function renderRules() {
+function renderDynamicPrompts() {
   const container = document.getElementById('rules');
-  if (rules.length === 0) { container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.8em;">No CLAUDE.md rules found</span>'; return; }
-  container.innerHTML = rules.map(r => '<button class="rule-btn" data-rule="' + r.title + '">' + r.title + '</button>').join('');
+  const prompts = [];
+
+  // Get issues for currently highlighted files
+  const highlightedIssues = getIssuesForFiles(currentHighlightedFiles);
+  const ruleTypes = getActiveRuleTypes(currentHighlightedFiles);
+
+  // Primary prompt - analyze all highlighted issues
+  if (currentHighlightedFiles.length > 0 && highlightedIssues.length > 0) {
+    prompts.push({
+      label: 'Analyze ' + highlightedIssues.length + ' issues in ' + currentHighlightedFiles.length + ' files',
+      prompt: 'Analyze the issues in these files and suggest fixes'
+    });
+  }
+
+  // Secondary prompts based on issue types
+  if (ruleTypes.has('long-function') || ruleTypes.has('deep-nesting')) {
+    prompts.push({ label: 'Review function complexity', prompt: 'Review the long or complex functions and suggest how to refactor them' });
+  }
+  if (ruleTypes.has('circular-dependency')) {
+    prompts.push({ label: 'Explain circular deps', prompt: 'Explain these circular dependencies and how to break them' });
+  }
+  if (ruleTypes.has('high-comment-density')) {
+    prompts.push({ label: 'Evaluate comment quality', prompt: 'Evaluate the comment quality - are these comments helpful or noise?' });
+  }
+  if (ruleTypes.has('generic-name') || ruleTypes.has('non-verb-function') || ruleTypes.has('non-question-boolean')) {
+    prompts.push({ label: 'Check naming', prompt: 'Review the naming issues and suggest better names' });
+  }
+
+  // Fallback if no specific prompts
+  if (prompts.length === 0) {
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Select issues to see suggested prompts</span>';
+    return;
+  }
+
+  container.innerHTML = prompts.map(p =>
+    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>'
+  ).join('');
+
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const rule = btn.getAttribute('data-rule');
-      document.getElementById('query').value = 'Check if the code follows the rule: "' + rule + '"';
+      const prompt = btn.getAttribute('data-prompt');
+      document.getElementById('query').value = prompt;
       document.getElementById('send').click();
     });
   });
 }
+
+// Alias for backwards compatibility
+function renderRules() { renderDynamicPrompts(); }
 
 function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;
@@ -12764,12 +12845,32 @@ clearBtn.addEventListener('click', () => {
 
 // src/webview/event-handlers.ts
 var EVENT_HANDLERS_SCRIPT = `
+// Helper: get issues for a list of files
+function getIssuesForFiles(filePaths) {
+  return issues.filter(i =>
+    i.locations.some(loc => filePaths.includes(loc.file))
+  );
+}
+
+// Helper: get unique rule types from highlighted files
+function getActiveRuleTypes(filePaths) {
+  const issuesForFiles = getIssuesForFiles(filePaths);
+  return new Set(issuesForFiles.map(i => i.ruleId));
+}
+
 document.getElementById('send').addEventListener('click', () => {
   const input = document.getElementById('query');
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
-  vscode.postMessage({ command: 'query', text });
+
+  // Build context from current selection
+  const context = {
+    files: currentHighlightedFiles,
+    issues: getIssuesForFiles(currentHighlightedFiles)
+  };
+
+  vscode.postMessage({ command: 'query', text, context });
 });
 
 document.getElementById('query').addEventListener('keypress', (e) => {
@@ -13641,7 +13742,22 @@ async function openDashboard(context) {
       } else if (message.command === "query" && currentData) {
         panel.webview.postMessage({ type: "thinking" });
         try {
-          const response = await analyzeQuery(message.text, currentData.files, currentData.root);
+          const fileContents = {};
+          if (message.context?.files) {
+            for (const filePath of message.context.files) {
+              const fullPath = path11.join(currentData.root, filePath);
+              try {
+                fileContents[filePath] = fs5.readFileSync(fullPath, "utf8");
+              } catch {
+              }
+            }
+          }
+          const context2 = message.context ? {
+            highlightedFiles: message.context.files || [],
+            issues: message.context.issues || [],
+            fileContents
+          } : void 0;
+          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context2);
           panel.webview.postMessage({ type: "response", ...response });
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Unknown error";
@@ -13651,8 +13767,8 @@ async function openDashboard(context) {
         try {
           const graph = analyzeDependencies(currentData.files, currentData.root);
           const serializedGraph = {
-            nodes: Array.from(graph.nodes.entries()).map(([path12, node]) => ({
-              path: path12,
+            nodes: Array.from(graph.nodes.entries()).map(([path13, node]) => ({
+              path: path13,
               imports: node.imports,
               importedBy: node.importedBy,
               importDetails: node.importDetails
@@ -13694,7 +13810,7 @@ function activate(context) {
   console.log("Aperture extension is now active");
   languageRegistry.register(new TypeScriptHandler());
   languageRegistry.register(new LuaHandler());
-  const wasmDir = path11.join(context.extensionPath, "dist");
+  const wasmDir = path12.join(context.extensionPath, "dist");
   const parserPromise = initializeParser(wasmDir).catch((err) => {
     console.error("AST parser initialization failed:", err);
   });

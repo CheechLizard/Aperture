@@ -7,6 +7,9 @@ function highlightIssueFiles(files) {
   // Track for tab switching
   currentHighlightedFiles = files;
 
+  // Update dynamic prompts based on new selection
+  renderDynamicPrompts();
+
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -42,18 +45,57 @@ function highlightIssueFiles(files) {
   });
 }
 
-function renderRules() {
+function renderDynamicPrompts() {
   const container = document.getElementById('rules');
-  if (rules.length === 0) { container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.8em;">No CLAUDE.md rules found</span>'; return; }
-  container.innerHTML = rules.map(r => '<button class="rule-btn" data-rule="' + r.title + '">' + r.title + '</button>').join('');
+  const prompts = [];
+
+  // Get issues for currently highlighted files
+  const highlightedIssues = getIssuesForFiles(currentHighlightedFiles);
+  const ruleTypes = getActiveRuleTypes(currentHighlightedFiles);
+
+  // Primary prompt - analyze all highlighted issues
+  if (currentHighlightedFiles.length > 0 && highlightedIssues.length > 0) {
+    prompts.push({
+      label: 'Analyze ' + highlightedIssues.length + ' issues in ' + currentHighlightedFiles.length + ' files',
+      prompt: 'Analyze the issues in these files and suggest fixes'
+    });
+  }
+
+  // Secondary prompts based on issue types
+  if (ruleTypes.has('long-function') || ruleTypes.has('deep-nesting')) {
+    prompts.push({ label: 'Review function complexity', prompt: 'Review the long or complex functions and suggest how to refactor them' });
+  }
+  if (ruleTypes.has('circular-dependency')) {
+    prompts.push({ label: 'Explain circular deps', prompt: 'Explain these circular dependencies and how to break them' });
+  }
+  if (ruleTypes.has('high-comment-density')) {
+    prompts.push({ label: 'Evaluate comment quality', prompt: 'Evaluate the comment quality - are these comments helpful or noise?' });
+  }
+  if (ruleTypes.has('generic-name') || ruleTypes.has('non-verb-function') || ruleTypes.has('non-question-boolean')) {
+    prompts.push({ label: 'Check naming', prompt: 'Review the naming issues and suggest better names' });
+  }
+
+  // Fallback if no specific prompts
+  if (prompts.length === 0) {
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Select issues to see suggested prompts</span>';
+    return;
+  }
+
+  container.innerHTML = prompts.map(p =>
+    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>'
+  ).join('');
+
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const rule = btn.getAttribute('data-rule');
-      document.getElementById('query').value = 'Check if the code follows the rule: "' + rule + '"';
+      const prompt = btn.getAttribute('data-prompt');
+      document.getElementById('query').value = prompt;
       document.getElementById('send').click();
     });
   });
 }
+
+// Alias for backwards compatibility
+function renderRules() { renderDynamicPrompts(); }
 
 function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;

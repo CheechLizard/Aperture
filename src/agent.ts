@@ -2,7 +2,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FileInfo } from './types';
+import { FileInfo, Issue } from './types';
+
+export interface AnalysisContext {
+  highlightedFiles: string[];
+  issues: Issue[];
+  fileContents: Record<string, string>;
+}
 
 export interface AgentResponse {
   message: string;
@@ -18,7 +24,8 @@ export interface AgentResponse {
 export async function analyzeQuery(
   query: string,
   files: FileInfo[],
-  rootPath: string
+  rootPath: string,
+  context?: AnalysisContext
 ): Promise<AgentResponse> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -64,7 +71,7 @@ export async function analyzeQuery(
     },
   ];
 
-  const systemPrompt = `You are analyzing a codebase to answer questions about it.
+  let systemPrompt = `You are analyzing a codebase to answer questions about it.
 You have access to a file list and can read specific files to understand the code.
 
 Files in this project:
@@ -76,6 +83,31 @@ When the user asks a question:
 3. Use respond to give your answer with the list of relevant files
 
 Be concise but helpful. Always use the respond tool to provide your final answer.`;
+
+  // Enrich system prompt with context if provided
+  if (context && context.highlightedFiles.length > 0) {
+    systemPrompt += `\n\n## Current Focus\nThe user is looking at these files:\n`;
+    for (const file of context.highlightedFiles) {
+      systemPrompt += `- ${file}\n`;
+    }
+
+    if (context.issues.length > 0) {
+      systemPrompt += `\n## Detected Issues\nThese issues were detected by static analysis:\n`;
+      for (const issue of context.issues) {
+        const files = issue.locations.map((l) => l.file).join(', ');
+        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${files})\n`;
+      }
+    }
+
+    if (Object.keys(context.fileContents).length > 0) {
+      systemPrompt += `\n## File Contents\nHere are the contents of the highlighted files:\n`;
+      for (const [filePath, content] of Object.entries(context.fileContents)) {
+        // Limit each file to ~5000 chars to avoid token overflow
+        const truncated = content.length > 5000 ? content.slice(0, 5000) + '\n...(truncated)' : content;
+        systemPrompt += `\n### ${filePath}\n\`\`\`\n${truncated}\n\`\`\`\n`;
+      }
+    }
+  }
 
   const messages: Anthropic.MessageParam[] = [
     { role: 'user', content: query },

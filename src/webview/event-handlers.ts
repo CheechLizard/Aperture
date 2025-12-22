@@ -1,10 +1,30 @@
 export const EVENT_HANDLERS_SCRIPT = `
+// Helper: get issues for a list of files
+function getIssuesForFiles(filePaths) {
+  return issues.filter(i =>
+    i.locations.some(loc => filePaths.includes(loc.file))
+  );
+}
+
+// Helper: get unique rule types from highlighted files
+function getActiveRuleTypes(filePaths) {
+  const issuesForFiles = getIssuesForFiles(filePaths);
+  return new Set(issuesForFiles.map(i => i.ruleId));
+}
+
 document.getElementById('send').addEventListener('click', () => {
   const input = document.getElementById('query');
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
-  vscode.postMessage({ command: 'query', text });
+
+  // Build context from current selection
+  const context = {
+    files: currentHighlightedFiles,
+    issues: getIssuesForFiles(currentHighlightedFiles)
+  };
+
+  vscode.postMessage({ command: 'query', text, context });
 });
 
 document.getElementById('query').addEventListener('keypress', (e) => {
