@@ -5116,7 +5116,7 @@ var require_ms = __commonJS({
       options = options || {};
       var type = typeof val;
       if (type === "string" && val.length > 0) {
-        return parse2(val);
+        return parse(val);
       } else if (type === "number" && isFinite(val)) {
         return options.long ? fmtLong(val) : fmtShort(val);
       }
@@ -5124,7 +5124,7 @@ var require_ms = __commonJS({
         "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
       );
     };
-    function parse2(str) {
+    function parse(str) {
       str = String(str);
       if (str.length > 100) {
         return;
@@ -6484,21 +6484,41 @@ var fs = __toESM(require("fs"));
 var path = __toESM(require("path"));
 var TreeSitter = __toESM(require("web-tree-sitter"));
 var treeSitterInitialized = false;
-function parse(content, filePath, language) {
+function parseAll(content, filePath, language) {
   const ext = path.extname(filePath).toLowerCase();
   const handler = languageRegistry.getHandlerByExtension(ext);
   if (!handler) {
-    return { imports: [], status: "unsupported" };
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: "unsupported"
+    };
   }
   if (!handler.isInitialized()) {
-    return { imports: [], status: "error" };
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: "error"
+    };
   }
   try {
-    const imports = handler.extractImports(content, filePath);
-    return { imports, status: "parsed" };
+    return handler.extractAll(content, filePath);
   } catch (error) {
     console.error(`AST parse error for ${filePath}:`, error);
-    return { imports: [], status: "error" };
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: "error"
+    };
   }
 }
 async function initializeParser(wasmDir) {
@@ -6527,6 +6547,241 @@ var BaseLanguageHandler = class {
   }
 };
 
+// src/language-handlers/typescript-extractors.ts
+var NESTING_NODE_TYPES = /* @__PURE__ */ new Set([
+  "if_statement",
+  "for_statement",
+  "for_in_statement",
+  "while_statement",
+  "do_statement",
+  "switch_statement",
+  "try_statement"
+]);
+function extractImportsFromTree(root, lines) {
+  const imports = [];
+  walkForImports(root, imports, lines);
+  return imports;
+}
+function walkForImports(node, imports, lines) {
+  if (node.type === "import_statement") {
+    const source = node.childForFieldName("source");
+    if (source) {
+      const modulePath = extractStringContent(source.text);
+      if (modulePath) {
+        imports.push({
+          modulePath,
+          line: node.startPosition.row + 1,
+          code: lines[node.startPosition.row]?.trim() || ""
+        });
+      }
+    }
+  }
+  if (node.type === "export_statement") {
+    const source = node.childForFieldName("source");
+    if (source) {
+      const modulePath = extractStringContent(source.text);
+      if (modulePath) {
+        imports.push({
+          modulePath,
+          line: node.startPosition.row + 1,
+          code: lines[node.startPosition.row]?.trim() || ""
+        });
+      }
+    }
+  }
+  if (node.type === "call_expression") {
+    const func = node.childForFieldName("function");
+    if (func?.text === "require" || func?.type === "import") {
+      const args = node.childForFieldName("arguments");
+      if (args && args.childCount > 0) {
+        const firstArg = args.child(1);
+        if (firstArg && firstArg.type === "string") {
+          const modulePath = extractStringContent(firstArg.text);
+          if (modulePath) {
+            imports.push({
+              modulePath,
+              line: node.startPosition.row + 1,
+              code: lines[node.startPosition.row]?.trim() || ""
+            });
+          }
+        }
+      }
+    }
+  }
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) walkForImports(child, imports, lines);
+  }
+}
+function extractFunctionsFromTree(root) {
+  const functions = [];
+  walkForFunctions(root, functions, 0);
+  return functions;
+}
+function walkForFunctions(node, functions, currentDepth) {
+  const funcInfo = tryExtractFunction(node);
+  if (funcInfo) {
+    funcInfo.maxNestingDepth = calculateMaxNesting(node, 0);
+    functions.push(funcInfo);
+  }
+  const newDepth = NESTING_NODE_TYPES.has(node.type) ? currentDepth + 1 : currentDepth;
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) walkForFunctions(child, functions, newDepth);
+  }
+}
+function tryExtractFunction(node) {
+  if (node.type === "function_declaration") {
+    const name = node.childForFieldName("name")?.text || "anonymous";
+    const params = node.childForFieldName("parameters");
+    return {
+      name,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: countParameters(params)
+    };
+  }
+  if (node.type === "method_definition") {
+    const name = node.childForFieldName("name")?.text || "anonymous";
+    const params = node.childForFieldName("parameters");
+    return {
+      name,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: countParameters(params)
+    };
+  }
+  if (node.type === "arrow_function") {
+    const parent = node.parent;
+    let name = "anonymous";
+    if (parent?.type === "variable_declarator") {
+      name = parent.childForFieldName("name")?.text || "anonymous";
+    } else if (parent?.type === "pair") {
+      name = parent.childForFieldName("key")?.text || "anonymous";
+    }
+    const params = node.childForFieldName("parameters");
+    return {
+      name,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: countParameters(params)
+    };
+  }
+  return null;
+}
+function countParameters(paramsNode) {
+  if (!paramsNode) return 0;
+  let count = 0;
+  for (let i2 = 0; i2 < paramsNode.childCount; i2++) {
+    const child = paramsNode.child(i2);
+    if (child && (child.type === "identifier" || child.type === "required_parameter" || child.type === "optional_parameter" || child.type === "rest_pattern")) {
+      count++;
+    }
+  }
+  return count;
+}
+function calculateMaxNesting(node, currentDepth) {
+  let maxDepth = currentDepth;
+  const newDepth = NESTING_NODE_TYPES.has(node.type) ? currentDepth + 1 : currentDepth;
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) {
+      const childMax = calculateMaxNesting(child, newDepth);
+      if (childMax > maxDepth) maxDepth = childMax;
+    }
+  }
+  return maxDepth;
+}
+function extractCatchBlocksFromTree(root) {
+  const catches = [];
+  walkForCatches(root, catches);
+  return catches;
+}
+function walkForCatches(node, catches) {
+  if (node.type === "catch_clause") {
+    const body = node.childForFieldName("body");
+    const isEmpty = !body || body.childCount <= 2;
+    catches.push({
+      line: node.startPosition.row + 1,
+      isEmpty
+    });
+  }
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) walkForCatches(child, catches);
+  }
+}
+function extractCommentsFromTree(root) {
+  const comments = [];
+  walkForComments(root, comments);
+  return comments;
+}
+function walkForComments(node, comments) {
+  if (node.type === "comment") {
+    const text = node.text;
+    const isBlockComment = text.startsWith("/*");
+    comments.push({
+      line: node.startPosition.row + 1,
+      text,
+      isBlockComment
+    });
+  }
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) walkForComments(child, comments);
+  }
+}
+function extractLiteralsFromTree(root) {
+  const literals = [];
+  walkForLiterals(root, literals);
+  return literals;
+}
+function walkForLiterals(node, literals) {
+  if (node.type === "number") {
+    const value = parseFloat(node.text);
+    if (!isNaN(value)) {
+      literals.push({
+        line: node.startPosition.row + 1,
+        value,
+        context: determineContext(node)
+      });
+    }
+  }
+  for (let i2 = 0; i2 < node.childCount; i2++) {
+    const child = node.child(i2);
+    if (child) walkForLiterals(child, literals);
+  }
+}
+function determineContext(node) {
+  const parent = node.parent;
+  if (!parent) return "standalone";
+  if (parent.type === "subscript_expression") {
+    return "array-index";
+  }
+  if (parent.type === "binary_expression") {
+    const op = parent.childForFieldName("operator")?.text;
+    if (op && ["===", "!==", "==", "!=", "<", ">", "<=", ">="].includes(op)) {
+      return "comparison";
+    }
+  }
+  if (parent.type === "variable_declarator" || parent.type === "assignment_expression") {
+    return "assignment";
+  }
+  return "other";
+}
+function extractStringContent(text) {
+  if (text.startsWith("'") && text.endsWith("'")) return text.slice(1, -1);
+  if (text.startsWith('"') && text.endsWith('"')) return text.slice(1, -1);
+  if (text.startsWith("`") && text.endsWith("`")) return text.slice(1, -1);
+  return null;
+}
+
 // src/language-handlers/typescript-handler.ts
 var TypeScriptHandler = class extends BaseLanguageHandler {
   constructor() {
@@ -6548,107 +6803,73 @@ var TypeScriptHandler = class extends BaseLanguageHandler {
     );
     this.initialized = true;
   }
-  extractImports(content, filePath) {
-    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return [];
+  parseContent(content, filePath) {
+    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return null;
     const ext = path2.extname(filePath).toLowerCase();
     const isTsx = ext === ".tsx" || ext === ".jsx";
     this.parser.setLanguage(isTsx ? this.tsxLanguage : this.tsLanguage);
-    const tree = this.parser.parse(content);
+    return this.parser.parse(content);
+  }
+  extractImports(content, filePath) {
+    const tree = this.parseContent(content, filePath);
     if (!tree) return [];
-    const imports = [];
     const lines = content.split("\n");
-    this.walkTree(tree.rootNode, imports, lines);
-    return imports;
+    return extractImportsFromTree(tree.rootNode, lines);
   }
-  walkTree(node, imports, lines) {
-    if (node.type === "import_statement") {
-      const source = node.childForFieldName("source");
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || ""
-          });
-        }
-      }
-    }
-    if (node.type === "export_statement") {
-      const source = node.childForFieldName("source");
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || ""
-          });
-        }
-      }
-    }
-    if (node.type === "call_expression") {
-      const func = node.childForFieldName("function");
-      if (func?.text === "require") {
-        const args = node.childForFieldName("arguments");
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1);
-          if (firstArg && firstArg.type === "string") {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || ""
-              });
-            }
-          }
-        }
-      }
-    }
-    if (node.type === "call_expression") {
-      const func = node.childForFieldName("function");
-      if (func?.type === "import") {
-        const args = node.childForFieldName("arguments");
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1);
-          if (firstArg && firstArg.type === "string") {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || ""
-              });
-            }
-          }
-        }
-      }
-    }
-    for (let i2 = 0; i2 < node.childCount; i2++) {
-      const child = node.child(i2);
-      if (child) {
-        this.walkTree(child, imports, lines);
-      }
-    }
+  extractFunctions(content, filePath) {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractFunctionsFromTree(tree.rootNode);
   }
-  extractStringContent(text) {
-    if (text.startsWith("'") && text.endsWith("'")) {
-      return text.slice(1, -1);
+  extractCatchBlocks(content, filePath) {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractCatchBlocksFromTree(tree.rootNode);
+  }
+  extractComments(content, filePath) {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractCommentsFromTree(tree.rootNode);
+  }
+  extractLiterals(content, filePath) {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractLiteralsFromTree(tree.rootNode);
+  }
+  extractAll(content, filePath) {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) {
+      return {
+        imports: [],
+        functions: [],
+        catchBlocks: [],
+        comments: [],
+        literals: [],
+        status: "error"
+      };
     }
-    if (text.startsWith('"') && text.endsWith('"')) {
-      return text.slice(1, -1);
-    }
-    if (text.startsWith("`") && text.endsWith("`")) {
-      return text.slice(1, -1);
-    }
-    return null;
+    const lines = content.split("\n");
+    return {
+      imports: extractImportsFromTree(tree.rootNode, lines),
+      functions: extractFunctionsFromTree(tree.rootNode),
+      catchBlocks: extractCatchBlocksFromTree(tree.rootNode),
+      comments: extractCommentsFromTree(tree.rootNode),
+      literals: extractLiteralsFromTree(tree.rootNode),
+      status: "parsed"
+    };
   }
 };
 
 // src/language-handlers/lua-handler.ts
 var path3 = __toESM(require("path"));
 var TreeSitter3 = __toESM(require("web-tree-sitter"));
+var NESTING_NODE_TYPES2 = /* @__PURE__ */ new Set([
+  "if_statement",
+  "for_statement",
+  "for_in_statement",
+  "while_statement",
+  "repeat_statement"
+]);
 var LuaHandler = class extends BaseLanguageHandler {
   constructor() {
     super(...arguments);
@@ -6664,17 +6885,20 @@ var LuaHandler = class extends BaseLanguageHandler {
     this.luaLanguage = await TreeSitter3.Language.load(luaWasmPath);
     this.initialized = true;
   }
-  extractImports(content, filePath) {
-    if (!this.parser || !this.luaLanguage) return [];
+  parseContent(content) {
+    if (!this.parser || !this.luaLanguage) return null;
     this.parser.setLanguage(this.luaLanguage);
-    const tree = this.parser.parse(content);
+    return this.parser.parse(content);
+  }
+  extractImports(content, filePath) {
+    const tree = this.parseContent(content);
     if (!tree) return [];
     const imports = [];
     const lines = content.split("\n");
-    this.walkTree(tree.rootNode, imports, lines);
+    this.walkForImports(tree.rootNode, imports, lines);
     return imports;
   }
-  walkTree(node, imports, lines) {
+  walkForImports(node, imports, lines) {
     if (node.type === "function_call") {
       const nameNode = node.childForFieldName("name");
       if (nameNode && nameNode.text === "require") {
@@ -6705,10 +6929,158 @@ var LuaHandler = class extends BaseLanguageHandler {
     }
     for (let i2 = 0; i2 < node.childCount; i2++) {
       const child = node.child(i2);
-      if (child) {
-        this.walkTree(child, imports, lines);
+      if (child) this.walkForImports(child, imports, lines);
+    }
+  }
+  extractFunctions(content, filePath) {
+    const tree = this.parseContent(content);
+    if (!tree) return [];
+    const functions = [];
+    this.walkForFunctions(tree.rootNode, functions);
+    return functions;
+  }
+  walkForFunctions(node, functions) {
+    if (node.type === "function_declaration" || node.type === "function_definition") {
+      const name = this.extractFunctionName(node);
+      const params = node.childForFieldName("parameters");
+      functions.push({
+        name,
+        startLine: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+        loc: node.endPosition.row - node.startPosition.row + 1,
+        maxNestingDepth: this.calculateMaxNesting(node, 0),
+        parameterCount: this.countParameters(params)
+      });
+    }
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) this.walkForFunctions(child, functions);
+    }
+  }
+  extractFunctionName(node) {
+    const nameNode = node.childForFieldName("name");
+    if (nameNode) return nameNode.text;
+    const parent = node.parent;
+    if (parent?.type === "assignment_statement") {
+      const varList = parent.childForFieldName("variables");
+      if (varList && varList.childCount > 0) {
+        return varList.child(0)?.text || "anonymous";
       }
     }
+    return "anonymous";
+  }
+  countParameters(paramsNode) {
+    if (!paramsNode) return 0;
+    let count = 0;
+    for (let i2 = 0; i2 < paramsNode.childCount; i2++) {
+      const child = paramsNode.child(i2);
+      if (child && child.type === "identifier") count++;
+    }
+    return count;
+  }
+  calculateMaxNesting(node, currentDepth) {
+    let maxDepth = currentDepth;
+    const newDepth = NESTING_NODE_TYPES2.has(node.type) ? currentDepth + 1 : currentDepth;
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) {
+        const childMax = this.calculateMaxNesting(child, newDepth);
+        if (childMax > maxDepth) maxDepth = childMax;
+      }
+    }
+    return maxDepth;
+  }
+  extractCatchBlocks(content, filePath) {
+    return [];
+  }
+  extractComments(content, filePath) {
+    const tree = this.parseContent(content);
+    if (!tree) return [];
+    const comments = [];
+    this.walkForComments(tree.rootNode, comments);
+    return comments;
+  }
+  walkForComments(node, comments) {
+    if (node.type === "comment") {
+      const text = node.text;
+      const isBlockComment = text.startsWith("--[[");
+      comments.push({
+        line: node.startPosition.row + 1,
+        text,
+        isBlockComment
+      });
+    }
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) this.walkForComments(child, comments);
+    }
+  }
+  extractLiterals(content, filePath) {
+    const tree = this.parseContent(content);
+    if (!tree) return [];
+    const literals = [];
+    this.walkForLiterals(tree.rootNode, literals);
+    return literals;
+  }
+  walkForLiterals(node, literals) {
+    if (node.type === "number") {
+      const value = parseFloat(node.text);
+      if (!isNaN(value)) {
+        literals.push({
+          line: node.startPosition.row + 1,
+          value,
+          context: this.determineContext(node)
+        });
+      }
+    }
+    for (let i2 = 0; i2 < node.childCount; i2++) {
+      const child = node.child(i2);
+      if (child) this.walkForLiterals(child, literals);
+    }
+  }
+  determineContext(node) {
+    const parent = node.parent;
+    if (!parent) return "standalone";
+    if (parent.type === "bracket_index_expression") return "array-index";
+    if (parent.type === "binary_expression") {
+      const op = parent.child(1)?.text;
+      if (op && ["==", "~=", "<", ">", "<=", ">="].includes(op)) {
+        return "comparison";
+      }
+    }
+    if (parent.type === "assignment_statement") return "assignment";
+    return "other";
+  }
+  extractAll(content, filePath) {
+    const tree = this.parseContent(content);
+    if (!tree) {
+      return {
+        imports: [],
+        functions: [],
+        catchBlocks: [],
+        comments: [],
+        literals: [],
+        status: "error"
+      };
+    }
+    const lines = content.split("\n");
+    const imports = [];
+    const functions = [];
+    const comments = [];
+    const literals = [];
+    this.walkForImports(tree.rootNode, imports, lines);
+    this.walkForFunctions(tree.rootNode, functions);
+    this.walkForComments(tree.rootNode, comments);
+    this.walkForLiterals(tree.rootNode, literals);
+    return {
+      imports,
+      functions,
+      catchBlocks: [],
+      // Lua uses pcall/xpcall
+      comments,
+      literals,
+      status: "parsed"
+    };
   }
 };
 
@@ -6863,6 +7235,528 @@ function extractRules(text) {
   return rules;
 }
 
+// src/rules/rule-constants.ts
+var FUNCTION_LOC_WARNING = 20;
+var FUNCTION_LOC_ERROR = 50;
+var FILE_LOC_WARNING = 200;
+var MAX_NESTING_DEPTH = 4;
+var MAX_PARAMETER_COUNT = 5;
+var HIGH_COMMENT_DENSITY_THRESHOLD = 0.4;
+var GENERIC_NAMES = [
+  "data",
+  "result",
+  "temp",
+  "item",
+  "value",
+  "obj",
+  "ret",
+  "res",
+  "tmp",
+  "info",
+  "stuff",
+  "thing",
+  "val",
+  "x",
+  "y",
+  "z"
+];
+var VERB_PREFIXES = [
+  "get",
+  "set",
+  "is",
+  "has",
+  "can",
+  "should",
+  "will",
+  "do",
+  "make",
+  "create",
+  "build",
+  "find",
+  "fetch",
+  "load",
+  "save",
+  "update",
+  "delete",
+  "remove",
+  "add",
+  "insert",
+  "append",
+  "render",
+  "parse",
+  "validate",
+  "check",
+  "handle",
+  "process",
+  "convert",
+  "format",
+  "extract",
+  "calculate",
+  "compute",
+  "init",
+  "setup",
+  "reset",
+  "clear",
+  "show",
+  "hide",
+  "enable",
+  "disable",
+  "start",
+  "stop",
+  "run",
+  "execute",
+  "apply",
+  "register",
+  "unregister",
+  "subscribe",
+  "unsubscribe",
+  "emit",
+  "dispatch",
+  "trigger",
+  "on"
+];
+var BOOLEAN_PREFIXES = [
+  "is",
+  "has",
+  "can",
+  "should",
+  "will",
+  "was",
+  "are",
+  "does",
+  "did",
+  "needs",
+  "allows",
+  "includes",
+  "contains",
+  "matches",
+  "exists"
+];
+var ALLOWED_MAGIC_NUMBERS = [
+  -1,
+  0,
+  1,
+  2,
+  10,
+  100,
+  1e3,
+  // Common percentages
+  0.5,
+  0.25,
+  0.75,
+  // Common array/string operations
+  16,
+  32,
+  64,
+  128,
+  256,
+  512,
+  1024
+];
+var CODE_COMMENT_PATTERNS = [
+  /^\s*(if|for|while|return|const|let|var|function|class|import|export)\s*[\(\{]/,
+  /^\s*\w+\s*[=!<>]+\s*\w+/,
+  /^\s*\w+\(\s*\w*\s*\)/,
+  /^\s*\/\/\s*TODO:/i,
+  /^\s*[a-zA-Z_]\w*\s*=\s*.+;?\s*$/
+];
+var DATA_KEYWORDS = [
+  "interface",
+  "type",
+  "schema",
+  "model",
+  "entity",
+  "dto",
+  "struct"
+];
+var LOGIC_KEYWORDS = [
+  "calculate",
+  "process",
+  "validate",
+  "compute",
+  "transform",
+  "analyze",
+  "evaluate",
+  "execute"
+];
+var RENDER_KEYWORDS = [
+  "render",
+  "html",
+  "jsx",
+  "tsx",
+  "component",
+  "view",
+  "template",
+  "dom",
+  "element",
+  "svg"
+];
+
+// src/rules/structural-rules.ts
+function detectLongFunctions(file) {
+  const issues = [];
+  for (const func of file.functions) {
+    if (func.loc > FUNCTION_LOC_ERROR) {
+      issues.push({
+        ruleId: "long-function",
+        severity: "error",
+        category: "structural",
+        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
+        file: file.path,
+        line: func.startLine,
+        endLine: func.endLine,
+        symbol: func.name
+      });
+    } else if (func.loc > FUNCTION_LOC_WARNING) {
+      issues.push({
+        ruleId: "long-function",
+        severity: "warning",
+        category: "structural",
+        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
+        file: file.path,
+        line: func.startLine,
+        endLine: func.endLine,
+        symbol: func.name
+      });
+    }
+  }
+  return issues;
+}
+function detectLongFile(file) {
+  if (file.loc > FILE_LOC_WARNING) {
+    return {
+      ruleId: "long-file",
+      severity: "warning",
+      category: "structural",
+      message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
+      file: file.path
+    };
+  }
+  return null;
+}
+function detectDeepNesting(file) {
+  const issues = [];
+  for (const func of file.functions) {
+    if (func.maxNestingDepth > MAX_NESTING_DEPTH) {
+      issues.push({
+        ruleId: "deep-nesting",
+        severity: "warning",
+        category: "structural",
+        message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
+        file: file.path,
+        line: func.startLine,
+        symbol: func.name
+      });
+    }
+  }
+  return issues;
+}
+function detectSilentFailures(file, catchBlocks) {
+  const issues = [];
+  for (const catchBlock of catchBlocks) {
+    if (catchBlock.isEmpty) {
+      issues.push({
+        ruleId: "silent-failure",
+        severity: "error",
+        category: "structural",
+        message: `Empty catch block - errors are silently ignored`,
+        file: file.path,
+        line: catchBlock.line
+      });
+    }
+  }
+  return issues;
+}
+function detectTooManyParameters(file) {
+  const issues = [];
+  for (const func of file.functions) {
+    if (func.parameterCount > MAX_PARAMETER_COUNT) {
+      issues.push({
+        ruleId: "too-many-parameters",
+        severity: "warning",
+        category: "structural",
+        message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
+        file: file.path,
+        line: func.startLine,
+        symbol: func.name
+      });
+    }
+  }
+  return issues;
+}
+
+// src/rules/naming-rules.ts
+function detectGenericNames(file) {
+  const issues = [];
+  for (const func of file.functions) {
+    const nameLower = func.name.toLowerCase();
+    if (GENERIC_NAMES.includes(nameLower)) {
+      issues.push({
+        ruleId: "generic-name",
+        severity: "warning",
+        category: "naming",
+        message: `Function '${func.name}' uses a generic name - consider more descriptive naming`,
+        file: file.path,
+        line: func.startLine,
+        symbol: func.name
+      });
+    }
+  }
+  return issues;
+}
+function detectNonVerbFunctions(file) {
+  const issues = [];
+  for (const func of file.functions) {
+    if (func.name === "anonymous") continue;
+    const nameLower = func.name.toLowerCase();
+    const startsWithVerb = VERB_PREFIXES.some(
+      (prefix) => nameLower.startsWith(prefix) || nameLower === prefix
+    );
+    if (!startsWithVerb) {
+      if (/^[A-Z]/.test(func.name)) continue;
+      if (nameLower.startsWith("on") || nameLower.startsWith("handle")) continue;
+      issues.push({
+        ruleId: "non-verb-function",
+        severity: "info",
+        category: "naming",
+        message: `Function '${func.name}' should start with a verb (e.g., get${capitalize(func.name)})`,
+        file: file.path,
+        line: func.startLine,
+        symbol: func.name
+      });
+    }
+  }
+  return issues;
+}
+function detectNonQuestionBooleans(file) {
+  const issues = [];
+  const booleanPatterns = [
+    "valid",
+    "active",
+    "enabled",
+    "disabled",
+    "visible",
+    "hidden",
+    "loading",
+    "loaded",
+    "empty",
+    "ready",
+    "open",
+    "closed",
+    "selected",
+    "checked",
+    "connected",
+    "authenticated"
+  ];
+  for (const func of file.functions) {
+    const nameLower = func.name.toLowerCase();
+    const matchesPattern = booleanPatterns.some(
+      (pattern) => nameLower === pattern || nameLower.endsWith(pattern)
+    );
+    if (matchesPattern) {
+      const startsWithBooleanPrefix = BOOLEAN_PREFIXES.some(
+        (prefix) => nameLower.startsWith(prefix)
+      );
+      if (!startsWithBooleanPrefix) {
+        issues.push({
+          ruleId: "non-question-boolean",
+          severity: "info",
+          category: "naming",
+          message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(func.name)}'`,
+          file: file.path,
+          line: func.startLine,
+          symbol: func.name
+        });
+      }
+    }
+  }
+  return issues;
+}
+function detectMagicNumbers(file, literals) {
+  const issues = [];
+  for (const literal of literals) {
+    if (ALLOWED_MAGIC_NUMBERS.includes(literal.value)) continue;
+    if (literal.context === "array-index") continue;
+    if (isCommonUiValue(literal.value)) continue;
+    issues.push({
+      ruleId: "magic-number",
+      severity: "info",
+      category: "naming",
+      message: `Magic number ${literal.value} - consider using a named constant`,
+      file: file.path,
+      line: literal.line
+    });
+  }
+  return issues;
+}
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+function isCommonUiValue(value) {
+  const commonValues = [
+    // Pixels
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    40,
+    48,
+    56,
+    64,
+    72,
+    80,
+    96,
+    // Percentages (as decimals)
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    // Animation durations (ms)
+    100,
+    150,
+    200,
+    250,
+    300,
+    400,
+    500,
+    // Z-index
+    999,
+    1e3,
+    9999
+  ];
+  return commonValues.includes(value);
+}
+
+// src/rules/comment-rules.ts
+function detectCommentedCode(file, comments) {
+  const issues = [];
+  for (const comment of comments) {
+    if (comment.isBlockComment) continue;
+    let text = comment.text.trim();
+    if (text.startsWith("//")) text = text.slice(2).trim();
+    if (text.startsWith("--")) text = text.slice(2).trim();
+    if (looksLikeCode(text)) {
+      issues.push({
+        ruleId: "commented-code",
+        severity: "info",
+        category: "comment",
+        message: `Possible commented-out code - consider removing`,
+        file: file.path,
+        line: comment.line
+      });
+    }
+  }
+  return issues;
+}
+function looksLikeCode(text) {
+  if (text.length < 5) return false;
+  if (text.startsWith("TODO")) return false;
+  if (text.startsWith("FIXME")) return false;
+  if (text.startsWith("NOTE")) return false;
+  if (text.startsWith("HACK")) return false;
+  if (text.startsWith("XXX")) return false;
+  if (text.startsWith("eslint")) return false;
+  if (text.startsWith("@")) return false;
+  if (text.startsWith("#")) return false;
+  for (const pattern of CODE_COMMENT_PATTERNS) {
+    if (pattern.test(text)) return true;
+  }
+  if (/^\s*[a-zA-Z_]\w*\s*\(/.test(text)) return true;
+  if (/^\s*[a-zA-Z_]\w*\s*=\s*.+;\s*$/.test(text)) return true;
+  if (/^\s*(const|let|var|local)\s+\w+/.test(text)) return true;
+  return false;
+}
+function detectHighCommentDensity(file, comments) {
+  if (file.loc === 0) return null;
+  let commentLineCount = 0;
+  for (const comment of comments) {
+    if (comment.isBlockComment) {
+      const lines = comment.text.split("\n").length;
+      commentLineCount += lines;
+    } else {
+      commentLineCount += 1;
+    }
+  }
+  const ratio = commentLineCount / file.loc;
+  if (ratio > HIGH_COMMENT_DENSITY_THRESHOLD) {
+    const percentage = Math.round(ratio * 100);
+    return {
+      ruleId: "high-comment-density",
+      severity: "info",
+      category: "comment",
+      message: `High comment density (${percentage}%) - may indicate unclear code or stale comments`,
+      file: file.path
+    };
+  }
+  return null;
+}
+
+// src/rules/architecture-rules.ts
+var MIN_KEYWORD_MATCHES = 3;
+function detectMixedConcerns(file, content) {
+  const contentLower = content.toLowerCase();
+  const dataMatches = countKeywordMatches(contentLower, DATA_KEYWORDS);
+  const logicMatches = countKeywordMatches(contentLower, LOGIC_KEYWORDS);
+  const renderMatches = countKeywordMatches(contentLower, RENDER_KEYWORDS);
+  const hasData = dataMatches >= MIN_KEYWORD_MATCHES;
+  const hasLogic = logicMatches >= MIN_KEYWORD_MATCHES;
+  const hasRender = renderMatches >= MIN_KEYWORD_MATCHES;
+  const concernCount = [hasData, hasLogic, hasRender].filter(Boolean).length;
+  if (concernCount >= 2) {
+    const concerns = [];
+    if (hasData) concerns.push("data definitions");
+    if (hasLogic) concerns.push("business logic");
+    if (hasRender) concerns.push("rendering");
+    return {
+      ruleId: "mixed-concerns",
+      severity: "warning",
+      category: "architecture",
+      message: `File may have mixed concerns: ${concerns.join(" + ")}`,
+      file: file.path
+    };
+  }
+  return null;
+}
+function countKeywordMatches(content, keywords) {
+  let count = 0;
+  for (const keyword of keywords) {
+    const regex = new RegExp(`\\b${keyword}\\b`, "gi");
+    const matches = content.match(regex);
+    if (matches) count += matches.length;
+  }
+  return count;
+}
+
+// src/file-issue-detector.ts
+function detectFileIssues(file, astResult, content) {
+  const issues = [];
+  issues.push(...detectLongFunctions(file));
+  const longFile = detectLongFile(file);
+  if (longFile) issues.push(longFile);
+  issues.push(...detectDeepNesting(file));
+  issues.push(...detectSilentFailures(file, astResult.catchBlocks));
+  issues.push(...detectTooManyParameters(file));
+  issues.push(...detectGenericNames(file));
+  issues.push(...detectNonVerbFunctions(file));
+  issues.push(...detectNonQuestionBooleans(file));
+  issues.push(...detectMagicNumbers(file, astResult.literals));
+  issues.push(...detectCommentedCode(file, astResult.comments));
+  const highDensity = detectHighCommentDensity(file, astResult.comments);
+  if (highDensity) issues.push(highDensity);
+  const mixedConcerns = detectMixedConcerns(file, content);
+  if (mixedConcerns) issues.push(mixedConcerns);
+  return issues;
+}
+
 // src/scanner.ts
 async function scanWorkspace() {
   const workspaceFolder = vscode2.workspace.workspaceFolders?.[0];
@@ -6915,16 +7809,20 @@ async function scanFile(uri, workspaceUri) {
     const loc = countNonBlankLines(text);
     const relativePath = vscode2.workspace.asRelativePath(uri, false);
     const language = getLanguage(uri.fsPath);
-    const parseResult = parse(text, relativePath, language);
-    return {
+    const astResult = parseAll(text, relativePath, language);
+    const fileInfo = {
       path: relativePath,
       language,
       loc,
-      functions: [],
-      // TODO: Extract functions via AST in future
-      imports: parseResult.imports,
-      parseStatus: parseResult.status
+      functions: astResult.functions,
+      imports: astResult.imports,
+      parseStatus: astResult.status
     };
+    const issues = detectFileIssues(fileInfo, astResult, text);
+    if (issues.length > 0) {
+      fileInfo.issues = issues;
+    }
+    return fileInfo;
   } catch {
     return null;
   }
@@ -10486,19 +11384,6 @@ function detectAntiPatterns(nodes, edges, codeFileCount) {
       });
     }
   }
-  const hubThreshold = Math.max(5, Math.floor(codeFileCount * 0.1));
-  for (const [filePath, node] of nodes) {
-    const isNexus = node.imports.length >= nexusImportThreshold && node.importedBy.length >= nexusImportedByThreshold;
-    if (node.imports.length >= hubThreshold && !isNexus) {
-      const pct = Math.round(node.imports.length / codeFileCount * 100);
-      antiPatterns.push({
-        type: "hub",
-        severity: "low",
-        description: `Imports ${node.imports.length} files (${pct}% of codebase)`,
-        files: [filePath]
-      });
-    }
-  }
   for (const [filePath, node] of nodes) {
     if (isCodeFile(filePath) && node.imports.length === 0 && node.importedBy.length === 0) {
       antiPatterns.push({
@@ -10609,10 +11494,26 @@ var vscode4 = __toESM(require("vscode"));
 var path10 = __toESM(require("path"));
 var fs4 = __toESM(require("fs"));
 var ANTI_PATTERN_RULES = {
+  // Architecture rules (existing)
   circular: "**Avoid circular dependencies.** Files should not form import cycles.",
   nexus: "**Avoid nexus/coupling bottlenecks.** Files should not both import many files and be imported by many files.",
-  hub: "**Avoid hub files.** Files should not import a large percentage of the codebase.",
-  orphan: "**Avoid orphan files.** Code files should have imports or dependents."
+  orphan: "**Avoid orphan files.** Code files should have imports or dependents.",
+  // Structural rules
+  "long-function": "**Keep functions short.** Functions should be ~20 lines, never exceed 50.",
+  "long-file": "**Keep files short.** Files should stay under 200 lines.",
+  "deep-nesting": "**Avoid deep nesting.** Nesting depth should not exceed 4 levels.",
+  "silent-failure": "**No silent failures.** Catch blocks should never be empty.",
+  "too-many-parameters": "**Limit function parameters.** Functions should not have more than 5 parameters.",
+  // Naming rules
+  "generic-name": "**Use descriptive names.** Avoid generic names like data, result, temp, item, value.",
+  "non-verb-function": "**Functions should be verbs.** Function names should start with a verb.",
+  "non-question-boolean": "**Booleans should be questions.** Boolean names should start with is, has, can, should, etc.",
+  "magic-number": "**No magic numbers.** Numeric literals should be named constants.",
+  // Comment rules
+  "commented-code": "**Delete commented-out code.** Never commit commented-out code.",
+  "high-comment-density": "**Comments indicate unclear code.** High comment density suggests code needs refactoring.",
+  // Architecture rules (new)
+  "mixed-concerns": "**Separate concerns.** Files should not mix data, logic, and rendering."
 };
 var APERTURE_RULES_MARKER = "<!-- Aperture Anti-Pattern Rules -->";
 async function addAntiPatternRule(rootPath, patternType) {
@@ -11395,7 +12296,11 @@ function renderAntiPatterns() {
   const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
   const antiPatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
 
-  if (antiPatterns.length === 0 && ignoredPatterns.length === 0) {
+  // Get file issues
+  const allFileIssues = typeof fileIssues !== 'undefined' ? fileIssues : [];
+  const activeFileIssues = allFileIssues.filter(i => !isFileIssueIgnored(i));
+
+  if (antiPatterns.length === 0 && activeFileIssues.length === 0 && ignoredPatterns.length === 0 && ignoredFileIssues.length === 0) {
     list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
     return;
   }
@@ -11405,42 +12310,81 @@ function renderAntiPatterns() {
   // Group anti-patterns by type
   const groups = new Map();
   for (const ap of antiPatterns) {
-    if (!groups.has(ap.type)) { groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [] }); }
+    if (!groups.has(ap.type)) { groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [], isFileIssue: false }); }
     groups.get(ap.type).items.push(ap);
+  }
+
+  // Add file issues as groups (convert severity: error\u2192high, warning\u2192medium, info\u2192low)
+  const severityMap = { error: 'high', warning: 'medium', info: 'low' };
+  for (const issue of activeFileIssues) {
+    const type = issue.ruleId;
+    const severity = severityMap[issue.severity] || 'low';
+    if (!groups.has(type)) { groups.set(type, { type: type, severity: severity, items: [], isFileIssue: true }); }
+    groups.get(type).items.push(issue);
   }
 
   const severityOrder = { high: 0, medium: 1, low: 2 };
   const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-  let html = sortedGroups.map((group, gIdx) => {
-    const allFiles = group.items.flatMap(item => item.files);
-    const isRuleActive = activeRules.has(group.type);
-    const itemsHtml = group.items.map((item, iIdx) => {
-      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      const filesData = item.files.join(',');
-      return '<div class="pattern-item" data-files="' + filesData + '" data-group="' + gIdx + '" data-item="' + iIdx + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
-        '<div class="pattern-item-row"><div class="pattern-item-content">' +
-        '<div class="pattern-item-desc">' + item.description + '</div>' +
-        '<div class="pattern-item-file">' + fileName + '</div></div>' +
-        '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
-    }).join('');
+  // Format rule ID for display (e.g., "long-function" \u2192 "Long Function")
+  function formatType(type) {
+    return type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  }
 
-    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '">' +
+  let html = sortedGroups.map((group, gIdx) => {
+    const isRuleActive = activeRules.has(group.type);
+    let allFiles, itemsHtml;
+
+    if (group.isFileIssue) {
+      // File issues: each item has file, line, message
+      allFiles = group.items.map(item => item.file);
+      itemsHtml = group.items.map((item, iIdx) => {
+        const fileName = item.file.split('/').pop();
+        const lineInfo = item.line ? ':' + item.line : '';
+        return '<div class="pattern-item" data-files="' + item.file + '" data-line="' + (item.line || '') + '" data-type="' + group.type + '" data-description="' + item.message.replace(/"/g, '&quot;') + '" data-is-file-issue="true">' +
+          '<div class="pattern-item-row"><div class="pattern-item-content">' +
+          '<div class="pattern-item-desc">' + item.message + '</div>' +
+          '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
+          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
+      }).join('');
+    } else {
+      // Anti-patterns: each item has files array, description
+      allFiles = group.items.flatMap(item => item.files);
+      itemsHtml = group.items.map((item, iIdx) => {
+        const fileName = item.files.map(f => f.split('/').pop()).join(', ');
+        const filesData = item.files.join(',');
+        return '<div class="pattern-item" data-files="' + filesData + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
+          '<div class="pattern-item-row"><div class="pattern-item-content">' +
+          '<div class="pattern-item-desc">' + item.description + '</div>' +
+          '<div class="pattern-item-file">' + fileName + '</div></div>' +
+          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
+      }).join('');
+    }
+
+    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '" data-is-file-issue="' + group.isFileIssue + '">' +
       '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '" data-type="' + group.type + '">' +
-      '<span class="pattern-chevron">&#9654;</span><span class="pattern-title">' + group.type + '</span>' +
+      '<span class="pattern-chevron">&#9654;</span><span class="pattern-title">' + formatType(group.type) + '</span>' +
       '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
       '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
       '<div class="pattern-items">' + itemsHtml + '</div></div>';
   }).join('');
 
-  if (ignoredPatterns.length > 0) {
-    const ignoredHtml = ignoredPatterns.map((item, idx) => {
+  // Combine ignored anti-patterns and file issues
+  const totalIgnored = ignoredPatterns.length + ignoredFileIssues.length;
+  if (totalIgnored > 0) {
+    let ignoredHtml = ignoredPatterns.map((item, idx) => {
       const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      return '<div class="ignored-item" data-idx="' + idx + '"><span>' + item.type + ': ' + fileName + '</span>' +
+      return '<div class="ignored-item" data-idx="' + idx + '" data-is-file-issue="false"><span>' + formatType(item.type) + ': ' + fileName + '</span>' +
+        '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
+    }).join('');
+    ignoredHtml += ignoredFileIssues.map((item, idx) => {
+      const fileName = item.file.split('/').pop();
+      const lineInfo = item.line ? ':' + item.line : '';
+      return '<div class="ignored-item" data-idx="' + idx + '" data-is-file-issue="true"><span>' + formatType(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
         '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
     }).join('');
     html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron">&#9654;</span>' +
-      '<span>Ignored items (' + ignoredPatterns.length + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
+      '<span>Ignored items (' + totalIgnored + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
   }
 
   list.innerHTML = html;
@@ -11487,11 +12431,15 @@ function renderAntiPatterns() {
   // Handle individual item clicks
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
+    const line = item.getAttribute('data-line');
     const content = item.querySelector('.pattern-item-content');
     content.addEventListener('click', (e) => {
       e.stopPropagation();
       highlightIssueFiles(files);
-      if (files.length > 0) { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0] }); }
+      if (files.length > 0) {
+        const lineNum = line ? parseInt(line) : undefined;
+        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: lineNum });
+      }
     });
   });
 
@@ -11500,15 +12448,24 @@ function renderAntiPatterns() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = btn.closest('.pattern-item');
-      const files = item.getAttribute('data-files').split(',').filter(f => f);
+      const isFileIssue = item.getAttribute('data-is-file-issue') === 'true';
       const type = item.getAttribute('data-type');
       const description = item.getAttribute('data-description');
+
       // Save selected element type before DOM rebuild
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
       const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
-      ignoredPatterns.push({ type, files, description });
+      if (isFileIssue) {
+        const file = item.getAttribute('data-files');
+        const line = item.getAttribute('data-line');
+        ignoredFileIssues.push({ ruleId: type, file, line, message: description });
+      } else {
+        const files = item.getAttribute('data-files').split(',').filter(f => f);
+        ignoredPatterns.push({ type, files, description });
+      }
+
       const expandedState = getExpandedState();
       renderAntiPatterns();
       restoreExpandedState(expandedState);
@@ -11549,15 +12506,20 @@ function renderAntiPatterns() {
       e.stopPropagation();
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
-      const restoredItem = ignoredPatterns[idx];
-      const restoredType = restoredItem.type;
+      const isFileIssue = item.getAttribute('data-is-file-issue') === 'true';
+      const restoredType = isFileIssue ? ignoredFileIssues[idx].ruleId : ignoredPatterns[idx].type;
 
       // Check if a pattern header of the same type is currently selected
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
       const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
-      ignoredPatterns.splice(idx, 1);
+      if (isFileIssue) {
+        ignoredFileIssues.splice(idx, 1);
+      } else {
+        ignoredPatterns.splice(idx, 1);
+      }
+
       const expandedState = getExpandedState();
       renderAntiPatterns();
       restoreExpandedState(expandedState);
@@ -11570,12 +12532,11 @@ function renderAntiPatterns() {
       if (wasStatusSelected) {
         selectedElement = document.getElementById('status');
       } else if (selectedType && selectedType !== restoredType) {
-        // Different type was selected, restore that reference
         const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
         if (newHeader) selectedElement = newHeader;
       }
 
-      // If restored item's type matches selected type, re-select the group to include restored files
+      // If restored item's type matches selected type, re-select the group
       if (selectedType === restoredType) {
         const newHeader = document.querySelector('.pattern-header[data-type="' + restoredType + '"]');
         if (newHeader) {
@@ -11592,6 +12553,27 @@ function renderAntiPatterns() {
       highlightIssueFiles(stillValid);
     });
   });
+}
+`;
+
+// src/webview/file-issues-panel.ts
+var FILE_ISSUES_PANEL_SCRIPT = `
+let ignoredFileIssues = [];  // Array of {ruleId, file, line, message} for ignored items
+
+function isFileIssueIgnored(issue) {
+  return ignoredFileIssues.some(i =>
+    i.ruleId === issue.ruleId && i.file === issue.file && i.line === issue.line
+  );
+}
+
+function getFileIssueCount() {
+  const allIssues = typeof fileIssues !== 'undefined' ? fileIssues : [];
+  return allIssues.filter(i => !isFileIssueIgnored(i)).length;
+}
+
+// Rendering is now handled by renderAntiPatterns() which merges file issues
+function renderFileIssues() {
+  // No-op - file issues are now rendered inline with anti-patterns
 }
 `;
 
@@ -11758,8 +12740,10 @@ render();
 renderLegend();
 renderRules();
 renderAntiPatterns();
+if (typeof renderFileIssues === 'function') renderFileIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
+updateStatusWithFileIssues();
 
 // Auto-highlight all issue files on initial load
 if (initialAntiPatterns && initialAntiPatterns.length > 0) {
@@ -11841,6 +12825,21 @@ function cycleIssueColors() {
 
 // Run animation at 60fps (16ms)
 setInterval(cycleIssueColors, 16);
+
+function updateStatusWithFileIssues() {
+  const statusBtn = document.getElementById('status');
+  const antiPatternCount = (depGraph ? depGraph.antiPatterns : initialAntiPatterns)?.length || 0;
+  const fileIssueCount = typeof getFileIssueCount === 'function' ? getFileIssueCount() : 0;
+  const total = antiPatternCount + fileIssueCount;
+  if (total > 0) {
+    const parts = [];
+    if (antiPatternCount > 0) parts.push(antiPatternCount + ' anti-patterns');
+    if (fileIssueCount > 0) parts.push(fileIssueCount + ' code issues');
+    statusBtn.textContent = parts.join(', ');
+  } else {
+    statusBtn.textContent = 'No issues found';
+  }
+}
 `;
 
 // src/dashboard-html.ts
@@ -11872,6 +12871,8 @@ function getDashboardContent(data, antiPatterns) {
   const rulesJson = JSON.stringify(data.rules);
   const antiPatternsJson = JSON.stringify(antiPatterns);
   const unsupportedCount = data.totals.unsupportedFiles;
+  const fileIssues = data.files.flatMap((f2) => f2.issues || []);
+  const fileIssuesJson = JSON.stringify(fileIssues);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11953,6 +12954,7 @@ const files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
 const initialAntiPatterns = ${antiPatternsJson};
+const fileIssues = ${fileIssuesJson};
 
 let highlightedFiles = [];
 let currentView = 'treemap';
@@ -11990,6 +12992,8 @@ ${CHORD_SCRIPT}
 ${HIGHLIGHT_UTILS_SCRIPT}
 
 ${ANTI_PATTERN_PANEL_SCRIPT}
+
+${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
 

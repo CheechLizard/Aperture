@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { ProjectData, FileInfo, LanguageSummary, LanguageSupport } from './types';
 import { getLanguage } from './language-map';
 import { parseClaudeMd } from './rules-parser';
-import { parse } from './ast-parser';
+import { parseAll } from './ast-parser';
+import { detectFileIssues } from './file-issue-detector';
 
 export async function scanWorkspace(): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -68,17 +69,26 @@ async function scanFile(
     const relativePath = vscode.workspace.asRelativePath(uri, false);
     const language = getLanguage(uri.fsPath);
 
-    // Single-pass AST parsing for imports
-    const parseResult = parse(text, relativePath, language);
+    // Full AST extraction
+    const astResult = parseAll(text, relativePath, language);
 
-    return {
+    // Create file info with functions populated
+    const fileInfo: FileInfo = {
       path: relativePath,
       language,
       loc,
-      functions: [], // TODO: Extract functions via AST in future
-      imports: parseResult.imports,
-      parseStatus: parseResult.status,
+      functions: astResult.functions,
+      imports: astResult.imports,
+      parseStatus: astResult.status,
     };
+
+    // Detect issues for this file
+    const issues = detectFileIssues(fileInfo, astResult, text);
+    if (issues.length > 0) {
+      fileInfo.issues = issues;
+    }
+
+    return fileInfo;
   } catch {
     return null;
   }

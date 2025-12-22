@@ -1,7 +1,21 @@
 import * as path from 'path';
 import * as TreeSitter from 'web-tree-sitter';
 import { BaseLanguageHandler } from './base-handler';
-import { ImportInfo } from '../types';
+import {
+  ImportInfo,
+  FunctionInfo,
+  CatchBlockInfo,
+  CommentInfo,
+  LiteralInfo,
+  ASTExtractionResult,
+} from '../types';
+import {
+  extractImportsFromTree,
+  extractFunctionsFromTree,
+  extractCatchBlocksFromTree,
+  extractCommentsFromTree,
+  extractLiteralsFromTree,
+} from './typescript-extractors';
 
 export class TypeScriptHandler extends BaseLanguageHandler {
   readonly languageIds = ['TypeScript', 'JavaScript'];
@@ -14,7 +28,6 @@ export class TypeScriptHandler extends BaseLanguageHandler {
   async initialize(wasmDir: string): Promise<void> {
     if (this.initialized) return;
 
-    // Parser.init() is called centrally in ast-parser.ts
     this.parser = new TreeSitter.Parser();
     this.tsLanguage = await TreeSitter.Language.load(
       path.join(wasmDir, 'tree-sitter-typescript.wasm')
@@ -25,118 +38,68 @@ export class TypeScriptHandler extends BaseLanguageHandler {
     this.initialized = true;
   }
 
-  extractImports(content: string, filePath: string): ImportInfo[] {
-    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return [];
+  private parseContent(content: string, filePath: string): TreeSitter.Tree | null {
+    if (!this.parser || !this.tsLanguage || !this.tsxLanguage) return null;
 
     const ext = path.extname(filePath).toLowerCase();
     const isTsx = ext === '.tsx' || ext === '.jsx';
     this.parser.setLanguage(isTsx ? this.tsxLanguage : this.tsLanguage);
 
-    const tree = this.parser.parse(content);
+    return this.parser.parse(content);
+  }
+
+  extractImports(content: string, filePath: string): ImportInfo[] {
+    const tree = this.parseContent(content, filePath);
     if (!tree) return [];
-
-    const imports: ImportInfo[] = [];
     const lines = content.split('\n');
-
-    this.walkTree(tree.rootNode, imports, lines);
-    return imports;
+    return extractImportsFromTree(tree.rootNode, lines);
   }
 
-  private walkTree(
-    node: TreeSitter.Node,
-    imports: ImportInfo[],
-    lines: string[]
-  ): void {
-    // ES6: import x from 'module'
-    if (node.type === 'import_statement') {
-      const source = node.childForFieldName('source');
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || '',
-          });
-        }
-      }
-    }
-
-    // ES6: export { x } from 'module'
-    if (node.type === 'export_statement') {
-      const source = node.childForFieldName('source');
-      if (source) {
-        const modulePath = this.extractStringContent(source.text);
-        if (modulePath) {
-          imports.push({
-            modulePath,
-            line: node.startPosition.row + 1,
-            code: lines[node.startPosition.row]?.trim() || '',
-          });
-        }
-      }
-    }
-
-    // CommonJS: require('module')
-    if (node.type === 'call_expression') {
-      const func = node.childForFieldName('function');
-      if (func?.text === 'require') {
-        const args = node.childForFieldName('arguments');
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1); // Skip opening paren
-          if (firstArg && firstArg.type === 'string') {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || '',
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Dynamic: import('module')
-    if (node.type === 'call_expression') {
-      const func = node.childForFieldName('function');
-      if (func?.type === 'import') {
-        const args = node.childForFieldName('arguments');
-        if (args && args.childCount > 0) {
-          const firstArg = args.child(1);
-          if (firstArg && firstArg.type === 'string') {
-            const modulePath = this.extractStringContent(firstArg.text);
-            if (modulePath) {
-              imports.push({
-                modulePath,
-                line: node.startPosition.row + 1,
-                code: lines[node.startPosition.row]?.trim() || '',
-              });
-            }
-          }
-        }
-      }
-    }
-
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
-      if (child) {
-        this.walkTree(child, imports, lines);
-      }
-    }
+  extractFunctions(content: string, filePath: string): FunctionInfo[] {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractFunctionsFromTree(tree.rootNode);
   }
 
-  private extractStringContent(text: string): string | null {
-    if (text.startsWith("'") && text.endsWith("'")) {
-      return text.slice(1, -1);
+  extractCatchBlocks(content: string, filePath: string): CatchBlockInfo[] {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractCatchBlocksFromTree(tree.rootNode);
+  }
+
+  extractComments(content: string, filePath: string): CommentInfo[] {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractCommentsFromTree(tree.rootNode);
+  }
+
+  extractLiterals(content: string, filePath: string): LiteralInfo[] {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) return [];
+    return extractLiteralsFromTree(tree.rootNode);
+  }
+
+  extractAll(content: string, filePath: string): ASTExtractionResult {
+    const tree = this.parseContent(content, filePath);
+    if (!tree) {
+      return {
+        imports: [],
+        functions: [],
+        catchBlocks: [],
+        comments: [],
+        literals: [],
+        status: 'error',
+      };
     }
-    if (text.startsWith('"') && text.endsWith('"')) {
-      return text.slice(1, -1);
-    }
-    if (text.startsWith('`') && text.endsWith('`')) {
-      return text.slice(1, -1);
-    }
-    return null;
+
+    const lines = content.split('\n');
+    return {
+      imports: extractImportsFromTree(tree.rootNode, lines),
+      functions: extractFunctionsFromTree(tree.rootNode),
+      catchBlocks: extractCatchBlocksFromTree(tree.rootNode),
+      comments: extractCommentsFromTree(tree.rootNode),
+      literals: extractLiteralsFromTree(tree.rootNode),
+      status: 'parsed',
+    };
   }
 }

@@ -25,9 +25,10 @@ export interface FileInfo {
   path: string;
   language: string;
   loc: number;
-  functions: FunctionInfo[]; // TODO: Populate via AST in future
+  functions: FunctionInfo[];
   imports: ImportInfo[];
   parseStatus: ParseStatus;
+  issues?: FileIssue[];
 }
 
 export interface FunctionInfo {
@@ -35,6 +36,39 @@ export interface FunctionInfo {
   startLine: number;
   endLine: number;
   loc: number;
+  maxNestingDepth: number;
+  parameterCount: number;
+}
+
+export type IssueSeverity = 'error' | 'warning' | 'info';
+export type IssueCategory = 'structural' | 'naming' | 'architecture' | 'comment';
+
+export interface FileIssue {
+  ruleId: string;
+  severity: IssueSeverity;
+  category: IssueCategory;
+  message: string;
+  file: string;
+  line?: number;
+  endLine?: number;
+  symbol?: string;
+}
+
+export interface CatchBlockInfo {
+  line: number;
+  isEmpty: boolean;
+}
+
+export interface CommentInfo {
+  line: number;
+  text: string;
+  isBlockComment: boolean;
+}
+
+export interface LiteralInfo {
+  line: number;
+  value: number;
+  context: 'standalone' | 'comparison' | 'assignment' | 'array-index' | 'other';
 }
 
 export interface LanguageSummary {
@@ -101,8 +135,17 @@ export interface DependencyEdge {
   code: string;
 }
 
+export interface ASTExtractionResult {
+  imports: ImportInfo[];
+  functions: FunctionInfo[];
+  catchBlocks: CatchBlockInfo[];
+  comments: CommentInfo[];
+  literals: LiteralInfo[];
+  status: ParseStatus;
+}
+
 export interface AntiPattern {
-  type: 'circular' | 'nexus' | 'orphan' | 'hub';
+  type: 'circular' | 'nexus' | 'orphan';
   severity: 'high' | 'medium' | 'low';
   description: string;
   files: string[];

@@ -3,10 +3,30 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export const ANTI_PATTERN_RULES: Record<string, string> = {
+  // Architecture rules (existing)
   circular: '**Avoid circular dependencies.** Files should not form import cycles.',
   nexus: '**Avoid nexus/coupling bottlenecks.** Files should not both import many files and be imported by many files.',
-  hub: '**Avoid hub files.** Files should not import a large percentage of the codebase.',
   orphan: '**Avoid orphan files.** Code files should have imports or dependents.',
+
+  // Structural rules
+  'long-function': '**Keep functions short.** Functions should be ~20 lines, never exceed 50.',
+  'long-file': '**Keep files short.** Files should stay under 200 lines.',
+  'deep-nesting': '**Avoid deep nesting.** Nesting depth should not exceed 4 levels.',
+  'silent-failure': '**No silent failures.** Catch blocks should never be empty.',
+  'too-many-parameters': '**Limit function parameters.** Functions should not have more than 5 parameters.',
+
+  // Naming rules
+  'generic-name': '**Use descriptive names.** Avoid generic names like data, result, temp, item, value.',
+  'non-verb-function': '**Functions should be verbs.** Function names should start with a verb.',
+  'non-question-boolean': '**Booleans should be questions.** Boolean names should start with is, has, can, should, etc.',
+  'magic-number': '**No magic numbers.** Numeric literals should be named constants.',
+
+  // Comment rules
+  'commented-code': '**Delete commented-out code.** Never commit commented-out code.',
+  'high-comment-density': '**Comments indicate unclear code.** High comment density suggests code needs refactoring.',
+
+  // Architecture rules (new)
+  'mixed-concerns': '**Separate concerns.** Files should not mix data, logic, and rendering.',
 };
 
 const APERTURE_RULES_MARKER = '<!-- Aperture Anti-Pattern Rules -->';

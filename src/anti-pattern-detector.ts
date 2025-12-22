@@ -41,20 +41,6 @@ export function detectAntiPatterns(
     }
   }
 
-  const hubThreshold = Math.max(5, Math.floor(codeFileCount * 0.10));
-  for (const [filePath, node] of nodes) {
-    const isNexus = node.imports.length >= nexusImportThreshold && node.importedBy.length >= nexusImportedByThreshold;
-    if (node.imports.length >= hubThreshold && !isNexus) {
-      const pct = Math.round((node.imports.length / codeFileCount) * 100);
-      antiPatterns.push({
-        type: 'hub',
-        severity: 'low',
-        description: `Imports ${node.imports.length} files (${pct}% of codebase)`,
-        files: [filePath],
-      });
-    }
-  }
-
   for (const [filePath, node] of nodes) {
     if (isCodeFile(filePath) && node.imports.length === 0 && node.importedBy.length === 0) {
       antiPatterns.push({

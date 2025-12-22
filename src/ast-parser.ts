@@ -2,8 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as TreeSitter from 'web-tree-sitter';
 import { languageRegistry } from './language-registry';
-import { ImportInfo, ParseStatus } from './types';
+import { ImportInfo, ParseStatus, ASTExtractionResult } from './types';
 
+// Legacy interface for backward compatibility
 export interface ParseResult {
   imports: ImportInfo[];
   status: ParseStatus;
@@ -11,6 +12,7 @@ export interface ParseResult {
 
 let treeSitterInitialized = false;
 
+// Legacy function - returns just imports for backward compatibility
 export function parse(
   content: string,
   filePath: string,
@@ -36,8 +38,53 @@ export function parse(
   }
 }
 
+// New function - returns full extraction result
+export function parseAll(
+  content: string,
+  filePath: string,
+  language: string
+): ASTExtractionResult {
+  const ext = path.extname(filePath).toLowerCase();
+  const handler = languageRegistry.getHandlerByExtension(ext);
+
+  if (!handler) {
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: 'unsupported',
+    };
+  }
+
+  if (!handler.isInitialized()) {
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: 'error',
+    };
+  }
+
+  try {
+    return handler.extractAll(content, filePath);
+  } catch (error) {
+    console.error(`AST parse error for ${filePath}:`, error);
+    return {
+      imports: [],
+      functions: [],
+      catchBlocks: [],
+      comments: [],
+      literals: [],
+      status: 'error',
+    };
+  }
+}
+
 export async function initializeParser(wasmDir: string): Promise<void> {
-  // Initialize tree-sitter WASM runtime once globally
   if (!treeSitterInitialized) {
     const wasmPath = path.join(wasmDir, 'web-tree-sitter.wasm');
     const wasmBinary = fs.readFileSync(wasmPath);

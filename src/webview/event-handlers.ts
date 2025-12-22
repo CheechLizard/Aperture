@@ -113,8 +113,10 @@ render();
 renderLegend();
 renderRules();
 renderAntiPatterns();
+if (typeof renderFileIssues === 'function') renderFileIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
+updateStatusWithFileIssues();
 
 // Auto-highlight all issue files on initial load
 if (initialAntiPatterns && initialAntiPatterns.length > 0) {
@@ -196,4 +198,19 @@ function cycleIssueColors() {
 
 // Run animation at 60fps (16ms)
 setInterval(cycleIssueColors, 16);
+
+function updateStatusWithFileIssues() {
+  const statusBtn = document.getElementById('status');
+  const antiPatternCount = (depGraph ? depGraph.antiPatterns : initialAntiPatterns)?.length || 0;
+  const fileIssueCount = typeof getFileIssueCount === 'function' ? getFileIssueCount() : 0;
+  const total = antiPatternCount + fileIssueCount;
+  if (total > 0) {
+    const parts = [];
+    if (antiPatternCount > 0) parts.push(antiPatternCount + ' anti-patterns');
+    if (fileIssueCount > 0) parts.push(fileIssueCount + ' code issues');
+    statusBtn.textContent = parts.join(', ');
+  } else {
+    statusBtn.textContent = 'No issues found';
+  }
+}
 `;

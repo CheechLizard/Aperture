@@ -1,4 +1,4 @@
-import { ProjectData, AntiPattern } from './types';
+import { ProjectData, AntiPattern, FileIssue } from './types';
 import { DASHBOARD_STYLES } from './webview/styles';
 import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_SCRIPT } from './webview/treemap';
@@ -6,6 +6,7 @@ import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
 import { HIGHLIGHT_UTILS_SCRIPT } from './webview/highlight-utils';
 import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
+import { FILE_ISSUES_PANEL_SCRIPT } from './webview/file-issues-panel';
 import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
 
@@ -39,6 +40,10 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
   const rulesJson = JSON.stringify(data.rules);
   const antiPatternsJson = JSON.stringify(antiPatterns);
   const unsupportedCount = data.totals.unsupportedFiles;
+
+  // Aggregate file-level issues from all files
+  const fileIssues: FileIssue[] = data.files.flatMap(f => f.issues || []);
+  const fileIssuesJson = JSON.stringify(fileIssues);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -121,6 +126,7 @@ const files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
 const initialAntiPatterns = ${antiPatternsJson};
+const fileIssues = ${fileIssuesJson};
 
 let highlightedFiles = [];
 let currentView = 'treemap';
@@ -158,6 +164,8 @@ ${CHORD_SCRIPT}
 ${HIGHLIGHT_UTILS_SCRIPT}
 
 ${ANTI_PATTERN_PANEL_SCRIPT}
+
+${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
 
