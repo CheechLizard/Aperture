@@ -124,6 +124,17 @@ function renderDistributionChart() {
   // Shared named transition for sync
   const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
 
+  // Cross-fade layer opacity
+  const isZoomingIn = zoomedFile && !prevZoomedFile;
+  const isZoomingOut = !zoomedFile && prevZoomedFile;
+  if (isZoomingIn) {
+    fileLayer.attr('opacity', 1).transition(t).attr('opacity', 0);
+    funcLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
+  } else if (isZoomingOut) {
+    fileLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
+    funcLayer.attr('opacity', 1).transition(t).attr('opacity', 0);
+  }
+
   // File rectangles (in file layer)
   const rects = fileLayer.selectAll('rect.file-node').data(leaves, d => d.data.path);
 
@@ -198,27 +209,45 @@ function renderDistributionChart() {
 
   fileLayer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
     .join(
-      enter => enter.append('rect').attr('class', 'dir-header'),
+      enter => enter.append('rect')
+        .attr('class', 'dir-header')
+        .attr('x', d => (d.x0 - px) * pkx)
+        .attr('y', d => (d.y0 - py) * pky)
+        .attr('width', d => (d.x1 - d.x0) * pkx)
+        .attr('height', 16),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.transition(t)
+        .attr('x', d => (d.x0 - x) * kx)
+        .attr('y', d => (d.y0 - y) * ky)
+        .attr('width', d => (d.x1 - d.x0) * kx)
+        .remove()
     )
     .transition(t)
-    .attr('x', d => d.x0).attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0).attr('height', 16);
+    .attr('x', d => (d.x0 - x) * kx)
+    .attr('y', d => (d.y0 - y) * ky)
+    .attr('width', d => (d.x1 - d.x0) * kx)
+    .attr('height', 16);
 
   fileLayer.selectAll('text.dir-label').data(depth1, d => d.data.name)
     .join(
-      enter => enter.append('text').attr('class', 'dir-label'),
+      enter => enter.append('text')
+        .attr('class', 'dir-label')
+        .attr('x', d => (d.x0 - px) * pkx + 4)
+        .attr('y', d => (d.y0 - py) * pky + 12),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.transition(t)
+        .attr('x', d => (d.x0 - x) * kx + 4)
+        .attr('y', d => (d.y0 - y) * ky + 12)
+        .remove()
     )
     .text(d => {
-      const w = d.x1 - d.x0 - 8;
+      const w = (d.x1 - d.x0) * kx - 8;
       const name = d.data.name;
       return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\\u2026' : name;
     })
     .transition(t)
-    .attr('x', d => d.x0 + 4).attr('y', d => d.y0 + 12);
+    .attr('x', d => (d.x0 - x) * kx + 4)
+    .attr('y', d => (d.y0 - y) * ky + 12);
 
   // Function rectangles (only when zoomed)
   let funcLeaves = [];
@@ -350,6 +379,12 @@ function renderDistributionChart() {
     renderFunctionLegend(funcLeaves);
   } else {
     renderFilesLegend(fileData);
+  }
+
+  // Reapply issue highlighting to new elements
+  applyPersistentIssueHighlights();
+  if (currentHighlightedFiles.length > 0) {
+    highlightIssueFiles(currentHighlightedFiles);
   }
 }
 
