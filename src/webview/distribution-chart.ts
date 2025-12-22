@@ -17,12 +17,18 @@ function getDynamicFileColor(fileData) {
 function zoomTo(filePath) {
   prevZoomedFile = zoomedFile;
   zoomedFile = filePath;
+  // Update context to only include the zoomed file
+  currentHighlightedFiles = [filePath];
+  renderDynamicPrompts();
   renderDistributionChart();
 }
 
 function zoomOut() {
   prevZoomedFile = zoomedFile;
   zoomedFile = null;
+  // Restore context to all issue files
+  currentHighlightedFiles = getAllIssueFiles();
+  renderDynamicPrompts();
   renderDistributionChart();
 }
 
