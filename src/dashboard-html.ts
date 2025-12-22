@@ -55,9 +55,9 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
   <style>${DASHBOARD_STYLES}</style>
 </head>
 <body>
+  <div id="back-header" class="back-header hidden"></div>
   <div class="main-split">
     <div class="main-content">
-      <div id="back-header" class="back-header hidden"></div>
       <div class="diagram-area">
         <div id="treemap"></div>
         <div id="dep-container" class="dep-container">

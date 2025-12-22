@@ -11631,9 +11631,9 @@ var DASHBOARD_STYLES = `
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .main-split { display: flex; gap: 16px; height: calc(100vh - 100px); }
+    .main-split { display: flex; gap: 16px; height: calc(100vh - 150px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
-    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); }
+    .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); padding-left: 12px; }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
     .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -13455,9 +13455,9 @@ function getDashboardContent(data, architectureIssues) {
   <style>${DASHBOARD_STYLES}</style>
 </head>
 <body>
+  <div id="back-header" class="back-header hidden"></div>
   <div class="main-split">
     <div class="main-content">
-      <div id="back-header" class="back-header hidden"></div>
       <div class="diagram-area">
         <div id="treemap"></div>
         <div id="dep-container" class="dep-container">
