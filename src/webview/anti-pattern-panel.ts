@@ -1,9 +1,46 @@
 export const ANTI_PATTERN_PANEL_SCRIPT = `
+// Issue view mapping - determines which view and coloring to use for each rule
+const ISSUE_VIEW_MAP = {
+  // Functions treemap with metrics
+  'long-function': { view: 'functions', colorBy: 'loc' },
+  'deep-nesting': { view: 'functions', colorBy: 'depth' },
+  'too-many-parameters': { view: 'functions', colorBy: 'params' },
+  // Functions treemap with binary coloring
+  'silent-failure': { view: 'functions', colorBy: 'binary' },
+  'generic-name': { view: 'functions', colorBy: 'binary' },
+  'non-verb-function': { view: 'functions', colorBy: 'binary' },
+  'non-question-boolean': { view: 'functions', colorBy: 'binary' },
+  'magic-number': { view: 'functions', colorBy: 'binary' },
+  'commented-code': { view: 'functions', colorBy: 'binary' },
+  // Files treemap
+  'long-file': { view: 'files', colorBy: 'loc' },
+  'orphan-file': { view: 'files', colorBy: 'binary' },
+  'mixed-concerns': { view: 'files', colorBy: 'binary' },
+  'high-comment-density': { view: 'files', colorBy: 'binary' },
+  // Chord diagram
+  'circular-dependency': { view: 'chord', colorBy: 'cycle' },
+  'hub-file': { view: 'chord', colorBy: 'hub' },
+};
+
+// File-level rule IDs (shown on Files treemap)
+const FILE_RULES = new Set(['long-file', 'mixed-concerns', 'orphan-file', 'high-comment-density']);
+
+// Architecture rule IDs (graph-level, shown on Chord diagram)
+const ARCHITECTURE_RULES = new Set(['circular-dependency', 'hub-file']);
+
+let selectedRuleId = null;
+let colorMode = 'none';  // 'none', 'loc', 'depth', 'params', 'binary'
+
 function getExpandedState() {
-  const state = { groups: new Set(), ignored: false };
+  const state = { groups: new Set(), ignored: false, categories: new Set() };
   document.querySelectorAll('.pattern-group').forEach(group => {
     if (group.querySelector('.pattern-items.expanded')) {
       state.groups.add(group.getAttribute('data-type'));
+    }
+  });
+  document.querySelectorAll('.issue-category').forEach(cat => {
+    if (cat.querySelector('.issue-category-items.expanded')) {
+      state.categories.add(cat.getAttribute('data-category'));
     }
   });
   const ignoredItems = document.querySelector('.ignored-items');
@@ -21,12 +58,59 @@ function restoreExpandedState(state) {
       group.querySelector('.pattern-items').classList.add('expanded');
     }
   });
+  document.querySelectorAll('.issue-category').forEach(cat => {
+    const category = cat.getAttribute('data-category');
+    if (state.categories.has(category)) {
+      cat.querySelector('.issue-category-chevron').classList.add('expanded');
+      cat.querySelector('.issue-category-items').classList.add('expanded');
+    }
+  });
   if (state.ignored) {
     const ignoredHeader = document.querySelector('.ignored-header');
     if (ignoredHeader) {
       ignoredHeader.querySelector('.pattern-chevron').classList.add('expanded');
       ignoredHeader.nextElementSibling.classList.add('expanded');
     }
+  }
+}
+
+function switchToView(ruleId) {
+  const config = ISSUE_VIEW_MAP[ruleId] || { view: 'files', colorBy: 'binary' };
+  selectedRuleId = ruleId;
+  colorMode = config.colorBy;
+
+  // Switch visualization
+  if (config.view === 'functions') {
+    currentView = 'functions';
+    document.getElementById('treemap').style.display = 'none';
+    document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('dep-controls').classList.remove('visible');
+    document.getElementById('functions-container').classList.add('visible');
+    document.getElementById('legend').style.display = 'flex';
+    renderDistributionChart();
+  } else if (config.view === 'chord') {
+    currentView = 'deps';
+    document.getElementById('treemap').style.display = 'none';
+    document.getElementById('functions-container').classList.remove('visible');
+    document.getElementById('dep-container').style.display = 'block';
+    document.getElementById('dep-controls').classList.add('visible');
+    document.getElementById('legend').style.display = 'none';
+    if (!depGraph) {
+      document.getElementById('status').textContent = 'Analyzing dependencies...';
+      vscode.postMessage({ command: 'getDependencies' });
+    } else {
+      renderDepGraph();
+    }
+  } else {
+    // files view
+    currentView = 'treemap';
+    document.getElementById('functions-container').classList.remove('visible');
+    document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('dep-controls').classList.remove('visible');
+    document.getElementById('treemap').style.display = 'block';
+    document.getElementById('legend').style.display = 'flex';
+    render();
+    renderTreemapLegend();
   }
 }
 
@@ -62,12 +146,18 @@ function renderIssues() {
 
   const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
+  // Split into code, file, and architecture issues
+  const codeGroups = sortedGroups.filter(g => !FILE_RULES.has(g.ruleId) && !ARCHITECTURE_RULES.has(g.ruleId));
+  const fileGroups = sortedGroups.filter(g => FILE_RULES.has(g.ruleId));
+  const archGroups = sortedGroups.filter(g => ARCHITECTURE_RULES.has(g.ruleId));
+
   // Format rule ID for display (e.g., "long-function" → "Long Function")
   function formatRuleId(ruleId) {
     return ruleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
-  let html = sortedGroups.map((group, gIdx) => {
+  function renderGroupsHtml(groupList) {
+    return groupList.map((group, gIdx) => {
     const isRuleActive = activeRules.has(group.ruleId);
 
     // Get all files from all locations
@@ -92,7 +182,35 @@ function renderIssues() {
       '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
       '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
       '<div class="pattern-items">' + itemsHtml + '</div></div>';
-  }).join('');
+    }).join('');
+  }
+
+  // Build category sections
+  let html = '';
+
+  // Code Issues section (function-level, shown on Functions treemap)
+  if (codeGroups.length > 0) {
+    const codeCount = codeGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="code">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">▶</span>Code Issues (' + codeCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(codeGroups) + '</div></div>';
+  }
+
+  // File Issues section (file-level, shown on Files treemap)
+  if (fileGroups.length > 0) {
+    const fileCount = fileGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="file">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">▶</span>File Issues (' + fileCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(fileGroups) + '</div></div>';
+  }
+
+  // Architecture Issues section (graph-level, shown on Chord diagram)
+  if (archGroups.length > 0) {
+    const archCount = archGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="architecture">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">▶</span>Architecture Issues (' + archCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(archGroups) + '</div></div>';
+  }
 
   // Ignored section
   if (ignoredIssues.length > 0) {
@@ -109,6 +227,16 @@ function renderIssues() {
 
   list.innerHTML = html;
 
+  // Handle category header clicks (expand/collapse)
+  list.querySelectorAll('.issue-category-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const chevron = header.querySelector('.issue-category-chevron');
+      const items = header.nextElementSibling;
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+    });
+  });
+
   // Handle chevron clicks (expand/collapse only)
   list.querySelectorAll('.pattern-header .pattern-chevron').forEach(chevron => {
     const group = chevron.closest('.pattern-group');
@@ -120,14 +248,17 @@ function renderIssues() {
     });
   });
 
-  // Handle header clicks (select/highlight only, no expand)
+  // Handle header clicks (select/highlight and switch view)
   list.querySelectorAll('.pattern-header').forEach(header => {
     const files = header.getAttribute('data-files').split(',').filter(f => f);
+    const ruleId = header.getAttribute('data-type');
     header.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-chevron')) return;
       if (e.target.classList.contains('pattern-rules-toggle')) return;
       if (selectedElement) { selectedElement.style.borderLeftColor = ''; selectedElement.style.background = ''; }
       selectedElement = header;
+      // Switch to appropriate view and coloring
+      switchToView(ruleId);
       highlightIssueFiles(files);
     });
   });

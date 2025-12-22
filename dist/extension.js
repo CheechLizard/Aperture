@@ -11603,7 +11603,12 @@ var DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; position: relative; }
+    /* Back header in visualization area - always reserve space to prevent layout shift */
+    .back-header { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 8px; min-height: 32px; }
+    .back-header.hidden { visibility: hidden; }
+    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+    .back-btn:hover { background: var(--vscode-list-hoverBackground); }
+    .back-path { font-weight: 600; font-size: 0.9em; color: var(--vscode-foreground); }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -11626,11 +11631,7 @@ var DASHBOARD_STYLES = `
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .view-toggle { display: flex; border: 1px solid var(--vscode-widget-border); border-radius: 6px; overflow: hidden; }
-    .view-toggle button { padding: 10px 20px; border: none; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 1.1em; font-weight: 500; }
-    .view-toggle button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .view-toggle button:not(.active):hover { background: var(--vscode-list-hoverBackground); }
-    .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
+    .main-split { display: flex; gap: 16px; height: calc(100vh - 100px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -11655,6 +11656,15 @@ var DASHBOARD_STYLES = `
     .status-btn:hover { opacity: 0.9; }
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
+    /* Issue category sections */
+    .issue-category { margin-bottom: 12px; }
+    .issue-category-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); }
+    .issue-category-header:hover { color: var(--vscode-foreground); }
+    .issue-category-chevron { transition: transform 0.2s; }
+    .issue-category-chevron.expanded { transform: rotate(90deg); }
+    .issue-category-items { display: none; }
+    .issue-category-items.expanded { display: block; }
+    .arch-placeholder { padding: 8px 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); font-style: italic; }
     .pattern-group { margin-bottom: 8px; }
     .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
@@ -11791,13 +11801,44 @@ function buildEdgeTooltip(opts) {
 
 // src/webview/treemap.ts
 var TREEMAP_SCRIPT = `
-const COLORS = {
+const LANG_COLORS = {
   'TypeScript': '#1e4a75', 'JavaScript': '#8a7a20', 'Lua': '#5c3570',
   'JSON': '#1a6b3d', 'HTML': '#8a2d15', 'CSS': '#8a1745',
   'Markdown': '#4a3328', 'Python': '#1c7a45', 'Shell': '#527a30',
   'Go': '#006a85', 'Rust': '#8a6350'
 };
-const DEFAULT_COLOR = '#4a4a4a';
+const DEFAULT_LANG_COLOR = '#4a4a4a';
+
+const FILE_METRIC_COLORS = {
+  good: '#27ae60',    // Green
+  warning: '#f39c12', // Orange
+  bad: '#e74c3c',     // Red
+  neutral: '#6c757d'  // Gray
+};
+
+function getDynamicFilesTreemapColor(d) {
+  if (colorMode === 'none' || !colorMode) {
+    return LANG_COLORS[d.data.language] || DEFAULT_LANG_COLOR;
+  }
+
+  switch(colorMode) {
+    case 'loc':
+      // For files, use file LOC thresholds (not function LOC)
+      const loc = d.value;
+      if (loc <= 100) return FILE_METRIC_COLORS.good;
+      if (loc <= 200) return FILE_METRIC_COLORS.warning;
+      return FILE_METRIC_COLORS.bad;
+    case 'binary':
+      // Check if file has an issue of the selected type
+      const hasIssue = issues.some(i =>
+        i.ruleId === selectedRuleId &&
+        i.locations.some(loc => loc.file === d.data.path)
+      );
+      return hasIssue ? FILE_METRIC_COLORS.bad : FILE_METRIC_COLORS.good;
+    default:
+      return LANG_COLORS[d.data.language] || DEFAULT_LANG_COLOR;
+  }
+}
 
 function buildHierarchy(files) {
   const root = { name: 'root', children: [] };
@@ -11839,14 +11880,12 @@ function render() {
   const svg = d3.select('#treemap').append('svg').attr('width', width).attr('height', height);
   const leaves = hierarchy.leaves();
 
-  const getColor = (d) => COLORS[d.data.language] || DEFAULT_COLOR;
-
   svg.selectAll('rect.node').data(leaves).join('rect')
     .attr('class', 'node')
     .attr('data-path', d => d.data.path)
     .attr('x', d => d.x0).attr('y', d => d.y0)
     .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
-    .attr('fill', getColor)
+    .attr('fill', getDynamicFilesTreemapColor)
     .on('mouseover', (e, d) => {
       const html = buildFileTooltip({ path: d.data.path, language: d.data.language, loc: d.value });
       showTooltip(html, e);
@@ -11903,13 +11942,34 @@ function render() {
     .text(d => { const w = d.x1 - d.x0 - 12; const name = d.data.name; return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\u2026' : name; });
 }
 
-function renderLegend() {
+function renderTreemapLegend() {
   const container = document.getElementById('legend');
-  const languages = [...new Set(files.map(f => f.language))].sort();
-  container.innerHTML = languages.map(lang => {
-    const color = COLORS[lang] || DEFAULT_COLOR;
-    return '<div class="legend-item"><span class="legend-swatch" style="background:' + color + ';"></span>' + lang + '</div>';
-  }).join('');
+  if (!container || currentView !== 'treemap') return;
+
+  container.style.display = 'flex';
+
+  // If no special coloring, show language legend
+  if (colorMode === 'none' || !colorMode) {
+    const languages = [...new Set(files.map(f => f.language))].sort();
+    container.innerHTML = languages.map(lang => {
+      const color = LANG_COLORS[lang] || DEFAULT_LANG_COLOR;
+      return '<div class="legend-item"><span class="legend-swatch" style="background:' + color + ';"></span>' + lang + '</div>';
+    }).join('');
+    return;
+  }
+
+  // Show metric-based legend
+  let html = '';
+  if (colorMode === 'loc') {
+    html = '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.good + ';"></span>\\u2264100 LOC</div>' +
+           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.warning + ';"></span>101-200 LOC</div>' +
+           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.bad + ';"></span>200+ LOC</div>';
+  } else if (colorMode === 'binary') {
+    html = '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.good + ';"></span>No issue</div>' +
+           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.bad + ';"></span>Has issue</div>';
+  }
+  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + files.length + '</strong> files</div>';
+  container.innerHTML = html;
 }
 
 // Re-render on window resize
@@ -12260,11 +12320,48 @@ function updateHighlights(relevantFiles) {
 
 // src/webview/anti-pattern-panel.ts
 var ANTI_PATTERN_PANEL_SCRIPT = `
+// Issue view mapping - determines which view and coloring to use for each rule
+const ISSUE_VIEW_MAP = {
+  // Functions treemap with metrics
+  'long-function': { view: 'functions', colorBy: 'loc' },
+  'deep-nesting': { view: 'functions', colorBy: 'depth' },
+  'too-many-parameters': { view: 'functions', colorBy: 'params' },
+  // Functions treemap with binary coloring
+  'silent-failure': { view: 'functions', colorBy: 'binary' },
+  'generic-name': { view: 'functions', colorBy: 'binary' },
+  'non-verb-function': { view: 'functions', colorBy: 'binary' },
+  'non-question-boolean': { view: 'functions', colorBy: 'binary' },
+  'magic-number': { view: 'functions', colorBy: 'binary' },
+  'commented-code': { view: 'functions', colorBy: 'binary' },
+  // Files treemap
+  'long-file': { view: 'files', colorBy: 'loc' },
+  'orphan-file': { view: 'files', colorBy: 'binary' },
+  'mixed-concerns': { view: 'files', colorBy: 'binary' },
+  'high-comment-density': { view: 'files', colorBy: 'binary' },
+  // Chord diagram
+  'circular-dependency': { view: 'chord', colorBy: 'cycle' },
+  'hub-file': { view: 'chord', colorBy: 'hub' },
+};
+
+// File-level rule IDs (shown on Files treemap)
+const FILE_RULES = new Set(['long-file', 'mixed-concerns', 'orphan-file', 'high-comment-density']);
+
+// Architecture rule IDs (graph-level, shown on Chord diagram)
+const ARCHITECTURE_RULES = new Set(['circular-dependency', 'hub-file']);
+
+let selectedRuleId = null;
+let colorMode = 'none';  // 'none', 'loc', 'depth', 'params', 'binary'
+
 function getExpandedState() {
-  const state = { groups: new Set(), ignored: false };
+  const state = { groups: new Set(), ignored: false, categories: new Set() };
   document.querySelectorAll('.pattern-group').forEach(group => {
     if (group.querySelector('.pattern-items.expanded')) {
       state.groups.add(group.getAttribute('data-type'));
+    }
+  });
+  document.querySelectorAll('.issue-category').forEach(cat => {
+    if (cat.querySelector('.issue-category-items.expanded')) {
+      state.categories.add(cat.getAttribute('data-category'));
     }
   });
   const ignoredItems = document.querySelector('.ignored-items');
@@ -12282,12 +12379,59 @@ function restoreExpandedState(state) {
       group.querySelector('.pattern-items').classList.add('expanded');
     }
   });
+  document.querySelectorAll('.issue-category').forEach(cat => {
+    const category = cat.getAttribute('data-category');
+    if (state.categories.has(category)) {
+      cat.querySelector('.issue-category-chevron').classList.add('expanded');
+      cat.querySelector('.issue-category-items').classList.add('expanded');
+    }
+  });
   if (state.ignored) {
     const ignoredHeader = document.querySelector('.ignored-header');
     if (ignoredHeader) {
       ignoredHeader.querySelector('.pattern-chevron').classList.add('expanded');
       ignoredHeader.nextElementSibling.classList.add('expanded');
     }
+  }
+}
+
+function switchToView(ruleId) {
+  const config = ISSUE_VIEW_MAP[ruleId] || { view: 'files', colorBy: 'binary' };
+  selectedRuleId = ruleId;
+  colorMode = config.colorBy;
+
+  // Switch visualization
+  if (config.view === 'functions') {
+    currentView = 'functions';
+    document.getElementById('treemap').style.display = 'none';
+    document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('dep-controls').classList.remove('visible');
+    document.getElementById('functions-container').classList.add('visible');
+    document.getElementById('legend').style.display = 'flex';
+    renderDistributionChart();
+  } else if (config.view === 'chord') {
+    currentView = 'deps';
+    document.getElementById('treemap').style.display = 'none';
+    document.getElementById('functions-container').classList.remove('visible');
+    document.getElementById('dep-container').style.display = 'block';
+    document.getElementById('dep-controls').classList.add('visible');
+    document.getElementById('legend').style.display = 'none';
+    if (!depGraph) {
+      document.getElementById('status').textContent = 'Analyzing dependencies...';
+      vscode.postMessage({ command: 'getDependencies' });
+    } else {
+      renderDepGraph();
+    }
+  } else {
+    // files view
+    currentView = 'treemap';
+    document.getElementById('functions-container').classList.remove('visible');
+    document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('dep-controls').classList.remove('visible');
+    document.getElementById('treemap').style.display = 'block';
+    document.getElementById('legend').style.display = 'flex';
+    render();
+    renderTreemapLegend();
   }
 }
 
@@ -12323,12 +12467,18 @@ function renderIssues() {
 
   const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
+  // Split into code, file, and architecture issues
+  const codeGroups = sortedGroups.filter(g => !FILE_RULES.has(g.ruleId) && !ARCHITECTURE_RULES.has(g.ruleId));
+  const fileGroups = sortedGroups.filter(g => FILE_RULES.has(g.ruleId));
+  const archGroups = sortedGroups.filter(g => ARCHITECTURE_RULES.has(g.ruleId));
+
   // Format rule ID for display (e.g., "long-function" \u2192 "Long Function")
   function formatRuleId(ruleId) {
     return ruleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
-  let html = sortedGroups.map((group, gIdx) => {
+  function renderGroupsHtml(groupList) {
+    return groupList.map((group, gIdx) => {
     const isRuleActive = activeRules.has(group.ruleId);
 
     // Get all files from all locations
@@ -12353,7 +12503,35 @@ function renderIssues() {
       '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
       '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
       '<div class="pattern-items">' + itemsHtml + '</div></div>';
-  }).join('');
+    }).join('');
+  }
+
+  // Build category sections
+  let html = '';
+
+  // Code Issues section (function-level, shown on Functions treemap)
+  if (codeGroups.length > 0) {
+    const codeCount = codeGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="code">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>Code Issues (' + codeCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(codeGroups) + '</div></div>';
+  }
+
+  // File Issues section (file-level, shown on Files treemap)
+  if (fileGroups.length > 0) {
+    const fileCount = fileGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="file">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>File Issues (' + fileCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(fileGroups) + '</div></div>';
+  }
+
+  // Architecture Issues section (graph-level, shown on Chord diagram)
+  if (archGroups.length > 0) {
+    const archCount = archGroups.reduce((sum, g) => sum + g.items.length, 0);
+    html += '<div class="issue-category" data-category="architecture">' +
+      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>Architecture Issues (' + archCount + ')</div>' +
+      '<div class="issue-category-items expanded">' + renderGroupsHtml(archGroups) + '</div></div>';
+  }
 
   // Ignored section
   if (ignoredIssues.length > 0) {
@@ -12370,6 +12548,16 @@ function renderIssues() {
 
   list.innerHTML = html;
 
+  // Handle category header clicks (expand/collapse)
+  list.querySelectorAll('.issue-category-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const chevron = header.querySelector('.issue-category-chevron');
+      const items = header.nextElementSibling;
+      chevron.classList.toggle('expanded');
+      items.classList.toggle('expanded');
+    });
+  });
+
   // Handle chevron clicks (expand/collapse only)
   list.querySelectorAll('.pattern-header .pattern-chevron').forEach(chevron => {
     const group = chevron.closest('.pattern-group');
@@ -12381,14 +12569,17 @@ function renderIssues() {
     });
   });
 
-  // Handle header clicks (select/highlight only, no expand)
+  // Handle header clicks (select/highlight and switch view)
   list.querySelectorAll('.pattern-header').forEach(header => {
     const files = header.getAttribute('data-files').split(',').filter(f => f);
+    const ruleId = header.getAttribute('data-type');
     header.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-chevron')) return;
       if (e.target.classList.contains('pattern-rules-toggle')) return;
       if (selectedElement) { selectedElement.style.borderLeftColor = ''; selectedElement.style.background = ''; }
       selectedElement = header;
+      // Switch to appropriate view and coloring
+      switchToView(ruleId);
       highlightIssueFiles(files);
     });
   });
@@ -12621,36 +12812,26 @@ document.getElementById('clear').addEventListener('click', () => {
   document.getElementById('response').style.display = 'none';
 });
 
-// Track currently highlighted files for tab switching
+// Track currently highlighted files for view switching
 let currentHighlightedFiles = [];
 
-document.getElementById('view-treemap').addEventListener('click', () => {
-  if (currentView !== 'treemap') {
+// View switching function - called by anti-pattern-panel when issue is clicked
+function showView(view) {
+  if (view === 'treemap' || view === 'files') {
     currentView = 'treemap';
-    document.getElementById('view-treemap').classList.add('active');
-    document.getElementById('view-deps').classList.remove('active');
-    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'block';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('functions-container').classList.remove('visible');
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('dep-controls').classList.remove('visible');
-    // Re-render in case window was resized while on deps tab
     render();
+    renderTreemapLegend();
     applyPersistentIssueHighlights();
-    // Restore current selection
     if (currentHighlightedFiles.length > 0) {
       highlightIssueFiles(currentHighlightedFiles);
     }
-  }
-});
-
-document.getElementById('view-deps').addEventListener('click', () => {
-  if (currentView !== 'deps') {
+  } else if (view === 'chord' || view === 'deps') {
     currentView = 'deps';
-    document.getElementById('view-deps').classList.add('active');
-    document.getElementById('view-treemap').classList.remove('active');
-    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'block';
     document.getElementById('functions-container').classList.remove('visible');
@@ -12664,28 +12845,19 @@ document.getElementById('view-deps').addEventListener('click', () => {
       renderDepGraph();
       renderIssues();
       applyPersistentIssueHighlights();
-      // Restore current selection
       if (currentHighlightedFiles.length > 0) {
         highlightIssueFiles(currentHighlightedFiles);
       }
     }
-  }
-});
-
-document.getElementById('view-functions').addEventListener('click', () => {
-  if (currentView !== 'functions') {
+  } else if (view === 'functions') {
     currentView = 'functions';
-    document.getElementById('view-functions').classList.add('active');
-    document.getElementById('view-treemap').classList.remove('active');
-    document.getElementById('view-deps').classList.remove('active');
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('functions-container').classList.add('visible');
     document.getElementById('dep-controls').classList.remove('visible');
-
     renderDistributionChart();
   }
-});
+}
 
 document.getElementById('depth-slider').addEventListener('input', (e) => {
   document.getElementById('depth-value').textContent = e.target.value;
@@ -12720,9 +12892,13 @@ window.addEventListener('message', event => {
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
-    // Merge architecture issues from graph into issues array
-    if (msg.graph.issues) {
+    // Merge architecture issues from graph into issues array (only circular-dependency and hub-file)
+    if (msg.graph.issues && msg.graph.issues.length > 0) {
       for (const issue of msg.graph.issues) {
+        // Only add circular-dependency and hub-file from dependency graph
+        // (orphan-file is already detected by scanner)
+        if (issue.ruleId !== 'circular-dependency' && issue.ruleId !== 'hub-file') continue;
+
         const exists = issues.some(i =>
           i.ruleId === issue.ruleId &&
           i.message === issue.message &&
@@ -12733,26 +12909,36 @@ window.addEventListener('message', event => {
         }
       }
     }
-    renderDepGraph();
-    renderIssues();
-    applyPersistentIssueHighlights();
-    updateStatus();
-    // Restore current selection
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
+    // Only render dep graph if on deps view
+    if (currentView === 'deps') {
+      renderDepGraph();
+      applyPersistentIssueHighlights();
+      if (currentHighlightedFiles.length > 0) {
+        highlightIssueFiles(currentHighlightedFiles);
+      }
     }
+    // Always re-render issues to show architecture issues in sidebar
+    renderIssues();
+    updateStatus();
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
   }
 });
 
+// Initialize with files treemap view (default state)
+colorMode = 'none';
+selectedRuleId = null;
+currentView = 'treemap';
 render();
-renderLegend();
+renderTreemapLegend();
 renderRules();
 renderIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
 updateStatus();
+
+// Trigger dependency analysis to detect architecture issues
+vscode.postMessage({ command: 'getDependencies' });
 
 // Collect all files with issues
 function getAllIssueFiles() {
@@ -12773,7 +12959,7 @@ if (initialIssueFiles.length > 0) {
   highlightIssueFiles(initialIssueFiles);
 }
 
-// Status button click - highlight all files with any issue
+// Status button click - highlight all files with any issue, reset to default view
 document.getElementById('status').addEventListener('click', () => {
   if (selectedElement) {
     selectedElement.style.borderLeftColor = '';
@@ -12781,6 +12967,12 @@ document.getElementById('status').addEventListener('click', () => {
   }
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
+
+  // Reset to default state
+  colorMode = 'none';
+  selectedRuleId = null;
+  showView('treemap');
+
   const allIssueFiles = getAllIssueFiles();
   highlightIssueFiles(allIssueFiles);
 });
@@ -12846,10 +13038,11 @@ function updateStatus() {
 
 // src/webview/distribution-chart.ts
 var DISTRIBUTION_CHART_SCRIPT = `
-const FUNCTION_SIZE_COLORS = {
-  small: '#27ae60',   // 1-20 LOC
-  medium: '#f39c12',  // 21-50 LOC
-  large: '#e74c3c'    // 50+ LOC
+const METRIC_COLORS = {
+  good: '#27ae60',    // Green - within threshold
+  warning: '#f39c12', // Orange - approaching threshold
+  bad: '#e74c3c',     // Red - exceeds threshold
+  neutral: '#6c757d'  // Gray - no coloring
 };
 
 const ZOOM_DURATION = 500;
@@ -12857,15 +13050,70 @@ let zoomedFile = null;
 let prevZoomedFile = null;  // Track previous zoomed file for exit animations
 let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
 
-function getFunctionColor(loc) {
-  if (loc <= 20) return FUNCTION_SIZE_COLORS.small;
-  if (loc <= 50) return FUNCTION_SIZE_COLORS.medium;
-  return FUNCTION_SIZE_COLORS.large;
+// Dynamic coloring based on colorMode (set by anti-pattern-panel)
+function getDynamicFunctionColor(func) {
+  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
+
+  switch(colorMode) {
+    case 'loc':
+      if (func.value <= 20) return METRIC_COLORS.good;
+      if (func.value <= 50) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'depth':
+      const depth = func.depth || 0;
+      if (depth <= 2) return METRIC_COLORS.good;
+      if (depth <= 4) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'params':
+      const params = func.params || 0;
+      if (params <= 3) return METRIC_COLORS.good;
+      if (params <= 5) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'binary':
+      // Check if function has an issue of the selected type
+      const funcIssues = issues.filter(i =>
+        i.ruleId === selectedRuleId &&
+        i.locations.some(loc => loc.file === func.filePath && loc.line === func.line)
+      );
+      return funcIssues.length > 0 ? METRIC_COLORS.bad : METRIC_COLORS.good;
+    default:
+      return METRIC_COLORS.neutral;
+  }
 }
 
-function getFileColor(functions) {
-  const maxLoc = Math.max(...functions.map(f => f.loc));
-  return getFunctionColor(maxLoc);
+function getDynamicFileColor(fileData) {
+  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
+
+  // For file-level coloring, use the worst function metric
+  const funcs = fileData.functions;
+  if (!funcs || funcs.length === 0) return METRIC_COLORS.neutral;
+
+  switch(colorMode) {
+    case 'loc':
+      const maxLoc = Math.max(...funcs.map(f => f.loc));
+      if (maxLoc <= 20) return METRIC_COLORS.good;
+      if (maxLoc <= 50) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'depth':
+      const maxDepth = Math.max(...funcs.map(f => f.maxNestingDepth || 0));
+      if (maxDepth <= 2) return METRIC_COLORS.good;
+      if (maxDepth <= 4) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'params':
+      const maxParams = Math.max(...funcs.map(f => f.parameterCount || 0));
+      if (maxParams <= 3) return METRIC_COLORS.good;
+      if (maxParams <= 5) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'binary':
+      // Check if any function in file has an issue of the selected type
+      const hasIssue = issues.some(i =>
+        i.ruleId === selectedRuleId &&
+        i.locations.some(loc => loc.file === fileData.path)
+      );
+      return hasIssue ? METRIC_COLORS.bad : METRIC_COLORS.good;
+    default:
+      return METRIC_COLORS.neutral;
+  }
 }
 
 function zoomTo(filePath) {
@@ -12890,13 +13138,16 @@ function renderDistributionChart() {
   // Build file-level data
   const fileData = files
     .filter(f => f.functions && f.functions.length > 0)
-    .map(f => ({
-      name: f.path.split('/').pop(),
-      path: f.path,
-      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
-      functions: f.functions,
-      color: getFileColor(f.functions)
-    }));
+    .map(f => {
+      const data = {
+        name: f.path.split('/').pop(),
+        path: f.path,
+        value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
+        functions: f.functions
+      };
+      data.color = getDynamicFileColor(data);
+      return data;
+    });
 
   if (fileData.length === 0) {
     container.innerHTML = '<div class="functions-empty">No functions found.</div>';
@@ -13106,6 +13357,7 @@ function renderDistributionChart() {
         value: fn.loc,
         line: fn.startLine,
         depth: fn.maxNestingDepth,
+        params: fn.parameterCount,
         filePath: file.path
       }));
 
@@ -13139,7 +13391,7 @@ function renderDistributionChart() {
       .attr('class', 'func-node node')
       .attr('data-path', d => d.data.filePath)
       .attr('data-line', d => d.data.line)
-      .attr('fill', d => getFunctionColor(d.data.value))
+      .attr('fill', d => getDynamicFunctionColor(d.data))
       // Start scaled inside file's PREVIOUS position
       .attr('x', d => prevFileX + (d.x0 / width) * prevFileW)
       .attr('y', d => prevFileY + (d.y0 / height) * prevFileH)
@@ -13238,14 +13490,15 @@ function renderDistributionChart() {
     .attr('opacity', 1);
 
   // HTML back button in view controls
-  const header = document.getElementById('functions-zoom-header');
+  const header = document.getElementById('back-header');
   if (header) {
     if (zoomedFile) {
-      header.style.display = 'flex';
-      header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + zoomedFile + '</span>';
-      header.querySelector('.zoom-back').addEventListener('click', zoomOut);
+      header.classList.remove('hidden');
+      header.innerHTML = '<button class="back-btn">\\u2190</button><span class="back-path">' + zoomedFile + '</span>';
+      header.querySelector('.back-btn').addEventListener('click', zoomOut);
     } else {
-      header.style.display = 'none';
+      header.classList.add('hidden');
+      header.innerHTML = '';
     }
   }
 
@@ -13263,6 +13516,21 @@ function renderDistributionChart() {
   }
 }
 
+function getLegendLabels() {
+  switch(colorMode) {
+    case 'loc':
+      return { good: '\\u226420 LOC', warning: '21-50 LOC', bad: '50+ LOC' };
+    case 'depth':
+      return { good: '\\u22642 levels', warning: '3-4 levels', bad: '5+ levels' };
+    case 'params':
+      return { good: '\\u22643 params', warning: '4-5 params', bad: '6+ params' };
+    case 'binary':
+      return { good: 'No issue', warning: null, bad: 'Has issue' };
+    default:
+      return { good: 'Good', warning: 'Warning', bad: 'Bad' };
+  }
+}
+
 function renderFilesLegend(fileData) {
   const legend = document.getElementById('legend');
   if (!legend || currentView !== 'functions') return;
@@ -13271,11 +13539,20 @@ function renderFilesLegend(fileData) {
   const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
 
   legend.style.display = 'flex';
-  legend.innerHTML =
-    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>All \\u226420 LOC</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>Some 21-50 LOC</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>Some 50+ LOC</div>' +
-    '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+
+  if (colorMode === 'none' || !colorMode) {
+    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+    return;
+  }
+
+  const labels = getLegendLabels();
+  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
+  if (labels.warning) {
+    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
+  }
+  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
+  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+  legend.innerHTML = html;
 }
 
 function renderFunctionLegend(leaves) {
@@ -13283,16 +13560,22 @@ function renderFunctionLegend(leaves) {
   if (!legend || currentView !== 'functions') return;
 
   const total = leaves.length;
-  const small = leaves.filter(d => d.data.value <= 20).length;
-  const medium = leaves.filter(d => d.data.value > 20 && d.data.value <= 50).length;
-  const large = leaves.filter(d => d.data.value > 50).length;
 
   legend.style.display = 'flex';
-  legend.innerHTML =
-    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>\\u226420 LOC (' + small + ')</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>21-50 LOC (' + medium + ')</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>50+ LOC (' + large + ')</div>' +
-    '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+
+  if (colorMode === 'none' || !colorMode) {
+    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+    return;
+  }
+
+  const labels = getLegendLabels();
+  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
+  if (labels.warning) {
+    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
+  }
+  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
+  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+  legend.innerHTML = html;
 }
 `;
 
@@ -13336,16 +13619,9 @@ function getDashboardContent(data, architectureIssues) {
   <style>${DASHBOARD_STYLES}</style>
 </head>
 <body>
-  <div class="view-controls">
-    <div id="functions-zoom-header" class="zoom-header" style="display:none;"></div>
-    <div class="view-toggle">
-      <button id="view-treemap" class="active">Files</button>
-      <button id="view-deps">Dependencies</button>
-      <button id="view-functions">Functions</button>
-    </div>
-  </div>
   <div class="main-split">
     <div class="main-content">
+      <div id="back-header" class="back-header hidden"></div>
       <div class="diagram-area">
         <div id="treemap"></div>
         <div id="dep-container" class="dep-container">

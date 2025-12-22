@@ -16,36 +16,26 @@ document.getElementById('clear').addEventListener('click', () => {
   document.getElementById('response').style.display = 'none';
 });
 
-// Track currently highlighted files for tab switching
+// Track currently highlighted files for view switching
 let currentHighlightedFiles = [];
 
-document.getElementById('view-treemap').addEventListener('click', () => {
-  if (currentView !== 'treemap') {
+// View switching function - called by anti-pattern-panel when issue is clicked
+function showView(view) {
+  if (view === 'treemap' || view === 'files') {
     currentView = 'treemap';
-    document.getElementById('view-treemap').classList.add('active');
-    document.getElementById('view-deps').classList.remove('active');
-    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'block';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('functions-container').classList.remove('visible');
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('dep-controls').classList.remove('visible');
-    // Re-render in case window was resized while on deps tab
     render();
+    renderTreemapLegend();
     applyPersistentIssueHighlights();
-    // Restore current selection
     if (currentHighlightedFiles.length > 0) {
       highlightIssueFiles(currentHighlightedFiles);
     }
-  }
-});
-
-document.getElementById('view-deps').addEventListener('click', () => {
-  if (currentView !== 'deps') {
+  } else if (view === 'chord' || view === 'deps') {
     currentView = 'deps';
-    document.getElementById('view-deps').classList.add('active');
-    document.getElementById('view-treemap').classList.remove('active');
-    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'block';
     document.getElementById('functions-container').classList.remove('visible');
@@ -59,28 +49,19 @@ document.getElementById('view-deps').addEventListener('click', () => {
       renderDepGraph();
       renderIssues();
       applyPersistentIssueHighlights();
-      // Restore current selection
       if (currentHighlightedFiles.length > 0) {
         highlightIssueFiles(currentHighlightedFiles);
       }
     }
-  }
-});
-
-document.getElementById('view-functions').addEventListener('click', () => {
-  if (currentView !== 'functions') {
+  } else if (view === 'functions') {
     currentView = 'functions';
-    document.getElementById('view-functions').classList.add('active');
-    document.getElementById('view-treemap').classList.remove('active');
-    document.getElementById('view-deps').classList.remove('active');
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'none';
     document.getElementById('functions-container').classList.add('visible');
     document.getElementById('dep-controls').classList.remove('visible');
-
     renderDistributionChart();
   }
-});
+}
 
 document.getElementById('depth-slider').addEventListener('input', (e) => {
   document.getElementById('depth-value').textContent = e.target.value;
@@ -115,9 +96,13 @@ window.addEventListener('message', event => {
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
-    // Merge architecture issues from graph into issues array
-    if (msg.graph.issues) {
+    // Merge architecture issues from graph into issues array (only circular-dependency and hub-file)
+    if (msg.graph.issues && msg.graph.issues.length > 0) {
       for (const issue of msg.graph.issues) {
+        // Only add circular-dependency and hub-file from dependency graph
+        // (orphan-file is already detected by scanner)
+        if (issue.ruleId !== 'circular-dependency' && issue.ruleId !== 'hub-file') continue;
+
         const exists = issues.some(i =>
           i.ruleId === issue.ruleId &&
           i.message === issue.message &&
@@ -128,26 +113,36 @@ window.addEventListener('message', event => {
         }
       }
     }
-    renderDepGraph();
-    renderIssues();
-    applyPersistentIssueHighlights();
-    updateStatus();
-    // Restore current selection
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
+    // Only render dep graph if on deps view
+    if (currentView === 'deps') {
+      renderDepGraph();
+      applyPersistentIssueHighlights();
+      if (currentHighlightedFiles.length > 0) {
+        highlightIssueFiles(currentHighlightedFiles);
+      }
     }
+    // Always re-render issues to show architecture issues in sidebar
+    renderIssues();
+    updateStatus();
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
   }
 });
 
+// Initialize with files treemap view (default state)
+colorMode = 'none';
+selectedRuleId = null;
+currentView = 'treemap';
 render();
-renderLegend();
+renderTreemapLegend();
 renderRules();
 renderIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
 updateStatus();
+
+// Trigger dependency analysis to detect architecture issues
+vscode.postMessage({ command: 'getDependencies' });
 
 // Collect all files with issues
 function getAllIssueFiles() {
@@ -168,7 +163,7 @@ if (initialIssueFiles.length > 0) {
   highlightIssueFiles(initialIssueFiles);
 }
 
-// Status button click - highlight all files with any issue
+// Status button click - highlight all files with any issue, reset to default view
 document.getElementById('status').addEventListener('click', () => {
   if (selectedElement) {
     selectedElement.style.borderLeftColor = '';
@@ -176,6 +171,12 @@ document.getElementById('status').addEventListener('click', () => {
   }
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
+
+  // Reset to default state
+  colorMode = 'none';
+  selectedRuleId = null;
+  showView('treemap');
+
   const allIssueFiles = getAllIssueFiles();
   highlightIssueFiles(allIssueFiles);
 });

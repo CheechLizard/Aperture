@@ -39,7 +39,12 @@ export const DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; position: relative; }
+    /* Back header in visualization area - always reserve space to prevent layout shift */
+    .back-header { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 8px; min-height: 32px; }
+    .back-header.hidden { visibility: hidden; }
+    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+    .back-btn:hover { background: var(--vscode-list-hoverBackground); }
+    .back-path { font-weight: 600; font-size: 0.9em; color: var(--vscode-foreground); }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -62,11 +67,7 @@ export const DASHBOARD_STYLES = `
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .view-toggle { display: flex; border: 1px solid var(--vscode-widget-border); border-radius: 6px; overflow: hidden; }
-    .view-toggle button { padding: 10px 20px; border: none; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 1.1em; font-weight: 500; }
-    .view-toggle button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .view-toggle button:not(.active):hover { background: var(--vscode-list-hoverBackground); }
-    .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); }
+    .main-split { display: flex; gap: 16px; height: calc(100vh - 100px); }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -91,6 +92,15 @@ export const DASHBOARD_STYLES = `
     .status-btn:hover { opacity: 0.9; }
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
+    /* Issue category sections */
+    .issue-category { margin-bottom: 12px; }
+    .issue-category-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); }
+    .issue-category-header:hover { color: var(--vscode-foreground); }
+    .issue-category-chevron { transition: transform 0.2s; }
+    .issue-category-chevron.expanded { transform: rotate(90deg); }
+    .issue-category-items { display: none; }
+    .issue-category-items.expanded { display: block; }
+    .arch-placeholder { padding: 8px 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); font-style: italic; }
     .pattern-group { margin-bottom: 8px; }
     .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-header:hover { background: var(--vscode-list-hoverBackground); }

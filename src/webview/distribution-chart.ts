@@ -1,8 +1,9 @@
 export const DISTRIBUTION_CHART_SCRIPT = `
-const FUNCTION_SIZE_COLORS = {
-  small: '#27ae60',   // 1-20 LOC
-  medium: '#f39c12',  // 21-50 LOC
-  large: '#e74c3c'    // 50+ LOC
+const METRIC_COLORS = {
+  good: '#27ae60',    // Green - within threshold
+  warning: '#f39c12', // Orange - approaching threshold
+  bad: '#e74c3c',     // Red - exceeds threshold
+  neutral: '#6c757d'  // Gray - no coloring
 };
 
 const ZOOM_DURATION = 500;
@@ -10,15 +11,70 @@ let zoomedFile = null;
 let prevZoomedFile = null;  // Track previous zoomed file for exit animations
 let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
 
-function getFunctionColor(loc) {
-  if (loc <= 20) return FUNCTION_SIZE_COLORS.small;
-  if (loc <= 50) return FUNCTION_SIZE_COLORS.medium;
-  return FUNCTION_SIZE_COLORS.large;
+// Dynamic coloring based on colorMode (set by anti-pattern-panel)
+function getDynamicFunctionColor(func) {
+  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
+
+  switch(colorMode) {
+    case 'loc':
+      if (func.value <= 20) return METRIC_COLORS.good;
+      if (func.value <= 50) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'depth':
+      const depth = func.depth || 0;
+      if (depth <= 2) return METRIC_COLORS.good;
+      if (depth <= 4) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'params':
+      const params = func.params || 0;
+      if (params <= 3) return METRIC_COLORS.good;
+      if (params <= 5) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'binary':
+      // Check if function has an issue of the selected type
+      const funcIssues = issues.filter(i =>
+        i.ruleId === selectedRuleId &&
+        i.locations.some(loc => loc.file === func.filePath && loc.line === func.line)
+      );
+      return funcIssues.length > 0 ? METRIC_COLORS.bad : METRIC_COLORS.good;
+    default:
+      return METRIC_COLORS.neutral;
+  }
 }
 
-function getFileColor(functions) {
-  const maxLoc = Math.max(...functions.map(f => f.loc));
-  return getFunctionColor(maxLoc);
+function getDynamicFileColor(fileData) {
+  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
+
+  // For file-level coloring, use the worst function metric
+  const funcs = fileData.functions;
+  if (!funcs || funcs.length === 0) return METRIC_COLORS.neutral;
+
+  switch(colorMode) {
+    case 'loc':
+      const maxLoc = Math.max(...funcs.map(f => f.loc));
+      if (maxLoc <= 20) return METRIC_COLORS.good;
+      if (maxLoc <= 50) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'depth':
+      const maxDepth = Math.max(...funcs.map(f => f.maxNestingDepth || 0));
+      if (maxDepth <= 2) return METRIC_COLORS.good;
+      if (maxDepth <= 4) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'params':
+      const maxParams = Math.max(...funcs.map(f => f.parameterCount || 0));
+      if (maxParams <= 3) return METRIC_COLORS.good;
+      if (maxParams <= 5) return METRIC_COLORS.warning;
+      return METRIC_COLORS.bad;
+    case 'binary':
+      // Check if any function in file has an issue of the selected type
+      const hasIssue = issues.some(i =>
+        i.ruleId === selectedRuleId &&
+        i.locations.some(loc => loc.file === fileData.path)
+      );
+      return hasIssue ? METRIC_COLORS.bad : METRIC_COLORS.good;
+    default:
+      return METRIC_COLORS.neutral;
+  }
 }
 
 function zoomTo(filePath) {
@@ -43,13 +99,16 @@ function renderDistributionChart() {
   // Build file-level data
   const fileData = files
     .filter(f => f.functions && f.functions.length > 0)
-    .map(f => ({
-      name: f.path.split('/').pop(),
-      path: f.path,
-      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
-      functions: f.functions,
-      color: getFileColor(f.functions)
-    }));
+    .map(f => {
+      const data = {
+        name: f.path.split('/').pop(),
+        path: f.path,
+        value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
+        functions: f.functions
+      };
+      data.color = getDynamicFileColor(data);
+      return data;
+    });
 
   if (fileData.length === 0) {
     container.innerHTML = '<div class="functions-empty">No functions found.</div>';
@@ -259,6 +318,7 @@ function renderDistributionChart() {
         value: fn.loc,
         line: fn.startLine,
         depth: fn.maxNestingDepth,
+        params: fn.parameterCount,
         filePath: file.path
       }));
 
@@ -292,7 +352,7 @@ function renderDistributionChart() {
       .attr('class', 'func-node node')
       .attr('data-path', d => d.data.filePath)
       .attr('data-line', d => d.data.line)
-      .attr('fill', d => getFunctionColor(d.data.value))
+      .attr('fill', d => getDynamicFunctionColor(d.data))
       // Start scaled inside file's PREVIOUS position
       .attr('x', d => prevFileX + (d.x0 / width) * prevFileW)
       .attr('y', d => prevFileY + (d.y0 / height) * prevFileH)
@@ -391,14 +451,15 @@ function renderDistributionChart() {
     .attr('opacity', 1);
 
   // HTML back button in view controls
-  const header = document.getElementById('functions-zoom-header');
+  const header = document.getElementById('back-header');
   if (header) {
     if (zoomedFile) {
-      header.style.display = 'flex';
-      header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + zoomedFile + '</span>';
-      header.querySelector('.zoom-back').addEventListener('click', zoomOut);
+      header.classList.remove('hidden');
+      header.innerHTML = '<button class="back-btn">\\u2190</button><span class="back-path">' + zoomedFile + '</span>';
+      header.querySelector('.back-btn').addEventListener('click', zoomOut);
     } else {
-      header.style.display = 'none';
+      header.classList.add('hidden');
+      header.innerHTML = '';
     }
   }
 
@@ -416,6 +477,21 @@ function renderDistributionChart() {
   }
 }
 
+function getLegendLabels() {
+  switch(colorMode) {
+    case 'loc':
+      return { good: '\\u226420 LOC', warning: '21-50 LOC', bad: '50+ LOC' };
+    case 'depth':
+      return { good: '\\u22642 levels', warning: '3-4 levels', bad: '5+ levels' };
+    case 'params':
+      return { good: '\\u22643 params', warning: '4-5 params', bad: '6+ params' };
+    case 'binary':
+      return { good: 'No issue', warning: null, bad: 'Has issue' };
+    default:
+      return { good: 'Good', warning: 'Warning', bad: 'Bad' };
+  }
+}
+
 function renderFilesLegend(fileData) {
   const legend = document.getElementById('legend');
   if (!legend || currentView !== 'functions') return;
@@ -424,11 +500,20 @@ function renderFilesLegend(fileData) {
   const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
 
   legend.style.display = 'flex';
-  legend.innerHTML =
-    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>All \\u226420 LOC</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>Some 21-50 LOC</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>Some 50+ LOC</div>' +
-    '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+
+  if (colorMode === 'none' || !colorMode) {
+    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+    return;
+  }
+
+  const labels = getLegendLabels();
+  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
+  if (labels.warning) {
+    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
+  }
+  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
+  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+  legend.innerHTML = html;
 }
 
 function renderFunctionLegend(leaves) {
@@ -436,15 +521,21 @@ function renderFunctionLegend(leaves) {
   if (!legend || currentView !== 'functions') return;
 
   const total = leaves.length;
-  const small = leaves.filter(d => d.data.value <= 20).length;
-  const medium = leaves.filter(d => d.data.value > 20 && d.data.value <= 50).length;
-  const large = leaves.filter(d => d.data.value > 50).length;
 
   legend.style.display = 'flex';
-  legend.innerHTML =
-    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>\\u226420 LOC (' + small + ')</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>21-50 LOC (' + medium + ')</div>' +
-    '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>50+ LOC (' + large + ')</div>' +
-    '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+
+  if (colorMode === 'none' || !colorMode) {
+    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+    return;
+  }
+
+  const labels = getLegendLabels();
+  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
+  if (labels.warning) {
+    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
+  }
+  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
+  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
+  legend.innerHTML = html;
 }
 `;
