@@ -57,7 +57,7 @@ document.getElementById('view-deps').addEventListener('click', () => {
       vscode.postMessage({ command: 'getDependencies' });
     } else {
       renderDepGraph();
-      renderAntiPatterns();
+      renderIssues();
       applyPersistentIssueHighlights();
       // Restore current selection
       if (currentHighlightedFiles.length > 0) {
@@ -115,10 +115,23 @@ window.addEventListener('message', event => {
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
-    document.getElementById('status').textContent = depGraph.antiPatterns.length + ' anti-patterns found';
+    // Merge architecture issues from graph into issues array
+    if (msg.graph.issues) {
+      for (const issue of msg.graph.issues) {
+        const exists = issues.some(i =>
+          i.ruleId === issue.ruleId &&
+          i.message === issue.message &&
+          JSON.stringify(i.locations) === JSON.stringify(issue.locations)
+        );
+        if (!exists) {
+          issues.push(issue);
+        }
+      }
+    }
     renderDepGraph();
-    renderAntiPatterns();
+    renderIssues();
     applyPersistentIssueHighlights();
+    updateStatus();
     // Restore current selection
     if (currentHighlightedFiles.length > 0) {
       highlightIssueFiles(currentHighlightedFiles);
@@ -131,39 +144,43 @@ window.addEventListener('message', event => {
 render();
 renderLegend();
 renderRules();
-renderAntiPatterns();
-if (typeof renderFileIssues === 'function') renderFileIssues();
+renderIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
-updateStatusWithFileIssues();
+updateStatus();
 
-// Auto-highlight all issue files on initial load
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const activePatterns = initialAntiPatterns.filter(ap => !isPatternIgnored(ap));
-  const allFiles = activePatterns.flatMap(ap => ap.files);
-  if (allFiles.length > 0) {
-    selectedElement = document.getElementById('status');
-    highlightIssueFiles(allFiles);
+// Collect all files with issues
+function getAllIssueFiles() {
+  const fileSet = new Set();
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      fileSet.add(loc.file);
+    }
   }
+  return [...fileSet];
 }
 
-// Status button click - highlight all active (non-ignored) anti-pattern files
+// Auto-highlight all issue files on initial load
+const initialIssueFiles = getAllIssueFiles();
+if (initialIssueFiles.length > 0) {
+  selectedElement = document.getElementById('status');
+  highlightIssueFiles(initialIssueFiles);
+}
+
+// Status button click - highlight all files with any issue
 document.getElementById('status').addEventListener('click', () => {
-  // Reset previous selection and track new one
   if (selectedElement) {
     selectedElement.style.borderLeftColor = '';
     selectedElement.style.background = '';
   }
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activePatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
-  const allFiles = activePatterns.flatMap(ap => ap.files);
-  highlightIssueFiles(allFiles);
+  const allIssueFiles = getAllIssueFiles();
+  highlightIssueFiles(allIssueFiles);
 });
 
 // JavaScript-driven color cycling for issue highlights
-// Smooth sine-wave rainbow cycle (inspired by GLSL shader)
 let cycleTime = 0;
 
 function hslToHex(h, s, l) {
@@ -177,35 +194,29 @@ function hslToHex(h, s, l) {
 }
 
 function cycleIssueColors() {
-  // Smooth rainbow: cycle hue over time (360° in 10 seconds at 60fps)
-  cycleTime += 0.016;  // ~16ms in seconds per frame
-  const hue = (cycleTime * 36) % 360;  // 36°/sec = 360° in 10sec
-  const color = hslToHex(hue, 0.85, 0.6);  // 85% saturation, 60% lightness
+  cycleTime += 0.016;
+  const hue = (cycleTime * 36) % 360;
+  const color = hslToHex(hue, 0.85, 0.6);
 
-  // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);  // 0.65 to 0.75
-  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
+  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);
 
-  // Cycle highlighted treemap nodes
   document.querySelectorAll('.node.highlighted').forEach(node => {
     node.style.setProperty('fill', color, 'important');
     node.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle highlighted chord arcs
   document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
     arc.style.setProperty('fill', color, 'important');
     arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle highlighted chord ribbons
   document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
     ribbon.style.setProperty('fill', color, 'important');
     ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
   });
 
-  // Cycle the selected sidebar button
   if (selectedElement && selectedElement.isConnected) {
     const bgColor = color.replace('#', 'rgba(')
       .replace(/(..)(..)(..)/, (_, r, g, b) =>
@@ -215,19 +226,13 @@ function cycleIssueColors() {
   }
 }
 
-// Run animation at 60fps (16ms)
 setInterval(cycleIssueColors, 16);
 
-function updateStatusWithFileIssues() {
+function updateStatus() {
   const statusBtn = document.getElementById('status');
-  const antiPatternCount = (depGraph ? depGraph.antiPatterns : initialAntiPatterns)?.length || 0;
-  const fileIssueCount = typeof getFileIssueCount === 'function' ? getFileIssueCount() : 0;
-  const total = antiPatternCount + fileIssueCount;
-  if (total > 0) {
-    const parts = [];
-    if (antiPatternCount > 0) parts.push(antiPatternCount + ' anti-patterns');
-    if (fileIssueCount > 0) parts.push(fileIssueCount + ' code issues');
-    statusBtn.textContent = parts.join(', ');
+  const issueFiles = getAllIssueFiles();
+  if (issueFiles.length > 0) {
+    statusBtn.textContent = 'Possible issues in ' + issueFiles.length + ' files';
   } else {
     statusBtn.textContent = 'No issues found';
   }

@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { DependencyNode, DependencyEdge, AntiPattern } from './types';
+import { DependencyNode, DependencyEdge, Issue } from './types';
 
 const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.lua', '.py', '.go', '.rs'];
 
@@ -8,20 +8,21 @@ function isCodeFile(filePath: string): boolean {
   return CODE_EXTENSIONS.includes(ext);
 }
 
-export function detectAntiPatterns(
+export function detectArchitectureIssues(
   nodes: Map<string, DependencyNode>,
   edges: DependencyEdge[],
   codeFileCount: number
-): AntiPattern[] {
-  const antiPatterns: AntiPattern[] = [];
+): Issue[] {
+  const issues: Issue[] = [];
 
   const cycles = findCycles(nodes);
   for (const cycle of cycles) {
-    antiPatterns.push({
-      type: 'circular',
+    issues.push({
+      ruleId: 'circular-dependency',
+      category: 'architecture',
       severity: 'high',
-      description: `Circular dependency: ${cycle.join(' → ')} → ${cycle[0]}`,
-      files: cycle,
+      message: `Circular dependency: ${cycle.join(' → ')} → ${cycle[0]}`,
+      locations: cycle.map(file => ({ file })),
     });
   }
 
@@ -32,27 +33,29 @@ export function detectAntiPatterns(
     if (node.imports.length >= nexusImportThreshold && node.importedBy.length >= nexusImportedByThreshold) {
       const importsPct = Math.round((node.imports.length / codeFileCount) * 100);
       const dependentsPct = Math.round((node.importedBy.length / codeFileCount) * 100);
-      antiPatterns.push({
-        type: 'nexus',
+      issues.push({
+        ruleId: 'hub-file',
+        category: 'architecture',
         severity: 'medium',
-        description: `Coupling bottleneck: imports ${node.imports.length} files (${importsPct}%), ${node.importedBy.length} files (${dependentsPct}%) depend on it`,
-        files: [filePath],
+        message: `Coupling bottleneck: imports ${node.imports.length} files (${importsPct}%), ${node.importedBy.length} files (${dependentsPct}%) depend on it`,
+        locations: [{ file: filePath }],
       });
     }
   }
 
   for (const [filePath, node] of nodes) {
     if (isCodeFile(filePath) && node.imports.length === 0 && node.importedBy.length === 0) {
-      antiPatterns.push({
-        type: 'orphan',
+      issues.push({
+        ruleId: 'orphan-file',
+        category: 'architecture',
         severity: 'low',
-        description: 'No imports or dependents',
-        files: [filePath],
+        message: 'No imports or dependents',
+        locations: [{ file: filePath }],
       });
     }
   }
 
-  return antiPatterns;
+  return issues;
 }
 
 function findCycles(nodes: Map<string, DependencyNode>): string[][] {

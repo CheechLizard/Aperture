@@ -1,4 +1,4 @@
-import { ProjectData, AntiPattern, FileIssue } from './types';
+import { ProjectData, Issue } from './types';
 import { DASHBOARD_STYLES } from './webview/styles';
 import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_SCRIPT } from './webview/treemap';
@@ -35,16 +35,16 @@ export function getErrorContent(message: string): string {
 </html>`;
 }
 
-export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern[]): string {
+export function getDashboardContent(data: ProjectData, architectureIssues: Issue[]): string {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
-  const antiPatternsJson = JSON.stringify(antiPatterns);
   const unsupportedCount = data.totals.unsupportedFiles;
 
-  // Aggregate file-level issues from all files
-  const fileIssues: FileIssue[] = data.files.flatMap(f => f.issues || []);
-  const fileIssuesJson = JSON.stringify(fileIssues);
+  // Combine architecture issues with code issues from files into single unified array
+  const codeIssues: Issue[] = data.files.flatMap(f => f.issues || []);
+  const allIssues: Issue[] = [...architectureIssues, ...codeIssues];
+  const issuesJson = JSON.stringify(allIssues);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -57,7 +57,7 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
 <body>
   <div class="view-controls">
     <div class="view-toggle">
-      <button id="view-treemap" class="active">Treemap</button>
+      <button id="view-treemap" class="active">Files</button>
       <button id="view-deps">Dependencies</button>
       <button id="view-functions">Functions</button>
     </div>
@@ -130,8 +130,7 @@ const vscode = acquireVsCodeApi();
 const files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
-const initialAntiPatterns = ${antiPatternsJson};
-const fileIssues = ${fileIssuesJson};
+const issues = ${issuesJson};
 
 let highlightedFiles = [];
 let currentView = 'treemap';
@@ -139,23 +138,19 @@ let depGraph = null;
 let simulation = null;
 let topGroups = [];
 let selectedElement = null;
-let ignoredPatterns = [];  // Array of {type, files, description} for ignored items
+// ignoredIssues is defined in FILE_ISSUES_PANEL_SCRIPT
 let activeRules = new Set();  // Set of pattern types added as rules
 
-// Build issue file map immediately from embedded anti-patterns
+// Build issue file map from all issues
 const issueFileMap = new Map();
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of initialAntiPatterns) {
-    for (const file of ap.files) {
-      const existing = issueFileMap.get(file);
-      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
-        issueFileMap.set(file, ap.severity);
-      }
+const severityRank = { high: 0, medium: 1, low: 2 };
+for (const issue of issues) {
+  for (const loc of issue.locations) {
+    const existing = issueFileMap.get(loc.file);
+    if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+      issueFileMap.set(loc.file, issue.severity);
     }
   }
-  document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
-  selectedElement = document.getElementById('status');
 }
 
 ${TOOLTIP_SCRIPT}

@@ -92,8 +92,11 @@ export const DASHBOARD_STYLES = `
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
     .pattern-group { margin-bottom: 8px; }
-    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-header.high { border-left-color: #e74c3c; }
+    .pattern-header.medium { border-left-color: #f39c12; }
+    .pattern-header.low { border-left-color: #7f8c8d; }
     .pattern-chevron { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; cursor: pointer; }
     .pattern-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
     .pattern-chevron.expanded svg { transform: rotate(90deg); }

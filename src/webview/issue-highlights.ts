@@ -3,78 +3,48 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderFooterStats(nodeCount, edgeCount) {
-  const footerStats = document.getElementById('footer-dep-stats');
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activeCount = antiPatterns ? antiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
-
-  let html = '';
-  if (nodeCount !== undefined && edgeCount !== undefined) {
-    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
-    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
-  }
-  html += '<span class="footer-stat"><strong>' + activeCount + '</strong> issues</span>';
-  footerStats.innerHTML = html;
-}
-
-function renderStats(nodeCount, edgeCount) {
-  renderFooterStats(nodeCount, edgeCount);
-}
-
-// Rebuild issue file map when dependency graph updates
 function buildIssueFileMap() {
   issueFileMap.clear();
-
-  // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  if (!antiPatterns) return;
-
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
   const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of antiPatterns) {
-    // Skip ignored patterns
-    if (isPatternIgnored(ap)) continue;
 
-    for (const file of ap.files) {
-      const existing = issueFileMap.get(file);
-      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
-        issueFileMap.set(file, ap.severity);
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      const existing = issueFileMap.get(loc.file);
+      if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+        issueFileMap.set(loc.file, issue.severity);
       }
     }
   }
 }
 
 function applyPersistentIssueHighlights() {
-  // Apply persistent issue classes to treemap nodes
+  // Apply persistent issue severity styling to all nodes
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
     node.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    const severity = issueFileMap.get(path);
-    if (severity) {
-      node.classList.add('issue-' + severity);
+    if (issueFileMap.has(path)) {
+      node.classList.add('issue-' + issueFileMap.get(path));
     }
   });
 
-  // Apply persistent issue classes to chord arcs
+  // Apply to chord arcs
   document.querySelectorAll('.chord-arc').forEach(arc => {
     const path = arc.getAttribute('data-path');
     arc.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    if (path) {
-      const severity = issueFileMap.get(path);
-      if (severity) {
-        arc.classList.add('issue-' + severity);
-      }
+    if (path && issueFileMap.has(path)) {
+      arc.classList.add('issue-' + issueFileMap.get(path));
     }
   });
 
-  // Apply persistent issue classes to chord ribbons
+  // Apply to chord ribbons
   document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
     const fromPath = ribbon.getAttribute('data-from');
     const toPath = ribbon.getAttribute('data-to');
     ribbon.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    // Use the highest severity from either end
+    const severityRank = { high: 0, medium: 1, low: 2 };
     const fromSev = fromPath ? issueFileMap.get(fromPath) : null;
     const toSev = toPath ? issueFileMap.get(toPath) : null;
-    const severityRank = { high: 0, medium: 1, low: 2 };
     let severity = null;
     if (fromSev && toSev) {
       severity = severityRank[fromSev] < severityRank[toSev] ? fromSev : toSev;
@@ -85,5 +55,32 @@ function applyPersistentIssueHighlights() {
       ribbon.classList.add('issue-' + severity);
     }
   });
+}
+
+function renderFooterStats(nodeCount, edgeCount) {
+  const footerStats = document.getElementById('footer-dep-stats');
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
+
+  // Count unique files with issues
+  const fileSet = new Set();
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      fileSet.add(loc.file);
+    }
+  }
+
+  let html = '';
+  if (nodeCount !== undefined && edgeCount !== undefined) {
+    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
+    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
+  }
+  if (fileSet.size > 0) {
+    html += '<span class="footer-stat"><strong>' + fileSet.size + '</strong> files with issues</span>';
+  }
+  footerStats.innerHTML = html;
+}
+
+function renderStats(nodeCount, edgeCount) {
+  renderFooterStats(nodeCount, edgeCount);
 }
 `;

@@ -7399,23 +7399,19 @@ function detectLongFunctions(file) {
     if (func.loc > FUNCTION_LOC_ERROR) {
       issues.push({
         ruleId: "long-function",
-        severity: "error",
+        severity: "high",
         category: "structural",
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
-        file: file.path,
-        line: func.startLine,
-        endLine: func.endLine,
+        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name
       });
     } else if (func.loc > FUNCTION_LOC_WARNING) {
       issues.push({
         ruleId: "long-function",
-        severity: "warning",
+        severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
-        file: file.path,
-        line: func.startLine,
-        endLine: func.endLine,
+        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name
       });
     }
@@ -7426,10 +7422,10 @@ function detectLongFile(file) {
   if (file.loc > FILE_LOC_WARNING) {
     return {
       ruleId: "long-file",
-      severity: "warning",
+      severity: "medium",
       category: "structural",
       message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
-      file: file.path
+      locations: [{ file: file.path }]
     };
   }
   return null;
@@ -7440,11 +7436,10 @@ function detectDeepNesting(file) {
     if (func.maxNestingDepth > MAX_NESTING_DEPTH) {
       issues.push({
         ruleId: "deep-nesting",
-        severity: "warning",
+        severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7457,11 +7452,10 @@ function detectSilentFailures(file, catchBlocks) {
     if (catchBlock.isEmpty) {
       issues.push({
         ruleId: "silent-failure",
-        severity: "error",
+        severity: "high",
         category: "structural",
         message: `Empty catch block - errors are silently ignored`,
-        file: file.path,
-        line: catchBlock.line
+        locations: [{ file: file.path, line: catchBlock.line }]
       });
     }
   }
@@ -7473,11 +7467,10 @@ function detectTooManyParameters(file) {
     if (func.parameterCount > MAX_PARAMETER_COUNT) {
       issues.push({
         ruleId: "too-many-parameters",
-        severity: "warning",
+        severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7493,11 +7486,10 @@ function detectGenericNames(file) {
     if (GENERIC_NAMES.includes(nameLower)) {
       issues.push({
         ruleId: "generic-name",
-        severity: "warning",
+        severity: "medium",
         category: "naming",
         message: `Function '${func.name}' uses a generic name - consider more descriptive naming`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7517,11 +7509,10 @@ function detectNonVerbFunctions(file) {
       if (nameLower.startsWith("on") || nameLower.startsWith("handle")) continue;
       issues.push({
         ruleId: "non-verb-function",
-        severity: "info",
+        severity: "low",
         category: "naming",
         message: `Function '${func.name}' should start with a verb (e.g., get${capitalize(func.name)})`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7560,11 +7551,10 @@ function detectNonQuestionBooleans(file) {
       if (!startsWithBooleanPrefix) {
         issues.push({
           ruleId: "non-question-boolean",
-          severity: "info",
+          severity: "low",
           category: "naming",
           message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(func.name)}'`,
-          file: file.path,
-          line: func.startLine,
+          locations: [{ file: file.path, line: func.startLine }],
           symbol: func.name
         });
       }
@@ -7580,11 +7570,10 @@ function detectMagicNumbers(file, literals) {
     if (isCommonUiValue(literal.value)) continue;
     issues.push({
       ruleId: "magic-number",
-      severity: "info",
+      severity: "low",
       category: "naming",
       message: `Magic number ${literal.value} - consider using a named constant`,
-      file: file.path,
-      line: literal.line
+      locations: [{ file: file.path, line: literal.line }]
     });
   }
   return issues;
@@ -7647,11 +7636,10 @@ function detectCommentedCode(file, comments) {
     if (looksLikeCode(text)) {
       issues.push({
         ruleId: "commented-code",
-        severity: "info",
+        severity: "low",
         category: "comment",
         message: `Possible commented-out code - consider removing`,
-        file: file.path,
-        line: comment.line
+        locations: [{ file: file.path, line: comment.line }]
       });
     }
   }
@@ -7691,10 +7679,10 @@ function detectHighCommentDensity(file, comments) {
     const percentage = Math.round(ratio * 100);
     return {
       ruleId: "high-comment-density",
-      severity: "info",
+      severity: "low",
       category: "comment",
       message: `High comment density (${percentage}%) - may indicate unclear code or stale comments`,
-      file: file.path
+      locations: [{ file: file.path }]
     };
   }
   return null;
@@ -7718,10 +7706,10 @@ function detectMixedConcerns(file, content) {
     if (hasRender) concerns.push("rendering");
     return {
       ruleId: "mixed-concerns",
-      severity: "warning",
+      severity: "medium",
       category: "architecture",
       message: `File may have mixed concerns: ${concerns.join(" + ")}`,
-      file: file.path
+      locations: [{ file: file.path }]
     };
   }
   return null;
@@ -7737,7 +7725,7 @@ function countKeywordMatches(content, keywords) {
 }
 
 // src/file-issue-detector.ts
-function detectFileIssues(file, astResult, content) {
+function detectCodeIssues(file, astResult, content) {
   const issues = [];
   issues.push(...detectLongFunctions(file));
   const longFile = detectLongFile(file);
@@ -7818,7 +7806,7 @@ async function scanFile(uri, workspaceUri) {
       imports: astResult.imports,
       parseStatus: astResult.status
     };
-    const issues = detectFileIssues(fileInfo, astResult, text);
+    const issues = detectCodeIssues(fileInfo, astResult, text);
     if (issues.length > 0) {
       fileInfo.issues = issues;
     }
@@ -11359,15 +11347,16 @@ function isCodeFile(filePath) {
   const ext = path8.extname(filePath).toLowerCase();
   return CODE_EXTENSIONS.includes(ext);
 }
-function detectAntiPatterns(nodes, edges, codeFileCount) {
-  const antiPatterns = [];
+function detectArchitectureIssues(nodes, edges, codeFileCount) {
+  const issues = [];
   const cycles = findCycles(nodes);
   for (const cycle of cycles) {
-    antiPatterns.push({
-      type: "circular",
+    issues.push({
+      ruleId: "circular-dependency",
+      category: "architecture",
       severity: "high",
-      description: `Circular dependency: ${cycle.join(" \u2192 ")} \u2192 ${cycle[0]}`,
-      files: cycle
+      message: `Circular dependency: ${cycle.join(" \u2192 ")} \u2192 ${cycle[0]}`,
+      locations: cycle.map((file) => ({ file }))
     });
   }
   const nexusImportThreshold = Math.max(3, Math.floor(codeFileCount * 0.05));
@@ -11376,25 +11365,27 @@ function detectAntiPatterns(nodes, edges, codeFileCount) {
     if (node.imports.length >= nexusImportThreshold && node.importedBy.length >= nexusImportedByThreshold) {
       const importsPct = Math.round(node.imports.length / codeFileCount * 100);
       const dependentsPct = Math.round(node.importedBy.length / codeFileCount * 100);
-      antiPatterns.push({
-        type: "nexus",
+      issues.push({
+        ruleId: "hub-file",
+        category: "architecture",
         severity: "medium",
-        description: `Coupling bottleneck: imports ${node.imports.length} files (${importsPct}%), ${node.importedBy.length} files (${dependentsPct}%) depend on it`,
-        files: [filePath]
+        message: `Coupling bottleneck: imports ${node.imports.length} files (${importsPct}%), ${node.importedBy.length} files (${dependentsPct}%) depend on it`,
+        locations: [{ file: filePath }]
       });
     }
   }
   for (const [filePath, node] of nodes) {
     if (isCodeFile(filePath) && node.imports.length === 0 && node.importedBy.length === 0) {
-      antiPatterns.push({
-        type: "orphan",
+      issues.push({
+        ruleId: "orphan-file",
+        category: "architecture",
         severity: "low",
-        description: "No imports or dependents",
-        files: [filePath]
+        message: "No imports or dependents",
+        locations: [{ file: filePath }]
       });
     }
   }
-  return antiPatterns;
+  return issues;
 }
 function findCycles(nodes) {
   const cycles = [];
@@ -11485,8 +11476,8 @@ function analyzeDependencies(files, rootPath) {
     }
   }
   debugInfo.push(`Total edges: ${edges.length}`);
-  const antiPatterns = detectAntiPatterns(nodes, edges, codeFiles.length);
-  return { nodes, edges, antiPatterns };
+  const issues = detectArchitectureIssues(nodes, edges, codeFiles.length);
+  return { nodes, edges, issues };
 }
 
 // src/anti-pattern-rules.ts
@@ -11665,8 +11656,11 @@ var DASHBOARD_STYLES = `
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
     .pattern-group { margin-bottom: 8px; }
-    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-header.high { border-left-color: #e74c3c; }
+    .pattern-header.medium { border-left-color: #f39c12; }
+    .pattern-header.low { border-left-color: #7f8c8d; }
     .pattern-chevron { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; cursor: pointer; }
     .pattern-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
     .pattern-chevron.expanded svg { transform: rotate(90deg); }
@@ -11935,78 +11929,48 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderFooterStats(nodeCount, edgeCount) {
-  const footerStats = document.getElementById('footer-dep-stats');
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activeCount = antiPatterns ? antiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
-
-  let html = '';
-  if (nodeCount !== undefined && edgeCount !== undefined) {
-    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
-    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
-  }
-  html += '<span class="footer-stat"><strong>' + activeCount + '</strong> issues</span>';
-  footerStats.innerHTML = html;
-}
-
-function renderStats(nodeCount, edgeCount) {
-  renderFooterStats(nodeCount, edgeCount);
-}
-
-// Rebuild issue file map when dependency graph updates
 function buildIssueFileMap() {
   issueFileMap.clear();
-
-  // Use depGraph anti-patterns if available, otherwise use initial anti-patterns
-  const antiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  if (!antiPatterns) return;
-
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
   const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of antiPatterns) {
-    // Skip ignored patterns
-    if (isPatternIgnored(ap)) continue;
 
-    for (const file of ap.files) {
-      const existing = issueFileMap.get(file);
-      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
-        issueFileMap.set(file, ap.severity);
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      const existing = issueFileMap.get(loc.file);
+      if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+        issueFileMap.set(loc.file, issue.severity);
       }
     }
   }
 }
 
 function applyPersistentIssueHighlights() {
-  // Apply persistent issue classes to treemap nodes
+  // Apply persistent issue severity styling to all nodes
   document.querySelectorAll('.node').forEach(node => {
     const path = node.getAttribute('data-path');
     node.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    const severity = issueFileMap.get(path);
-    if (severity) {
-      node.classList.add('issue-' + severity);
+    if (issueFileMap.has(path)) {
+      node.classList.add('issue-' + issueFileMap.get(path));
     }
   });
 
-  // Apply persistent issue classes to chord arcs
+  // Apply to chord arcs
   document.querySelectorAll('.chord-arc').forEach(arc => {
     const path = arc.getAttribute('data-path');
     arc.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    if (path) {
-      const severity = issueFileMap.get(path);
-      if (severity) {
-        arc.classList.add('issue-' + severity);
-      }
+    if (path && issueFileMap.has(path)) {
+      arc.classList.add('issue-' + issueFileMap.get(path));
     }
   });
 
-  // Apply persistent issue classes to chord ribbons
+  // Apply to chord ribbons
   document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
     const fromPath = ribbon.getAttribute('data-from');
     const toPath = ribbon.getAttribute('data-to');
     ribbon.classList.remove('issue-high', 'issue-medium', 'issue-low');
-    // Use the highest severity from either end
+    const severityRank = { high: 0, medium: 1, low: 2 };
     const fromSev = fromPath ? issueFileMap.get(fromPath) : null;
     const toSev = toPath ? issueFileMap.get(toPath) : null;
-    const severityRank = { high: 0, medium: 1, low: 2 };
     let severity = null;
     if (fromSev && toSev) {
       severity = severityRank[fromSev] < severityRank[toSev] ? fromSev : toSev;
@@ -12017,6 +11981,33 @@ function applyPersistentIssueHighlights() {
       ribbon.classList.add('issue-' + severity);
     }
   });
+}
+
+function renderFooterStats(nodeCount, edgeCount) {
+  const footerStats = document.getElementById('footer-dep-stats');
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
+
+  // Count unique files with issues
+  const fileSet = new Set();
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      fileSet.add(loc.file);
+    }
+  }
+
+  let html = '';
+  if (nodeCount !== undefined && edgeCount !== undefined) {
+    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
+    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
+  }
+  if (fileSet.size > 0) {
+    html += '<span class="footer-stat"><strong>' + fileSet.size + '</strong> files with issues</span>';
+  }
+  footerStats.innerHTML = html;
+}
+
+function renderStats(nodeCount, edgeCount) {
+  renderFooterStats(nodeCount, edgeCount);
 }
 `;
 
@@ -12188,18 +12179,8 @@ function renderDepGraph() {
 
 // src/webview/highlight-utils.ts
 var HIGHLIGHT_UTILS_SCRIPT = `
-function isPatternIgnored(ap) {
-  return ignoredPatterns.some(ignored =>
-    ignored.type === ap.type &&
-    ignored.description === ap.description &&
-    JSON.stringify(ignored.files) === JSON.stringify(ap.files)
-  );
-}
-
 function updateStatusButton() {
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activeCount = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
-  document.getElementById('status').textContent = activeCount + ' anti-patterns found';
+  updateStatus();
 }
 
 function highlightIssueFiles(files) {
@@ -12301,101 +12282,81 @@ function restoreExpandedState(state) {
   }
 }
 
-function renderAntiPatterns() {
+function renderIssues() {
   const list = document.getElementById('anti-pattern-list');
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const antiPatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
 
-  // Get file issues
-  const allFileIssues = typeof fileIssues !== 'undefined' ? fileIssues : [];
-  const activeFileIssues = allFileIssues.filter(i => !isFileIssueIgnored(i));
+  // Filter out ignored issues
+  const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
 
-  if (antiPatterns.length === 0 && activeFileIssues.length === 0 && ignoredPatterns.length === 0 && ignoredFileIssues.length === 0) {
+  if (activeIssues.length === 0 && ignoredIssues.length === 0) {
     list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
     return;
   }
 
-  if (depGraph) { buildIssueFileMap(); }
+  buildIssueFileMap();
 
-  // Group anti-patterns by type
+  // Group issues by ruleId
   const groups = new Map();
-  for (const ap of antiPatterns) {
-    if (!groups.has(ap.type)) { groups.set(ap.type, { type: ap.type, severity: ap.severity, items: [], isFileIssue: false }); }
-    groups.get(ap.type).items.push(ap);
-  }
-
-  // Add file issues as groups (convert severity: error\u2192high, warning\u2192medium, info\u2192low)
-  const severityMap = { error: 'high', warning: 'medium', info: 'low' };
-  for (const issue of activeFileIssues) {
-    const type = issue.ruleId;
-    const severity = severityMap[issue.severity] || 'low';
-    if (!groups.has(type)) { groups.set(type, { type: type, severity: severity, items: [], isFileIssue: true }); }
-    groups.get(type).items.push(issue);
-  }
-
   const severityOrder = { high: 0, medium: 1, low: 2 };
+
+  for (const issue of activeIssues) {
+    if (!groups.has(issue.ruleId)) {
+      groups.set(issue.ruleId, { ruleId: issue.ruleId, items: [] });
+    }
+    groups.get(issue.ruleId).items.push(issue);
+  }
+
+  // Calculate max severity for each group and sort items within each group
+  for (const group of groups.values()) {
+    group.items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    group.severity = group.items.length > 0 ? group.items[0].severity : 'low';
+  }
+
   const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
   // Format rule ID for display (e.g., "long-function" \u2192 "Long Function")
-  function formatType(type) {
-    return type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  function formatRuleId(ruleId) {
+    return ruleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
   let html = sortedGroups.map((group, gIdx) => {
-    const isRuleActive = activeRules.has(group.type);
-    let allFiles, itemsHtml;
+    const isRuleActive = activeRules.has(group.ruleId);
 
-    if (group.isFileIssue) {
-      // File issues: each item has file, line, message, severity
-      allFiles = group.items.map(item => item.file);
-      itemsHtml = group.items.map((item, iIdx) => {
-        const fileName = item.file.split('/').pop();
-        const lineInfo = item.line ? ':' + item.line : '';
-        const itemSeverity = severityMap[item.severity] || 'low';
-        return '<div class="pattern-item ' + itemSeverity + '" data-files="' + item.file + '" data-line="' + (item.line || '') + '" data-type="' + group.type + '" data-description="' + item.message.replace(/"/g, '&quot;') + '" data-is-file-issue="true">' +
-          '<div class="pattern-item-row"><div class="pattern-item-content">' +
-          '<div class="pattern-item-desc">' + item.message + '</div>' +
-          '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
-          '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
-      }).join('');
-    } else {
-      // Anti-patterns: each item has files array, description, severity
-      allFiles = group.items.flatMap(item => item.files);
-      itemsHtml = group.items.map((item, iIdx) => {
-        const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-        const filesData = item.files.join(',');
-        return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
-          '<div class="pattern-item-row"><div class="pattern-item-content">' +
-          '<div class="pattern-item-desc">' + item.description + '</div>' +
-          '<div class="pattern-item-file">' + fileName + '</div></div>' +
-          '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
-      }).join('');
-    }
+    // Get all files from all locations
+    const allFiles = group.items.flatMap(item => item.locations.map(loc => loc.file));
 
-    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '" data-is-file-issue="' + group.isFileIssue + '">' +
-      '<div class="pattern-header" data-files="' + allFiles.join(',') + '" data-type="' + group.type + '">' +
-      '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span><span class="pattern-title">' + formatType(group.type) + '</span>' +
+    const itemsHtml = group.items.map((item, iIdx) => {
+      const filesData = item.locations.map(loc => loc.file).join(',');
+      const firstLoc = item.locations[0];
+      const fileName = firstLoc.file.split('/').pop();
+      const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
+
+      return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-line="' + (firstLoc.line || '') + '" data-rule-id="' + item.ruleId + '" data-message="' + item.message.replace(/"/g, '&quot;') + '">' +
+        '<div class="pattern-item-row"><div class="pattern-item-content">' +
+        '<div class="pattern-item-desc">' + item.message + '</div>' +
+        '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
+        '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
+    }).join('');
+
+    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.ruleId + '">' +
+      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-type="' + group.ruleId + '">' +
+      '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span><span class="pattern-title">' + formatRuleId(group.ruleId) + '</span>' +
       '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
       '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
       '<div class="pattern-items">' + itemsHtml + '</div></div>';
   }).join('');
 
-  // Combine ignored anti-patterns and file issues
-  const totalIgnored = ignoredPatterns.length + ignoredFileIssues.length;
-  if (totalIgnored > 0) {
-    let ignoredHtml = ignoredPatterns.map((item, idx) => {
-      const fileName = item.files.map(f => f.split('/').pop()).join(', ');
-      return '<div class="ignored-item" data-idx="' + idx + '" data-is-file-issue="false"><span>' + formatType(item.type) + ': ' + fileName + '</span>' +
-        '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
-    }).join('');
-    ignoredHtml += ignoredFileIssues.map((item, idx) => {
-      const fileName = item.file.split('/').pop();
-      const lineInfo = item.line ? ':' + item.line : '';
-      return '<div class="ignored-item" data-idx="' + idx + '" data-is-file-issue="true"><span>' + formatType(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
+  // Ignored section
+  if (ignoredIssues.length > 0) {
+    const ignoredHtml = ignoredIssues.map((item, idx) => {
+      const firstLoc = item.locations[0];
+      const fileName = firstLoc.file.split('/').pop();
+      const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
+      return '<div class="ignored-item" data-idx="' + idx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
         '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
     }).join('');
     html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
-      '<span>Ignored items (' + totalIgnored + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
+      '<span>Ignored items (' + ignoredIssues.length + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
   }
 
   list.innerHTML = html;
@@ -12428,20 +12389,20 @@ function renderAntiPatterns() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const header = btn.closest('.pattern-header');
-      const patternType = header.getAttribute('data-type');
+      const ruleId = header.getAttribute('data-type');
       const isActive = btn.classList.contains('active');
       if (isActive) {
-        activeRules.delete(patternType);
+        activeRules.delete(ruleId);
         btn.classList.remove('active');
         btn.textContent = '+ rule';
         btn.title = 'Add to CLAUDE.md rules';
-        vscode.postMessage({ command: 'removeRule', patternType: patternType });
+        vscode.postMessage({ command: 'removeRule', patternType: ruleId });
       } else {
-        activeRules.add(patternType);
+        activeRules.add(ruleId);
         btn.classList.add('active');
         btn.textContent = '- rule';
         btn.title = 'Remove from CLAUDE.md rules';
-        vscode.postMessage({ command: 'addRule', patternType: patternType });
+        vscode.postMessage({ command: 'addRule', patternType: ruleId });
       }
     });
   });
@@ -12466,33 +12427,33 @@ function renderAntiPatterns() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = btn.closest('.pattern-item');
-      const isFileIssue = item.getAttribute('data-is-file-issue') === 'true';
-      const type = item.getAttribute('data-type');
-      const description = item.getAttribute('data-description');
+      const ruleId = item.getAttribute('data-rule-id');
+      const message = item.getAttribute('data-message');
+      const filesStr = item.getAttribute('data-files');
+      const line = item.getAttribute('data-line');
 
-      // Save selected element type before DOM rebuild
+      // Find the matching issue and add to ignored
+      const issueToIgnore = issues.find(i =>
+        i.ruleId === ruleId &&
+        i.message === message &&
+        i.locations.map(l => l.file).join(',') === filesStr
+      );
+      if (issueToIgnore) {
+        ignoredIssues.push(issueToIgnore);
+      }
+
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
       const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
-      if (isFileIssue) {
-        const file = item.getAttribute('data-files');
-        const line = item.getAttribute('data-line');
-        ignoredFileIssues.push({ ruleId: type, file, line, message: description });
-      } else {
-        const files = item.getAttribute('data-files').split(',').filter(f => f);
-        ignoredPatterns.push({ type, files, description });
-      }
-
       const expandedState = getExpandedState();
-      renderAntiPatterns();
+      renderIssues();
       restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
 
-      // Restore selectedElement reference after DOM rebuild
       if (selectedType) {
         const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
         if (newHeader) selectedElement = newHeader;
@@ -12500,7 +12461,6 @@ function renderAntiPatterns() {
         selectedElement = document.getElementById('status');
       }
 
-      // Update selection: keep only files still in issueFileMap
       const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
       const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
       highlightIssueFiles(stillValid);
@@ -12524,39 +12484,31 @@ function renderAntiPatterns() {
       e.stopPropagation();
       const item = btn.closest('.ignored-item');
       const idx = parseInt(item.getAttribute('data-idx'));
-      const isFileIssue = item.getAttribute('data-is-file-issue') === 'true';
-      const restoredType = isFileIssue ? ignoredFileIssues[idx].ruleId : ignoredPatterns[idx].type;
+      const restoredRuleId = ignoredIssues[idx].ruleId;
 
-      // Check if a pattern header of the same type is currently selected
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
       const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
-      if (isFileIssue) {
-        ignoredFileIssues.splice(idx, 1);
-      } else {
-        ignoredPatterns.splice(idx, 1);
-      }
+      ignoredIssues.splice(idx, 1);
 
       const expandedState = getExpandedState();
-      renderAntiPatterns();
+      renderIssues();
       restoreExpandedState(expandedState);
       buildIssueFileMap();
       applyPersistentIssueHighlights();
       updateStatusButton();
       renderFooterStats();
 
-      // Restore selectedElement reference after DOM rebuild
       if (wasStatusSelected) {
         selectedElement = document.getElementById('status');
-      } else if (selectedType && selectedType !== restoredType) {
+      } else if (selectedType && selectedType !== restoredRuleId) {
         const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
         if (newHeader) selectedElement = newHeader;
       }
 
-      // If restored item's type matches selected type, re-select the group
-      if (selectedType === restoredType) {
-        const newHeader = document.querySelector('.pattern-header[data-type="' + restoredType + '"]');
+      if (selectedType === restoredRuleId) {
+        const newHeader = document.querySelector('.pattern-header[data-type="' + restoredRuleId + '"]');
         if (newHeader) {
           selectedElement = newHeader;
           const allFiles = newHeader.getAttribute('data-files').split(',').filter(f => f);
@@ -12565,33 +12517,32 @@ function renderAntiPatterns() {
         }
       }
 
-      // Otherwise keep current highlights, filtering out invalid
       const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
       const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
       highlightIssueFiles(stillValid);
     });
   });
 }
+
+// Alias for backwards compatibility
+function renderAntiPatterns() { renderIssues(); }
 `;
 
 // src/webview/file-issues-panel.ts
 var FILE_ISSUES_PANEL_SCRIPT = `
-let ignoredFileIssues = [];  // Array of {ruleId, file, line, message} for ignored items
+// Unified ignored issues array
+let ignoredIssues = [];
 
-function isFileIssueIgnored(issue) {
-  return ignoredFileIssues.some(i =>
-    i.ruleId === issue.ruleId && i.file === issue.file && i.line === issue.line
+function isIssueIgnored(issue) {
+  return ignoredIssues.some(ignored =>
+    ignored.ruleId === issue.ruleId &&
+    ignored.message === issue.message &&
+    JSON.stringify(ignored.locations) === JSON.stringify(issue.locations)
   );
 }
 
-function getFileIssueCount() {
-  const allIssues = typeof fileIssues !== 'undefined' ? fileIssues : [];
-  return allIssues.filter(i => !isFileIssueIgnored(i)).length;
-}
-
-// Rendering is now handled by renderAntiPatterns() which merges file issues
-function renderFileIssues() {
-  // No-op - file issues are now rendered inline with anti-patterns
+function getActiveIssueCount() {
+  return issues.filter(i => !isIssueIgnored(i)).length;
 }
 `;
 
@@ -12702,7 +12653,7 @@ document.getElementById('view-deps').addEventListener('click', () => {
       vscode.postMessage({ command: 'getDependencies' });
     } else {
       renderDepGraph();
-      renderAntiPatterns();
+      renderIssues();
       applyPersistentIssueHighlights();
       // Restore current selection
       if (currentHighlightedFiles.length > 0) {
@@ -12760,10 +12711,23 @@ window.addEventListener('message', event => {
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
-    document.getElementById('status').textContent = depGraph.antiPatterns.length + ' anti-patterns found';
+    // Merge architecture issues from graph into issues array
+    if (msg.graph.issues) {
+      for (const issue of msg.graph.issues) {
+        const exists = issues.some(i =>
+          i.ruleId === issue.ruleId &&
+          i.message === issue.message &&
+          JSON.stringify(i.locations) === JSON.stringify(issue.locations)
+        );
+        if (!exists) {
+          issues.push(issue);
+        }
+      }
+    }
     renderDepGraph();
-    renderAntiPatterns();
+    renderIssues();
     applyPersistentIssueHighlights();
+    updateStatus();
     // Restore current selection
     if (currentHighlightedFiles.length > 0) {
       highlightIssueFiles(currentHighlightedFiles);
@@ -12776,39 +12740,43 @@ window.addEventListener('message', event => {
 render();
 renderLegend();
 renderRules();
-renderAntiPatterns();
-if (typeof renderFileIssues === 'function') renderFileIssues();
+renderIssues();
 applyPersistentIssueHighlights();
 renderFooterStats();
-updateStatusWithFileIssues();
+updateStatus();
 
-// Auto-highlight all issue files on initial load
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const activePatterns = initialAntiPatterns.filter(ap => !isPatternIgnored(ap));
-  const allFiles = activePatterns.flatMap(ap => ap.files);
-  if (allFiles.length > 0) {
-    selectedElement = document.getElementById('status');
-    highlightIssueFiles(allFiles);
+// Collect all files with issues
+function getAllIssueFiles() {
+  const fileSet = new Set();
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
+  for (const issue of activeIssues) {
+    for (const loc of issue.locations) {
+      fileSet.add(loc.file);
+    }
   }
+  return [...fileSet];
 }
 
-// Status button click - highlight all active (non-ignored) anti-pattern files
+// Auto-highlight all issue files on initial load
+const initialIssueFiles = getAllIssueFiles();
+if (initialIssueFiles.length > 0) {
+  selectedElement = document.getElementById('status');
+  highlightIssueFiles(initialIssueFiles);
+}
+
+// Status button click - highlight all files with any issue
 document.getElementById('status').addEventListener('click', () => {
-  // Reset previous selection and track new one
   if (selectedElement) {
     selectedElement.style.borderLeftColor = '';
     selectedElement.style.background = '';
   }
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activePatterns = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)) : [];
-  const allFiles = activePatterns.flatMap(ap => ap.files);
-  highlightIssueFiles(allFiles);
+  const allIssueFiles = getAllIssueFiles();
+  highlightIssueFiles(allIssueFiles);
 });
 
 // JavaScript-driven color cycling for issue highlights
-// Smooth sine-wave rainbow cycle (inspired by GLSL shader)
 let cycleTime = 0;
 
 function hslToHex(h, s, l) {
@@ -12822,35 +12790,29 @@ function hslToHex(h, s, l) {
 }
 
 function cycleIssueColors() {
-  // Smooth rainbow: cycle hue over time (360\xB0 in 10 seconds at 60fps)
-  cycleTime += 0.016;  // ~16ms in seconds per frame
-  const hue = (cycleTime * 36) % 360;  // 36\xB0/sec = 360\xB0 in 10sec
-  const color = hslToHex(hue, 0.85, 0.6);  // 85% saturation, 60% lightness
+  cycleTime += 0.016;
+  const hue = (cycleTime * 36) % 360;
+  const color = hslToHex(hue, 0.85, 0.6);
 
-  // Pulsing opacity: sine wave, period 2000ms (slow gentle pulse)
   const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);  // 0.65 to 0.75
-  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);  // 0.1 to 0.5
+  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);
 
-  // Cycle highlighted treemap nodes
   document.querySelectorAll('.node.highlighted').forEach(node => {
     node.style.setProperty('fill', color, 'important');
     node.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle highlighted chord arcs
   document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
     arc.style.setProperty('fill', color, 'important');
     arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
   });
 
-  // Cycle highlighted chord ribbons
   document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
     ribbon.style.setProperty('fill', color, 'important');
     ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
   });
 
-  // Cycle the selected sidebar button
   if (selectedElement && selectedElement.isConnected) {
     const bgColor = color.replace('#', 'rgba(')
       .replace(/(..)(..)(..)/, (_, r, g, b) =>
@@ -12860,19 +12822,13 @@ function cycleIssueColors() {
   }
 }
 
-// Run animation at 60fps (16ms)
 setInterval(cycleIssueColors, 16);
 
-function updateStatusWithFileIssues() {
+function updateStatus() {
   const statusBtn = document.getElementById('status');
-  const antiPatternCount = (depGraph ? depGraph.antiPatterns : initialAntiPatterns)?.length || 0;
-  const fileIssueCount = typeof getFileIssueCount === 'function' ? getFileIssueCount() : 0;
-  const total = antiPatternCount + fileIssueCount;
-  if (total > 0) {
-    const parts = [];
-    if (antiPatternCount > 0) parts.push(antiPatternCount + ' anti-patterns');
-    if (fileIssueCount > 0) parts.push(fileIssueCount + ' code issues');
-    statusBtn.textContent = parts.join(', ');
+  const issueFiles = getAllIssueFiles();
+  if (issueFiles.length > 0) {
+    statusBtn.textContent = 'Possible issues in ' + issueFiles.length + ' files';
   } else {
     statusBtn.textContent = 'No issues found';
   }
@@ -13087,14 +13043,14 @@ function getErrorContent(message) {
 <body><h1>Aperture Dashboard</h1><p class="error">Error: ${message}</p></body>
 </html>`;
 }
-function getDashboardContent(data, antiPatterns) {
+function getDashboardContent(data, architectureIssues) {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
-  const antiPatternsJson = JSON.stringify(antiPatterns);
   const unsupportedCount = data.totals.unsupportedFiles;
-  const fileIssues = data.files.flatMap((f2) => f2.issues || []);
-  const fileIssuesJson = JSON.stringify(fileIssues);
+  const codeIssues = data.files.flatMap((f2) => f2.issues || []);
+  const allIssues = [...architectureIssues, ...codeIssues];
+  const issuesJson = JSON.stringify(allIssues);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13106,7 +13062,7 @@ function getDashboardContent(data, antiPatterns) {
 <body>
   <div class="view-controls">
     <div class="view-toggle">
-      <button id="view-treemap" class="active">Treemap</button>
+      <button id="view-treemap" class="active">Files</button>
       <button id="view-deps">Dependencies</button>
       <button id="view-functions">Functions</button>
     </div>
@@ -13179,8 +13135,7 @@ const vscode = acquireVsCodeApi();
 const files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
-const initialAntiPatterns = ${antiPatternsJson};
-const fileIssues = ${fileIssuesJson};
+const issues = ${issuesJson};
 
 let highlightedFiles = [];
 let currentView = 'treemap';
@@ -13188,23 +13143,19 @@ let depGraph = null;
 let simulation = null;
 let topGroups = [];
 let selectedElement = null;
-let ignoredPatterns = [];  // Array of {type, files, description} for ignored items
+// ignoredIssues is defined in FILE_ISSUES_PANEL_SCRIPT
 let activeRules = new Set();  // Set of pattern types added as rules
 
-// Build issue file map immediately from embedded anti-patterns
+// Build issue file map from all issues
 const issueFileMap = new Map();
-if (initialAntiPatterns && initialAntiPatterns.length > 0) {
-  const severityRank = { high: 0, medium: 1, low: 2 };
-  for (const ap of initialAntiPatterns) {
-    for (const file of ap.files) {
-      const existing = issueFileMap.get(file);
-      if (!existing || severityRank[ap.severity] < severityRank[existing]) {
-        issueFileMap.set(file, ap.severity);
-      }
+const severityRank = { high: 0, medium: 1, low: 2 };
+for (const issue of issues) {
+  for (const loc of issue.locations) {
+    const existing = issueFileMap.get(loc.file);
+    if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+      issueFileMap.set(loc.file, issue.severity);
     }
   }
-  document.getElementById('status').textContent = initialAntiPatterns.length + ' anti-patterns found';
-  selectedElement = document.getElementById('status');
 }
 
 ${TOOLTIP_SCRIPT}
@@ -13281,7 +13232,7 @@ async function openDashboard(context) {
               importDetails: node.importDetails
             })),
             edges: graph.edges,
-            antiPatterns: graph.antiPatterns,
+            issues: graph.issues,
             debug: debugInfo
           };
           panel.webview.postMessage({ type: "dependencyGraph", graph: serializedGraph });
@@ -13305,7 +13256,7 @@ async function openDashboard(context) {
     }
     currentData = await scanWorkspace();
     const graph = analyzeDependencies(currentData.files, currentData.root);
-    panel.webview.html = getDashboardContent(currentData, graph.antiPatterns);
+    panel.webview.html = getDashboardContent(currentData, graph.issues);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     panel.webview.html = getErrorContent(message);

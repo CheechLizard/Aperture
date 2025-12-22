@@ -3,7 +3,7 @@ import { ProjectData, FileInfo, LanguageSummary, LanguageSupport } from './types
 import { getLanguage } from './language-map';
 import { parseClaudeMd } from './rules-parser';
 import { parseAll } from './ast-parser';
-import { detectFileIssues } from './file-issue-detector';
+import { detectCodeIssues } from './file-issue-detector';
 
 export async function scanWorkspace(): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -83,7 +83,7 @@ async function scanFile(
     };
 
     // Detect issues for this file
-    const issues = detectFileIssues(fileInfo, astResult, text);
+    const issues = detectCodeIssues(fileInfo, astResult, text);
     if (issues.length > 0) {
       fileInfo.issues = issues;
     }

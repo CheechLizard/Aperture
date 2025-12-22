@@ -1,4 +1,4 @@
-import { FileInfo, ASTExtractionResult, FileIssue } from './types';
+import { FileInfo, ASTExtractionResult, Issue } from './types';
 import {
   detectLongFunctions,
   detectLongFile,
@@ -15,12 +15,12 @@ import {
 import { detectCommentedCode, detectHighCommentDensity } from './rules/comment-rules';
 import { detectMixedConcerns } from './rules/architecture-rules';
 
-export function detectFileIssues(
+export function detectCodeIssues(
   file: FileInfo,
   astResult: ASTExtractionResult,
   content: string
-): FileIssue[] {
-  const issues: FileIssue[] = [];
+): Issue[] {
+  const issues: Issue[] = [];
 
   // Structural rules
   issues.push(...detectLongFunctions(file));
@@ -50,8 +50,8 @@ export function detectFileIssues(
 
 export function aggregateIssuesByCategory(
   files: FileInfo[]
-): Map<string, FileIssue[]> {
-  const byCategory = new Map<string, FileIssue[]>();
+): Map<string, Issue[]> {
+  const byCategory = new Map<string, Issue[]>();
 
   for (const file of files) {
     if (!file.issues) continue;
@@ -68,8 +68,8 @@ export function aggregateIssuesByCategory(
 
 export function countIssuesBySeverity(
   files: FileInfo[]
-): { error: number; warning: number; info: number } {
-  const counts = { error: 0, warning: 0, info: 0 };
+): { high: number; medium: number; low: number } {
+  const counts = { high: 0, medium: 0, low: 0 };
 
   for (const file of files) {
     if (!file.issues) continue;

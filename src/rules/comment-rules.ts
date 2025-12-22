@@ -1,11 +1,11 @@
-import { FileInfo, CommentInfo, FileIssue } from '../types';
+import { FileInfo, CommentInfo, Issue } from '../types';
 import { CODE_COMMENT_PATTERNS, HIGH_COMMENT_DENSITY_THRESHOLD } from './rule-constants';
 
 export function detectCommentedCode(
   file: FileInfo,
   comments: CommentInfo[]
-): FileIssue[] {
-  const issues: FileIssue[] = [];
+): Issue[] {
+  const issues: Issue[] = [];
 
   for (const comment of comments) {
     // Skip block comments for this check - harder to detect code in them
@@ -20,11 +20,10 @@ export function detectCommentedCode(
     if (looksLikeCode(text)) {
       issues.push({
         ruleId: 'commented-code',
-        severity: 'info',
+        severity: 'low',
         category: 'comment',
         message: `Possible commented-out code - consider removing`,
-        file: file.path,
-        line: comment.line,
+        locations: [{ file: file.path, line: comment.line }],
       });
     }
   }
@@ -67,7 +66,7 @@ function looksLikeCode(text: string): boolean {
 export function detectHighCommentDensity(
   file: FileInfo,
   comments: CommentInfo[]
-): FileIssue | null {
+): Issue | null {
   if (file.loc === 0) return null;
 
   // Count comment lines (approximate - block comments count as 1 each)
@@ -88,10 +87,10 @@ export function detectHighCommentDensity(
     const percentage = Math.round(ratio * 100);
     return {
       ruleId: 'high-comment-density',
-      severity: 'info',
+      severity: 'low',
       category: 'comment',
       message: `High comment density (${percentage}%) - may indicate unclear code or stale comments`,
-      file: file.path,
+      locations: [{ file: file.path }],
     };
   }
 

@@ -63,7 +63,7 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
               importDetails: node.importDetails,
             })),
             edges: graph.edges,
-            antiPatterns: graph.antiPatterns,
+            issues: graph.issues,
             debug: debugInfo,
           };
           panel.webview.postMessage({ type: 'dependencyGraph', graph: serializedGraph });
@@ -93,7 +93,7 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
     // Run dependency analysis to get anti-patterns for treemap highlighting
     const graph = analyzeDependencies(currentData.files, currentData.root);
 
-    panel.webview.html = getDashboardContent(currentData, graph.antiPatterns);
+    panel.webview.html = getDashboardContent(currentData, graph.issues);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     panel.webview.html = getErrorContent(message);

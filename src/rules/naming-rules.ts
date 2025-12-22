@@ -1,4 +1,4 @@
-import { FileInfo, FunctionInfo, LiteralInfo, FileIssue } from '../types';
+import { FileInfo, LiteralInfo, Issue } from '../types';
 import {
   GENERIC_NAMES,
   VERB_PREFIXES,
@@ -6,19 +6,18 @@ import {
   ALLOWED_MAGIC_NUMBERS,
 } from './rule-constants';
 
-export function detectGenericNames(file: FileInfo): FileIssue[] {
-  const issues: FileIssue[] = [];
+export function detectGenericNames(file: FileInfo): Issue[] {
+  const issues: Issue[] = [];
 
   for (const func of file.functions) {
     const nameLower = func.name.toLowerCase();
     if (GENERIC_NAMES.includes(nameLower)) {
       issues.push({
         ruleId: 'generic-name',
-        severity: 'warning',
+        severity: 'medium',
         category: 'naming',
         message: `Function '${func.name}' uses a generic name - consider more descriptive naming`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }
@@ -27,8 +26,8 @@ export function detectGenericNames(file: FileInfo): FileIssue[] {
   return issues;
 }
 
-export function detectNonVerbFunctions(file: FileInfo): FileIssue[] {
-  const issues: FileIssue[] = [];
+export function detectNonVerbFunctions(file: FileInfo): Issue[] {
+  const issues: Issue[] = [];
 
   for (const func of file.functions) {
     if (func.name === 'anonymous') continue;
@@ -47,11 +46,10 @@ export function detectNonVerbFunctions(file: FileInfo): FileIssue[] {
 
       issues.push({
         ruleId: 'non-verb-function',
-        severity: 'info',
+        severity: 'low',
         category: 'naming',
         message: `Function '${func.name}' should start with a verb (e.g., get${capitalize(func.name)})`,
-        file: file.path,
-        line: func.startLine,
+        locations: [{ file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }
@@ -60,8 +58,8 @@ export function detectNonVerbFunctions(file: FileInfo): FileIssue[] {
   return issues;
 }
 
-export function detectNonQuestionBooleans(file: FileInfo): FileIssue[] {
-  const issues: FileIssue[] = [];
+export function detectNonQuestionBooleans(file: FileInfo): Issue[] {
+  const issues: Issue[] = [];
 
   // Check function names that suggest boolean return but don't use boolean prefix
   const booleanPatterns = [
@@ -99,11 +97,10 @@ export function detectNonQuestionBooleans(file: FileInfo): FileIssue[] {
       if (!startsWithBooleanPrefix) {
         issues.push({
           ruleId: 'non-question-boolean',
-          severity: 'info',
+          severity: 'low',
           category: 'naming',
           message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(func.name)}'`,
-          file: file.path,
-          line: func.startLine,
+          locations: [{ file: file.path, line: func.startLine }],
           symbol: func.name,
         });
       }
@@ -116,8 +113,8 @@ export function detectNonQuestionBooleans(file: FileInfo): FileIssue[] {
 export function detectMagicNumbers(
   file: FileInfo,
   literals: LiteralInfo[]
-): FileIssue[] {
-  const issues: FileIssue[] = [];
+): Issue[] {
+  const issues: Issue[] = [];
 
   for (const literal of literals) {
     // Skip allowed numbers
@@ -131,11 +128,10 @@ export function detectMagicNumbers(
 
     issues.push({
       ruleId: 'magic-number',
-      severity: 'info',
+      severity: 'low',
       category: 'naming',
       message: `Magic number ${literal.value} - consider using a named constant`,
-      file: file.path,
-      line: literal.line,
+      locations: [{ file: file.path, line: literal.line }],
     });
   }
 

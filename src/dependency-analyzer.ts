@@ -1,14 +1,14 @@
 import * as path from 'path';
-import { FileInfo, DependencyNode, DependencyEdge, AntiPattern } from './types';
+import { FileInfo, DependencyNode, DependencyEdge, Issue } from './types';
 import { resolveImports } from './import-resolver';
-import { detectAntiPatterns } from './anti-pattern-detector';
+import { detectArchitectureIssues } from './anti-pattern-detector';
 
-export { ImportDetail, DependencyNode, DependencyEdge, AntiPattern } from './types';
+export { ImportDetail, DependencyNode, DependencyEdge, Issue } from './types';
 
 export interface DependencyGraph {
   nodes: Map<string, DependencyNode>;
   edges: DependencyEdge[];
-  antiPatterns: AntiPattern[];
+  issues: Issue[];
 }
 
 export let debugInfo: string[] = [];
@@ -82,7 +82,7 @@ export function analyzeDependencies(files: FileInfo[], rootPath: string): Depend
   }
 
   debugInfo.push(`Total edges: ${edges.length}`);
-  const antiPatterns = detectAntiPatterns(nodes, edges, codeFiles.length);
+  const issues = detectArchitectureIssues(nodes, edges, codeFiles.length);
 
-  return { nodes, edges, antiPatterns };
+  return { nodes, edges, issues };
 }

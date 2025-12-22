@@ -1,16 +1,6 @@
 export const HIGHLIGHT_UTILS_SCRIPT = `
-function isPatternIgnored(ap) {
-  return ignoredPatterns.some(ignored =>
-    ignored.type === ap.type &&
-    ignored.description === ap.description &&
-    JSON.stringify(ignored.files) === JSON.stringify(ap.files)
-  );
-}
-
 function updateStatusButton() {
-  const allAntiPatterns = depGraph ? depGraph.antiPatterns : initialAntiPatterns;
-  const activeCount = allAntiPatterns ? allAntiPatterns.filter(ap => !isPatternIgnored(ap)).length : 0;
-  document.getElementById('status').textContent = activeCount + ' anti-patterns found';
+  updateStatus();
 }
 
 function highlightIssueFiles(files) {

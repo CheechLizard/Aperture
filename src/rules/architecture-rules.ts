@@ -1,4 +1,4 @@
-import { FileInfo, FileIssue } from '../types';
+import { FileInfo, Issue } from '../types';
 import { DATA_KEYWORDS, LOGIC_KEYWORDS, RENDER_KEYWORDS } from './rule-constants';
 
 const MIN_KEYWORD_MATCHES = 3;
@@ -6,7 +6,7 @@ const MIN_KEYWORD_MATCHES = 3;
 export function detectMixedConcerns(
   file: FileInfo,
   content: string
-): FileIssue | null {
+): Issue | null {
   const contentLower = content.toLowerCase();
 
   // Count keyword matches in each category
@@ -29,10 +29,10 @@ export function detectMixedConcerns(
 
     return {
       ruleId: 'mixed-concerns',
-      severity: 'warning',
+      severity: 'medium',
       category: 'architecture',
       message: `File may have mixed concerns: ${concerns.join(' + ')}`,
-      file: file.path,
+      locations: [{ file: file.path }],
     };
   }
 

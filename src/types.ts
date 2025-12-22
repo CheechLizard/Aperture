@@ -28,7 +28,7 @@ export interface FileInfo {
   functions: FunctionInfo[];
   imports: ImportInfo[];
   parseStatus: ParseStatus;
-  issues?: FileIssue[];
+  issues?: Issue[];
 }
 
 export interface FunctionInfo {
@@ -40,17 +40,21 @@ export interface FunctionInfo {
   parameterCount: number;
 }
 
-export type IssueSeverity = 'error' | 'warning' | 'info';
+export type Severity = 'high' | 'medium' | 'low';
 export type IssueCategory = 'structural' | 'naming' | 'architecture' | 'comment';
 
-export interface FileIssue {
-  ruleId: string;
-  severity: IssueSeverity;
-  category: IssueCategory;
-  message: string;
+export interface IssueLocation {
   file: string;
   line?: number;
   endLine?: number;
+}
+
+export interface Issue {
+  ruleId: string;
+  category: IssueCategory;
+  severity: Severity;
+  message: string;
+  locations: IssueLocation[];
   symbol?: string;
 }
 
@@ -144,9 +148,3 @@ export interface ASTExtractionResult {
   status: ParseStatus;
 }
 
-export interface AntiPattern {
-  type: 'circular' | 'nexus' | 'orphan';
-  severity: 'high' | 'medium' | 'low';
-  description: string;
-  files: string[];
-}
