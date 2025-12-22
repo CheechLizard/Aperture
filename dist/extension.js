@@ -11120,6 +11120,9 @@ Be concise but helpful. Always use the respond tool to provide your final answer
   const messages = [
     { role: "user", content: query }
   ];
+  const CONTEXT_LIMIT = 2e5;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
   let response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
@@ -11127,6 +11130,8 @@ Be concise but helpful. Always use the respond tool to provide your final answer
     tools,
     messages
   });
+  totalInputTokens += response.usage.input_tokens;
+  totalOutputTokens += response.usage.output_tokens;
   while (response.stop_reason === "tool_use") {
     const toolUseBlocks = response.content.filter(
       (block) => block.type === "tool_use"
@@ -11152,7 +11157,7 @@ Be concise but helpful. Always use the respond tool to provide your final answer
         }
       } else if (toolUse.name === "respond") {
         const input = toolUse.input;
-        return input;
+        return { ...input, usage };
       }
     }
     messages.push({ role: "assistant", content: response.content });
@@ -11164,13 +11169,22 @@ Be concise but helpful. Always use the respond tool to provide your final answer
       tools,
       messages
     });
+    totalInputTokens += response.usage.input_tokens;
+    totalOutputTokens += response.usage.output_tokens;
   }
+  const usage = {
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    totalTokens: totalInputTokens + totalOutputTokens,
+    contextLimit: CONTEXT_LIMIT
+  };
   const textBlock = response.content.find(
     (block) => block.type === "text"
   );
   return {
     message: textBlock?.text || "No response generated",
-    relevantFiles: []
+    relevantFiles: [],
+    usage
   };
 }
 function getApiKey() {
@@ -11574,7 +11588,7 @@ var DASHBOARD_STYLES = `
     .ai-input-wrapper:focus-within { border-color: var(--vscode-focusBorder); }
     .ai-input-wrapper input { width: 260px; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#bbb 0% 75%, #555 75% 100%); flex-shrink: 0; }
+    .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -12835,6 +12849,15 @@ window.addEventListener('message', event => {
     resp.textContent = msg.message;
     document.getElementById('clear').classList.add('visible');
     updateHighlights(msg.relevantFiles || []);
+    // Update context pie chart with actual usage
+    if (msg.usage) {
+      const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
+      const pie = document.getElementById('context-pie');
+      if (pie) {
+        pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
+        pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+      }
+    }
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
     // Merge architecture issues from graph into issues array (only circular-dependency and hub-file)

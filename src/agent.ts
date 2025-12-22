@@ -7,6 +7,12 @@ import { FileInfo } from './types';
 export interface AgentResponse {
   message: string;
   relevantFiles: string[];
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    contextLimit: number;
+  };
 }
 
 export async function analyzeQuery(
@@ -75,6 +81,10 @@ Be concise but helpful. Always use the respond tool to provide your final answer
     { role: 'user', content: query },
   ];
 
+  const CONTEXT_LIMIT = 200000; // Claude Sonnet context window
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
   let response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 4096,
@@ -82,6 +92,8 @@ Be concise but helpful. Always use the respond tool to provide your final answer
     tools,
     messages,
   });
+  totalInputTokens += response.usage.input_tokens;
+  totalOutputTokens += response.usage.output_tokens;
 
   while (response.stop_reason === 'tool_use') {
     const toolUseBlocks = response.content.filter(
@@ -109,8 +121,8 @@ Be concise but helpful. Always use the respond tool to provide your final answer
           });
         }
       } else if (toolUse.name === 'respond') {
-        const input = toolUse.input as AgentResponse;
-        return input;
+        const input = toolUse.input as { message: string; relevantFiles: string[] };
+        return { ...input, usage };
       }
     }
 
@@ -124,7 +136,16 @@ Be concise but helpful. Always use the respond tool to provide your final answer
       tools,
       messages,
     });
+    totalInputTokens += response.usage.input_tokens;
+    totalOutputTokens += response.usage.output_tokens;
   }
+
+  const usage = {
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    totalTokens: totalInputTokens + totalOutputTokens,
+    contextLimit: CONTEXT_LIMIT,
+  };
 
   const textBlock = response.content.find(
     (block): block is Anthropic.TextBlock => block.type === 'text'
@@ -133,6 +154,7 @@ Be concise but helpful. Always use the respond tool to provide your final answer
   return {
     message: textBlock?.text || 'No response generated',
     relevantFiles: [],
+    usage,
   };
 }
 

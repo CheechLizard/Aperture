@@ -94,6 +94,15 @@ window.addEventListener('message', event => {
     resp.textContent = msg.message;
     document.getElementById('clear').classList.add('visible');
     updateHighlights(msg.relevantFiles || []);
+    // Update context pie chart with actual usage
+    if (msg.usage) {
+      const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
+      const pie = document.getElementById('context-pie');
+      if (pie) {
+        pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
+        pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+      }
+    }
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
     // Merge architecture issues from graph into issues array (only circular-dependency and hub-file)
