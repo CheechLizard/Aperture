@@ -1,80 +1,17 @@
 export const DISTRIBUTION_CHART_SCRIPT = `
-const METRIC_COLORS = {
-  good: '#27ae60',    // Green - within threshold
-  warning: '#f39c12', // Orange - approaching threshold
-  bad: '#e74c3c',     // Red - exceeds threshold
-  neutral: '#6c757d'  // Gray - no coloring
-};
+const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 
 const ZOOM_DURATION = 500;
 let zoomedFile = null;
 let prevZoomedFile = null;  // Track previous zoomed file for exit animations
 let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
 
-// Dynamic coloring based on colorMode (set by anti-pattern-panel)
 function getDynamicFunctionColor(func) {
-  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
-
-  switch(colorMode) {
-    case 'loc':
-      if (func.value <= 20) return METRIC_COLORS.good;
-      if (func.value <= 50) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'depth':
-      const depth = func.depth || 0;
-      if (depth <= 2) return METRIC_COLORS.good;
-      if (depth <= 4) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'params':
-      const params = func.params || 0;
-      if (params <= 3) return METRIC_COLORS.good;
-      if (params <= 5) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'binary':
-      // Check if function has an issue of the selected type
-      const funcIssues = issues.filter(i =>
-        i.ruleId === selectedRuleId &&
-        i.locations.some(loc => loc.file === func.filePath && loc.line === func.line)
-      );
-      return funcIssues.length > 0 ? METRIC_COLORS.bad : METRIC_COLORS.good;
-    default:
-      return METRIC_COLORS.neutral;
-  }
+  return FUNC_NEUTRAL_COLOR;
 }
 
 function getDynamicFileColor(fileData) {
-  if (colorMode === 'none' || !colorMode) return METRIC_COLORS.neutral;
-
-  // For file-level coloring, use the worst function metric
-  const funcs = fileData.functions;
-  if (!funcs || funcs.length === 0) return METRIC_COLORS.neutral;
-
-  switch(colorMode) {
-    case 'loc':
-      const maxLoc = Math.max(...funcs.map(f => f.loc));
-      if (maxLoc <= 20) return METRIC_COLORS.good;
-      if (maxLoc <= 50) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'depth':
-      const maxDepth = Math.max(...funcs.map(f => f.maxNestingDepth || 0));
-      if (maxDepth <= 2) return METRIC_COLORS.good;
-      if (maxDepth <= 4) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'params':
-      const maxParams = Math.max(...funcs.map(f => f.parameterCount || 0));
-      if (maxParams <= 3) return METRIC_COLORS.good;
-      if (maxParams <= 5) return METRIC_COLORS.warning;
-      return METRIC_COLORS.bad;
-    case 'binary':
-      // Check if any function in file has an issue of the selected type
-      const hasIssue = issues.some(i =>
-        i.ruleId === selectedRuleId &&
-        i.locations.some(loc => loc.file === fileData.path)
-      );
-      return hasIssue ? METRIC_COLORS.bad : METRIC_COLORS.good;
-    default:
-      return METRIC_COLORS.neutral;
-  }
+  return FUNC_NEUTRAL_COLOR;
 }
 
 function zoomTo(filePath) {
@@ -477,21 +414,6 @@ function renderDistributionChart() {
   }
 }
 
-function getLegendLabels() {
-  switch(colorMode) {
-    case 'loc':
-      return { good: '\\u226420 LOC', warning: '21-50 LOC', bad: '50+ LOC' };
-    case 'depth':
-      return { good: '\\u22642 levels', warning: '3-4 levels', bad: '5+ levels' };
-    case 'params':
-      return { good: '\\u22643 params', warning: '4-5 params', bad: '6+ params' };
-    case 'binary':
-      return { good: 'No issue', warning: null, bad: 'Has issue' };
-    default:
-      return { good: 'Good', warning: 'Warning', bad: 'Bad' };
-  }
-}
-
 function renderFilesLegend(fileData) {
   const legend = document.getElementById('legend');
   if (!legend || currentView !== 'functions') return;
@@ -500,42 +422,14 @@ function renderFilesLegend(fileData) {
   const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
 
   legend.style.display = 'flex';
-
-  if (colorMode === 'none' || !colorMode) {
-    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
-    return;
-  }
-
-  const labels = getLegendLabels();
-  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
-  if (labels.warning) {
-    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
-  }
-  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
-  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
-  legend.innerHTML = html;
+  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
 }
 
 function renderFunctionLegend(leaves) {
   const legend = document.getElementById('legend');
   if (!legend || currentView !== 'functions') return;
 
-  const total = leaves.length;
-
   legend.style.display = 'flex';
-
-  if (colorMode === 'none' || !colorMode) {
-    legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
-    return;
-  }
-
-  const labels = getLegendLabels();
-  let html = '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.good + ';"></span>' + labels.good + '</div>';
-  if (labels.warning) {
-    html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.warning + ';"></span>' + labels.warning + '</div>';
-  }
-  html += '<div class="legend-item"><span class="legend-swatch" style="background:' + METRIC_COLORS.bad + ';"></span>' + labels.bad + '</div>';
-  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';
-  legend.innerHTML = html;
+  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + leaves.length + '</strong> functions</div>';
 }
 `;

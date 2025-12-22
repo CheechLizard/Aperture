@@ -1,41 +1,8 @@
 export const TREEMAP_SCRIPT = `
-const LANG_COLORS = {
-  'TypeScript': '#1e4a75', 'JavaScript': '#8a7a20', 'Lua': '#5c3570',
-  'JSON': '#1a6b3d', 'HTML': '#8a2d15', 'CSS': '#8a1745',
-  'Markdown': '#4a3328', 'Python': '#1c7a45', 'Shell': '#527a30',
-  'Go': '#006a85', 'Rust': '#8a6350'
-};
-const DEFAULT_LANG_COLOR = '#4a4a4a';
-
-const FILE_METRIC_COLORS = {
-  good: '#27ae60',    // Green
-  warning: '#f39c12', // Orange
-  bad: '#e74c3c',     // Red
-  neutral: '#6c757d'  // Gray
-};
+const TREEMAP_NEUTRAL_COLOR = '#3a3a3a';
 
 function getDynamicFilesTreemapColor(d) {
-  if (colorMode === 'none' || !colorMode) {
-    return LANG_COLORS[d.data.language] || DEFAULT_LANG_COLOR;
-  }
-
-  switch(colorMode) {
-    case 'loc':
-      // For files, use file LOC thresholds (not function LOC)
-      const loc = d.value;
-      if (loc <= 100) return FILE_METRIC_COLORS.good;
-      if (loc <= 200) return FILE_METRIC_COLORS.warning;
-      return FILE_METRIC_COLORS.bad;
-    case 'binary':
-      // Check if file has an issue of the selected type
-      const hasIssue = issues.some(i =>
-        i.ruleId === selectedRuleId &&
-        i.locations.some(loc => loc.file === d.data.path)
-      );
-      return hasIssue ? FILE_METRIC_COLORS.bad : FILE_METRIC_COLORS.good;
-    default:
-      return LANG_COLORS[d.data.language] || DEFAULT_LANG_COLOR;
-  }
+  return TREEMAP_NEUTRAL_COLOR;
 }
 
 function buildHierarchy(files) {
@@ -145,29 +112,7 @@ function renderTreemapLegend() {
   if (!container || currentView !== 'treemap') return;
 
   container.style.display = 'flex';
-
-  // If no special coloring, show language legend
-  if (colorMode === 'none' || !colorMode) {
-    const languages = [...new Set(files.map(f => f.language))].sort();
-    container.innerHTML = languages.map(lang => {
-      const color = LANG_COLORS[lang] || DEFAULT_LANG_COLOR;
-      return '<div class="legend-item"><span class="legend-swatch" style="background:' + color + ';"></span>' + lang + '</div>';
-    }).join('');
-    return;
-  }
-
-  // Show metric-based legend
-  let html = '';
-  if (colorMode === 'loc') {
-    html = '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.good + ';"></span>\\u2264100 LOC</div>' +
-           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.warning + ';"></span>101-200 LOC</div>' +
-           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.bad + ';"></span>200+ LOC</div>';
-  } else if (colorMode === 'binary') {
-    html = '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.good + ';"></span>No issue</div>' +
-           '<div class="legend-item"><span class="legend-swatch" style="background:' + FILE_METRIC_COLORS.bad + ';"></span>Has issue</div>';
-  }
-  html += '<div class="legend-item" style="margin-left:auto;"><strong>' + files.length + '</strong> files</div>';
-  container.innerHTML = html;
+  container.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + files.length + '</strong> files</div>';
 }
 
 // Re-render on window resize

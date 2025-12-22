@@ -1,25 +1,24 @@
 export const ANTI_PATTERN_PANEL_SCRIPT = `
-// Issue view mapping - determines which view and coloring to use for each rule
+// Issue view mapping - determines which view to show for each rule
 const ISSUE_VIEW_MAP = {
-  // Functions treemap with metrics
-  'long-function': { view: 'functions', colorBy: 'loc' },
-  'deep-nesting': { view: 'functions', colorBy: 'depth' },
-  'too-many-parameters': { view: 'functions', colorBy: 'params' },
-  // Functions treemap with binary coloring
-  'silent-failure': { view: 'functions', colorBy: 'binary' },
-  'generic-name': { view: 'functions', colorBy: 'binary' },
-  'non-verb-function': { view: 'functions', colorBy: 'binary' },
-  'non-question-boolean': { view: 'functions', colorBy: 'binary' },
-  'magic-number': { view: 'functions', colorBy: 'binary' },
-  'commented-code': { view: 'functions', colorBy: 'binary' },
+  // Functions treemap
+  'long-function': 'functions',
+  'deep-nesting': 'functions',
+  'too-many-parameters': 'functions',
+  'silent-failure': 'functions',
+  'generic-name': 'functions',
+  'non-verb-function': 'functions',
+  'non-question-boolean': 'functions',
+  'magic-number': 'functions',
+  'commented-code': 'functions',
   // Files treemap
-  'long-file': { view: 'files', colorBy: 'loc' },
-  'orphan-file': { view: 'files', colorBy: 'binary' },
-  'mixed-concerns': { view: 'files', colorBy: 'binary' },
-  'high-comment-density': { view: 'files', colorBy: 'binary' },
+  'long-file': 'files',
+  'orphan-file': 'files',
+  'mixed-concerns': 'files',
+  'high-comment-density': 'files',
   // Chord diagram
-  'circular-dependency': { view: 'chord', colorBy: 'cycle' },
-  'hub-file': { view: 'chord', colorBy: 'hub' },
+  'circular-dependency': 'chord',
+  'hub-file': 'chord',
 };
 
 // File-level rule IDs (shown on Files treemap)
@@ -28,8 +27,7 @@ const FILE_RULES = new Set(['long-file', 'mixed-concerns', 'orphan-file', 'high-
 // Architecture rule IDs (graph-level, shown on Chord diagram)
 const ARCHITECTURE_RULES = new Set(['circular-dependency', 'hub-file']);
 
-let selectedRuleId = null;
-let colorMode = 'none';  // 'none', 'loc', 'depth', 'params', 'binary'
+// selectedRuleId and colorMode are global variables (set in event-handlers.ts)
 
 function getExpandedState() {
   const state = { groups: new Set(), ignored: false, categories: new Set() };
@@ -75,12 +73,11 @@ function restoreExpandedState(state) {
 }
 
 function switchToView(ruleId) {
-  const config = ISSUE_VIEW_MAP[ruleId] || { view: 'files', colorBy: 'binary' };
+  const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   selectedRuleId = ruleId;
-  colorMode = config.colorBy;
 
   // Switch visualization
-  if (config.view === 'functions') {
+  if (view === 'functions') {
     currentView = 'functions';
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'none';
@@ -88,7 +85,7 @@ function switchToView(ruleId) {
     document.getElementById('functions-container').classList.add('visible');
     document.getElementById('legend').style.display = 'flex';
     renderDistributionChart();
-  } else if (config.view === 'chord') {
+  } else if (view === 'chord') {
     currentView = 'deps';
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('functions-container').classList.remove('visible');
