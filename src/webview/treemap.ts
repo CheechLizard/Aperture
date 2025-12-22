@@ -134,6 +134,8 @@ window.addEventListener('resize', () => {
     if (currentHighlightedFiles.length > 0) {
       highlightIssueFiles(currentHighlightedFiles);
     }
+  } else if (currentView === 'functions') {
+    renderDistributionChart();
   }
 });
 `;

@@ -133,4 +133,10 @@ export const DASHBOARD_STYLES = `
     .chord-ribbon.issue-high, .chord-ribbon.issue-medium, .chord-ribbon.issue-low {
       /* No CSS transition - direct JS animation handles fill color and opacity */
     }
+
+    /* Function Distribution Chart */
+    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; }
+    .functions-container.visible { display: block; }
+    #functions-chart { width: 100%; height: 100%; }
+    .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 `;

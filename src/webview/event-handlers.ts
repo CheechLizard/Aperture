@@ -24,8 +24,10 @@ document.getElementById('view-treemap').addEventListener('click', () => {
     currentView = 'treemap';
     document.getElementById('view-treemap').classList.add('active');
     document.getElementById('view-deps').classList.remove('active');
+    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'block';
     document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('functions-container').classList.remove('visible');
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('dep-controls').classList.remove('visible');
     // Re-render in case window was resized while on deps tab
@@ -43,8 +45,10 @@ document.getElementById('view-deps').addEventListener('click', () => {
     currentView = 'deps';
     document.getElementById('view-deps').classList.add('active');
     document.getElementById('view-treemap').classList.remove('active');
+    document.getElementById('view-functions').classList.remove('active');
     document.getElementById('treemap').style.display = 'none';
     document.getElementById('dep-container').style.display = 'block';
+    document.getElementById('functions-container').classList.remove('visible');
     document.getElementById('legend').style.display = 'none';
     document.getElementById('dep-controls').classList.add('visible');
 
@@ -60,6 +64,21 @@ document.getElementById('view-deps').addEventListener('click', () => {
         highlightIssueFiles(currentHighlightedFiles);
       }
     }
+  }
+});
+
+document.getElementById('view-functions').addEventListener('click', () => {
+  if (currentView !== 'functions') {
+    currentView = 'functions';
+    document.getElementById('view-functions').classList.add('active');
+    document.getElementById('view-treemap').classList.remove('active');
+    document.getElementById('view-deps').classList.remove('active');
+    document.getElementById('treemap').style.display = 'none';
+    document.getElementById('dep-container').style.display = 'none';
+    document.getElementById('functions-container').classList.add('visible');
+    document.getElementById('dep-controls').classList.remove('visible');
+
+    renderDistributionChart();
   }
 });
 

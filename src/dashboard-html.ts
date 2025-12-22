@@ -9,6 +9,7 @@ import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
 import { FILE_ISSUES_PANEL_SCRIPT } from './webview/file-issues-panel';
 import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
+import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -58,6 +59,7 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
     <div class="view-toggle">
       <button id="view-treemap" class="active">Treemap</button>
       <button id="view-deps">Dependencies</button>
+      <button id="view-functions">Functions</button>
     </div>
   </div>
   <div class="main-split">
@@ -66,6 +68,9 @@ export function getDashboardContent(data: ProjectData, antiPatterns: AntiPattern
         <div id="treemap"></div>
         <div id="dep-container" class="dep-container">
           <div id="dep-chord" class="dep-chord"></div>
+        </div>
+        <div id="functions-container" class="functions-container">
+          <div id="functions-chart"></div>
         </div>
         <div id="legend" class="legend"></div>
         <div id="dep-controls" class="dep-controls">
@@ -168,6 +173,8 @@ ${ANTI_PATTERN_PANEL_SCRIPT}
 ${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
+
+${DISTRIBUTION_CHART_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>
