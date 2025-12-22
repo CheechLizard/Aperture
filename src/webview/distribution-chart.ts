@@ -387,12 +387,13 @@ function renderDistributionChart() {
     .transition(t)
     .attr('opacity', 1);
 
-  // HTML back button in view controls
+  // HTML back button in header
   const header = document.getElementById('back-header');
   if (header) {
     if (zoomedFile) {
+      const folderPath = zoomedFile.split('/').slice(0, -1).join('/');
       header.classList.remove('hidden');
-      header.innerHTML = '<button class="back-btn">\\u2190</button><span class="back-path">' + zoomedFile + '</span>';
+      header.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
       header.querySelector('.back-btn').addEventListener('click', zoomOut);
     } else {
       header.classList.add('hidden');

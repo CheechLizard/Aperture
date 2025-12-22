@@ -54,8 +54,23 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>${DASHBOARD_STYLES}</style>
 </head>
-<body>
-  <div id="back-header" class="back-header hidden"></div>
+<body><header class="app-header">
+    <div id="back-header" class="back-header hidden"></div>
+    <div class="header-center">
+      <div class="ai-input-wrapper">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <div class="ai-input-actions">
+          <div id="context-pie" class="context-pie" title="Context used"></div>
+          <button id="send" class="ai-send-btn">↑</button>
+        </div>
+      </div>
+      <div id="ai-dropdown" class="ai-dropdown">
+        <div id="rules" class="rules"></div>
+        <div id="response" class="ai-response"></div>
+        <button class="clear-btn" id="clear">Clear</button>
+      </div>
+    </div>
+  </header>
   <div class="main-split">
     <div class="main-content">
       <div class="diagram-area">
@@ -92,21 +107,6 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
-    </div>
-  </div>
-  <div id="chat-panel" class="chat-panel">
-    <div class="chat-header" id="chat-header">
-      <span class="chat-title">Ask AI</span>
-      <button class="chat-collapse-btn" id="chat-collapse">−</button>
-    </div>
-    <div class="chat-body" id="chat-body">
-      <div class="chat-input">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
-        <button id="send">Ask</button>
-        <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-      </div>
-      <div id="response" class="response" style="display:none;"></div>
-      <div id="rules" class="rules"></div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>

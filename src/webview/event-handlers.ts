@@ -11,10 +11,7 @@ document.getElementById('query').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') document.getElementById('send').click();
 });
 
-document.getElementById('clear').addEventListener('click', () => {
-  updateHighlights([]);
-  document.getElementById('response').style.display = 'none';
-});
+// Clear button handling moved to chat-panel.ts
 
 // Track currently highlighted files for view switching
 let currentHighlightedFiles = [];
@@ -86,13 +83,16 @@ window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
     const resp = document.getElementById('response');
-    resp.style.display = 'block';
+    resp.classList.add('visible');
     resp.innerHTML = '<span class="thinking">Analyzing</span>';
+    document.getElementById('ai-dropdown').classList.add('visible');
   } else if (msg.type === 'response') {
     document.getElementById('response').classList.remove('thinking');
     document.getElementById('send').disabled = false;
-    document.getElementById('response').style.display = 'block';
-    document.getElementById('response').textContent = msg.message;
+    const resp = document.getElementById('response');
+    resp.classList.add('visible');
+    resp.textContent = msg.message;
+    document.getElementById('clear').classList.add('visible');
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;

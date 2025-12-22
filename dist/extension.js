@@ -11563,8 +11563,29 @@ async function removeAntiPatternRule(rootPath, patternType) {
 
 // src/webview/styles.ts
 var DASHBOARD_STYLES = `
-    body { font-family: var(--vscode-font-family); padding: 12px 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
-    .footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--vscode-widget-border); margin-top: 12px; font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); }
+    /* App Header */
+    .app-header { display: flex; align-items: center; justify-content: center; margin: 0; padding: 12px 20px; gap: 12px; border-bottom: 1px solid var(--vscode-widget-border); position: relative; }
+    .back-header { position: absolute; left: 20px; display: flex; align-items: center; gap: 8px; }
+    .header-center { position: relative; }
+    .ai-input-wrapper { display: flex; align-items: center; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 5px 5px 5px 0; }
+    .ai-input-wrapper:focus-within { border-color: var(--vscode-focusBorder); }
+    .ai-input-wrapper input { width: 260px; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
+    .ai-input-actions { display: flex; align-items: center; gap: 8px; }
+    .context-pie { width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#bbb 0% 75%, #555 75% 100%); flex-shrink: 0; }
+    .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
+    .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* AI Dropdown Panel */
+    .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
+    .ai-dropdown.visible { display: block; }
+    .ai-response { padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; white-space: pre-wrap; margin-top: 8px; display: none; font-size: 0.85em; }
+    .ai-response.visible { display: block; }
+    .ai-dropdown .clear-btn { display: none; margin-top: 8px; padding: 4px 10px; font-size: 0.8em; background: transparent; border: 1px solid var(--vscode-widget-border); color: var(--vscode-foreground); border-radius: 4px; cursor: pointer; }
+    .ai-dropdown .clear-btn.visible { display: inline-block; }
+    .footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); }
     .footer-stats { display: flex; gap: 16px; align-items: center; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
@@ -11577,23 +11598,7 @@ var DASHBOARD_STYLES = `
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.highlighted { }
     .tooltip { position: absolute; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
-    .chat-panel { position: fixed; bottom: 60px; right: 20px; width: 400px; max-width: calc(100vw - 40px); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 50; }
-    .chat-panel.collapsed .chat-body { display: none; }
-    .chat-panel.collapsed { width: auto; }
-    .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--vscode-titleBar-activeBackground); border-radius: 8px 8px 0 0; cursor: move; user-select: none; }
-    .chat-panel.collapsed .chat-header { border-radius: 8px; }
-    .chat-title { font-weight: 600; font-size: 0.9em; }
-    .chat-collapse-btn { background: none; border: none; color: var(--vscode-foreground); cursor: pointer; font-size: 1.2em; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
-    .chat-collapse-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
-    .chat-body { padding: 12px; max-height: 300px; overflow-y: auto; }
-    .chat-input { display: flex; gap: 10px; margin-bottom: 10px; }
-    .chat-input input { flex: 1; padding: 8px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); color: var(--vscode-input-foreground); }
-    .chat-input button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
-    .chat-input button:hover { background: var(--vscode-button-hoverBackground); }
-    .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .response { padding: 10px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; white-space: pre-wrap; }
     .thinking { display: inline-block; } .thinking::after { content: ''; animation: dots 1.5s infinite; } @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60%, 100% { content: '...'; } }
-    .clear-btn { margin-left: 10px; padding: 4px 8px; font-size: 0.8em; background: transparent; border: 1px solid var(--vscode-widget-border); color: var(--vscode-foreground); cursor: pointer; }
     .rules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .rule-btn { padding: 4px 10px; font-size: 0.75em; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; cursor: pointer; }
     .rule-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
@@ -11603,12 +11608,11 @@ var DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    /* Back header in visualization area - always reserve space to prevent layout shift */
-    .back-header { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 8px; min-height: 32px; }
-    .back-header.hidden { visibility: hidden; }
-    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+    /* Back header in app header */
+    .back-header.hidden { display: none; }
+    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.9em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
     .back-btn:hover { background: var(--vscode-list-hoverBackground); }
-    .back-path { font-weight: 600; font-size: 0.9em; color: var(--vscode-foreground); }
+    .back-path { font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -11631,7 +11635,7 @@ var DASHBOARD_STYLES = `
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .main-split { display: flex; gap: 16px; height: calc(100vh - 150px); }
+    .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); padding: 0 20px 12px 20px; }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); padding-left: 12px; }
     .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -12690,48 +12694,47 @@ function getActiveIssueCount() {
 
 // src/webview/chat-panel.ts
 var CHAT_PANEL_SCRIPT = `
-// Chat panel collapse/expand
-const chatPanel = document.getElementById('chat-panel');
-const chatCollapseBtn = document.getElementById('chat-collapse');
-const chatHeader = document.getElementById('chat-header');
+// AI Dropdown panel - shown when input is focused
+const aiDropdown = document.getElementById('ai-dropdown');
+const queryInput = document.getElementById('query');
+const responseEl = document.getElementById('response');
+const clearBtn = document.getElementById('clear');
 
-chatCollapseBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const isCollapsed = chatPanel.classList.toggle('collapsed');
-  chatCollapseBtn.textContent = isCollapsed ? '+' : '\u2212';
-});
+function showAiDropdown() {
+  aiDropdown.classList.add('visible');
+}
 
-// Chat panel drag functionality
-let isDragging = false;
-let dragOffsetX = 0;
-let dragOffsetY = 0;
-
-chatHeader.addEventListener('mousedown', (e) => {
-  if (e.target === chatCollapseBtn) return;
-  isDragging = true;
-  const rect = chatPanel.getBoundingClientRect();
-  dragOffsetX = e.clientX - rect.left;
-  dragOffsetY = e.clientY - rect.top;
-  chatPanel.style.transition = 'none';
-});
-
-document.addEventListener('mousemove', (e) => {
-  if (!isDragging) return;
-  const x = e.clientX - dragOffsetX;
-  const y = e.clientY - dragOffsetY;
-  const maxX = window.innerWidth - chatPanel.offsetWidth;
-  const maxY = window.innerHeight - chatPanel.offsetHeight;
-  chatPanel.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-  chatPanel.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
-  chatPanel.style.right = 'auto';
-  chatPanel.style.bottom = 'auto';
-});
-
-document.addEventListener('mouseup', () => {
-  if (isDragging) {
-    isDragging = false;
-    chatPanel.style.transition = '';
+function hideAiDropdown() {
+  // Only hide if no response is showing
+  if (!responseEl.classList.contains('visible')) {
+    aiDropdown.classList.remove('visible');
   }
+}
+
+queryInput.addEventListener('focus', showAiDropdown);
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const headerCenter = document.querySelector('.header-center');
+  if (!headerCenter.contains(e.target)) {
+    hideAiDropdown();
+  }
+});
+
+// Close with Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && aiDropdown.classList.contains('visible')) {
+    queryInput.blur();
+    hideAiDropdown();
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  responseEl.classList.remove('visible');
+  responseEl.textContent = '';
+  clearBtn.classList.remove('visible');
+  updateHighlights([]);
+  hideAiDropdown();
 });
 `;
 
@@ -12749,10 +12752,7 @@ document.getElementById('query').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') document.getElementById('send').click();
 });
 
-document.getElementById('clear').addEventListener('click', () => {
-  updateHighlights([]);
-  document.getElementById('response').style.display = 'none';
-});
+// Clear button handling moved to chat-panel.ts
 
 // Track currently highlighted files for view switching
 let currentHighlightedFiles = [];
@@ -12824,13 +12824,16 @@ window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
     const resp = document.getElementById('response');
-    resp.style.display = 'block';
+    resp.classList.add('visible');
     resp.innerHTML = '<span class="thinking">Analyzing</span>';
+    document.getElementById('ai-dropdown').classList.add('visible');
   } else if (msg.type === 'response') {
     document.getElementById('response').classList.remove('thinking');
     document.getElementById('send').disabled = false;
-    document.getElementById('response').style.display = 'block';
-    document.getElementById('response').textContent = msg.message;
+    const resp = document.getElementById('response');
+    resp.classList.add('visible');
+    resp.textContent = msg.message;
+    document.getElementById('clear').classList.add('visible');
     updateHighlights(msg.relevantFiles || []);
   } else if (msg.type === 'dependencyGraph') {
     depGraph = msg.graph;
@@ -13368,12 +13371,13 @@ function renderDistributionChart() {
     .transition(t)
     .attr('opacity', 1);
 
-  // HTML back button in view controls
+  // HTML back button in header
   const header = document.getElementById('back-header');
   if (header) {
     if (zoomedFile) {
+      const folderPath = zoomedFile.split('/').slice(0, -1).join('/');
       header.classList.remove('hidden');
-      header.innerHTML = '<button class="back-btn">\\u2190</button><span class="back-path">' + zoomedFile + '</span>';
+      header.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
       header.querySelector('.back-btn').addEventListener('click', zoomOut);
     } else {
       header.classList.add('hidden');
@@ -13454,8 +13458,23 @@ function getDashboardContent(data, architectureIssues) {
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>${DASHBOARD_STYLES}</style>
 </head>
-<body>
-  <div id="back-header" class="back-header hidden"></div>
+<body><header class="app-header">
+    <div id="back-header" class="back-header hidden"></div>
+    <div class="header-center">
+      <div class="ai-input-wrapper">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <div class="ai-input-actions">
+          <div id="context-pie" class="context-pie" title="Context used"></div>
+          <button id="send" class="ai-send-btn">\u2191</button>
+        </div>
+      </div>
+      <div id="ai-dropdown" class="ai-dropdown">
+        <div id="rules" class="rules"></div>
+        <div id="response" class="ai-response"></div>
+        <button class="clear-btn" id="clear">Clear</button>
+      </div>
+    </div>
+  </header>
   <div class="main-split">
     <div class="main-content">
       <div class="diagram-area">
@@ -13492,21 +13511,6 @@ function getDashboardContent(data, architectureIssues) {
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
-    </div>
-  </div>
-  <div id="chat-panel" class="chat-panel">
-    <div class="chat-header" id="chat-header">
-      <span class="chat-title">Ask AI</span>
-      <button class="chat-collapse-btn" id="chat-collapse">\u2212</button>
-    </div>
-    <div class="chat-body" id="chat-body">
-      <div class="chat-input">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
-        <button id="send">Ask</button>
-        <button class="clear-btn" id="clear" style="display:none;">Clear</button>
-      </div>
-      <div id="response" class="response" style="display:none;"></div>
-      <div id="rules" class="rules"></div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
