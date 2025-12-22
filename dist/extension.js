@@ -11603,7 +11603,7 @@ var DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; }
+    .view-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; position: relative; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -11707,11 +11707,14 @@ var DASHBOARD_STYLES = `
     #functions-chart { width: 100%; flex: 1; min-height: 0; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 
-    /* Zoom Header */
-    .zoom-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 8px; }
+    /* Zoom Header - positioned absolutely to left */
+    .zoom-header { position: absolute; left: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; }
     .zoom-back { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; }
     .zoom-back:hover { background: var(--vscode-list-hoverBackground); }
     .zoom-path { font-weight: 600; font-size: 0.9em; }
+    /* SVG file header for L2 */
+    .file-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
+    .file-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
 `;
 
 // src/webview/tooltip.ts
@@ -13198,24 +13201,52 @@ function renderDistributionChart() {
     .attr('x', d => d.x0 + 3)
     .attr('y', d => d.y0 + 11);
 
-  // Zoom header
-  let header = container.querySelector('.zoom-header');
-  if (zoomedFile) {
-    if (!header) {
-      header = document.createElement('div');
-      header.className = 'zoom-header';
-      header.style.position = 'absolute';
-      header.style.top = '8px';
-      header.style.left = '8px';
-      header.style.zIndex = '10';
-      container.style.position = 'relative';
-      container.appendChild(header);
+  // SVG file header for L2 (matching folder header style)
+  const fileHeaderData = zoomedFile ? [{ path: zoomedFile, name: zoomedFile.split('/').pop() }] : [];
+
+  funcLayer.selectAll('rect.file-header').data(fileHeaderData, d => d.path)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'file-header')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', 16)
+        .attr('opacity', 0),
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()
+    )
+    .transition(t)
+    .attr('width', width)
+    .attr('opacity', 1);
+
+  funcLayer.selectAll('text.file-header-label').data(fileHeaderData, d => d.path)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'file-header-label')
+        .attr('x', 4)
+        .attr('y', 12)
+        .attr('opacity', 0),
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()
+    )
+    .text(d => {
+      const maxChars = Math.floor((width - 8) / 7);
+      return d.name.length > maxChars ? d.name.slice(0, maxChars - 1) + '\\u2026' : d.name;
+    })
+    .transition(t)
+    .attr('opacity', 1);
+
+  // HTML back button in view controls
+  const header = document.getElementById('functions-zoom-header');
+  if (header) {
+    if (zoomedFile) {
+      header.style.display = 'flex';
+      header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + zoomedFile + '</span>';
+      header.querySelector('.zoom-back').addEventListener('click', zoomOut);
+    } else {
+      header.style.display = 'none';
     }
-    const file = files.find(f => f.path === zoomedFile);
-    header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + (file ? file.path : zoomedFile) + '</span>';
-    header.querySelector('.zoom-back').addEventListener('click', zoomOut);
-  } else if (header) {
-    header.remove();
   }
 
   // Update legend
@@ -13306,6 +13337,7 @@ function getDashboardContent(data, architectureIssues) {
 </head>
 <body>
   <div class="view-controls">
+    <div id="functions-zoom-header" class="zoom-header" style="display:none;"></div>
     <div class="view-toggle">
       <button id="view-treemap" class="active">Files</button>
       <button id="view-deps">Dependencies</button>

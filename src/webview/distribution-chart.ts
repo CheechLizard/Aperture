@@ -354,24 +354,52 @@ function renderDistributionChart() {
     .attr('x', d => d.x0 + 3)
     .attr('y', d => d.y0 + 11);
 
-  // Zoom header
-  let header = container.querySelector('.zoom-header');
-  if (zoomedFile) {
-    if (!header) {
-      header = document.createElement('div');
-      header.className = 'zoom-header';
-      header.style.position = 'absolute';
-      header.style.top = '8px';
-      header.style.left = '8px';
-      header.style.zIndex = '10';
-      container.style.position = 'relative';
-      container.appendChild(header);
+  // SVG file header for L2 (matching folder header style)
+  const fileHeaderData = zoomedFile ? [{ path: zoomedFile, name: zoomedFile.split('/').pop() }] : [];
+
+  funcLayer.selectAll('rect.file-header').data(fileHeaderData, d => d.path)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'file-header')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', 16)
+        .attr('opacity', 0),
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()
+    )
+    .transition(t)
+    .attr('width', width)
+    .attr('opacity', 1);
+
+  funcLayer.selectAll('text.file-header-label').data(fileHeaderData, d => d.path)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'file-header-label')
+        .attr('x', 4)
+        .attr('y', 12)
+        .attr('opacity', 0),
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()
+    )
+    .text(d => {
+      const maxChars = Math.floor((width - 8) / 7);
+      return d.name.length > maxChars ? d.name.slice(0, maxChars - 1) + '\\u2026' : d.name;
+    })
+    .transition(t)
+    .attr('opacity', 1);
+
+  // HTML back button in view controls
+  const header = document.getElementById('functions-zoom-header');
+  if (header) {
+    if (zoomedFile) {
+      header.style.display = 'flex';
+      header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + zoomedFile + '</span>';
+      header.querySelector('.zoom-back').addEventListener('click', zoomOut);
+    } else {
+      header.style.display = 'none';
     }
-    const file = files.find(f => f.path === zoomedFile);
-    header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + (file ? file.path : zoomedFile) + '</span>';
-    header.querySelector('.zoom-back').addEventListener('click', zoomOut);
-  } else if (header) {
-    header.remove();
   }
 
   // Update legend

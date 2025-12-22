@@ -56,6 +56,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
 </head>
 <body>
   <div class="view-controls">
+    <div id="functions-zoom-header" class="zoom-header" style="display:none;"></div>
     <div class="view-toggle">
       <button id="view-treemap" class="active">Files</button>
       <button id="view-deps">Dependencies</button>
