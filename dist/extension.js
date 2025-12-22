@@ -11665,26 +11665,28 @@ var DASHBOARD_STYLES = `
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
     .pattern-group { margin-bottom: 8px; }
-    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-    .pattern-header:hover { opacity: 0.9; }
-    .pattern-header.high { background: rgba(231, 76, 60, 0.2); border-left: 3px solid #e74c3c; }
-    .pattern-header.medium { background: rgba(243, 156, 18, 0.2); border-left: 3px solid #f39c12; }
-    .pattern-header.low { background: rgba(127, 140, 141, 0.2); border-left: 3px solid #7f8c8d; }
-    .pattern-chevron { transition: transform 0.2s; font-size: 0.8em; }
-    .pattern-chevron.expanded { transform: rotate(90deg); }
+    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-chevron { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; cursor: pointer; }
+    .pattern-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .pattern-chevron.expanded svg { transform: rotate(90deg); }
     .pattern-title { font-weight: 600; }
     .pattern-count { font-size: 0.8em; color: #fff; background: #555; padding: 2px 6px; border-radius: 10px; margin-left: 6px; }
     .pattern-spacer { flex: 1; }
     .pattern-items { display: none; padding-left: 16px; margin-top: 4px; }
     .pattern-items.expanded { display: block; }
-    .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-item.high { border-left-color: #e74c3c; }
+    .pattern-item.medium { border-left-color: #f39c12; }
+    .pattern-item.low { border-left-color: #7f8c8d; }
     .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
     .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
     .pattern-item-row { display: flex; align-items: center; gap: 8px; }
     .pattern-item-content { flex: 1; }
-    .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; color: #000; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; font-size: 0.7em; line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
+    .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
     .pattern-ignore-btn:hover { opacity: 1; background: var(--vscode-errorForeground); }
+    .pattern-ignore-btn svg { width: 10px; height: 10px; fill: none; stroke: #000; stroke-width: 2; stroke-linecap: round; }
     .pattern-rules-toggle { background: none; border: 1px solid var(--vscode-descriptionForeground); color: var(--vscode-descriptionForeground); cursor: pointer; padding: 4px 8px; font-size: 0.8em; border-radius: 3px; }
     .pattern-rules-toggle:hover { border-color: var(--vscode-focusBorder); color: var(--vscode-foreground); }
     .pattern-rules-toggle.active { background: var(--vscode-button-background); border-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }
@@ -12336,34 +12338,35 @@ function renderAntiPatterns() {
     let allFiles, itemsHtml;
 
     if (group.isFileIssue) {
-      // File issues: each item has file, line, message
+      // File issues: each item has file, line, message, severity
       allFiles = group.items.map(item => item.file);
       itemsHtml = group.items.map((item, iIdx) => {
         const fileName = item.file.split('/').pop();
         const lineInfo = item.line ? ':' + item.line : '';
-        return '<div class="pattern-item" data-files="' + item.file + '" data-line="' + (item.line || '') + '" data-type="' + group.type + '" data-description="' + item.message.replace(/"/g, '&quot;') + '" data-is-file-issue="true">' +
+        const itemSeverity = severityMap[item.severity] || 'low';
+        return '<div class="pattern-item ' + itemSeverity + '" data-files="' + item.file + '" data-line="' + (item.line || '') + '" data-type="' + group.type + '" data-description="' + item.message.replace(/"/g, '&quot;') + '" data-is-file-issue="true">' +
           '<div class="pattern-item-row"><div class="pattern-item-content">' +
           '<div class="pattern-item-desc">' + item.message + '</div>' +
           '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
-          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
+          '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
       }).join('');
     } else {
-      // Anti-patterns: each item has files array, description
+      // Anti-patterns: each item has files array, description, severity
       allFiles = group.items.flatMap(item => item.files);
       itemsHtml = group.items.map((item, iIdx) => {
         const fileName = item.files.map(f => f.split('/').pop()).join(', ');
         const filesData = item.files.join(',');
-        return '<div class="pattern-item" data-files="' + filesData + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
+        return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-type="' + item.type + '" data-description="' + item.description.replace(/"/g, '&quot;') + '">' +
           '<div class="pattern-item-row"><div class="pattern-item-content">' +
           '<div class="pattern-item-desc">' + item.description + '</div>' +
           '<div class="pattern-item-file">' + fileName + '</div></div>' +
-          '<button class="pattern-ignore-btn" title="Ignore this item">&#10005;</button></div></div>';
+          '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
       }).join('');
     }
 
     return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.type + '" data-is-file-issue="' + group.isFileIssue + '">' +
-      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-severity="' + group.severity + '" data-type="' + group.type + '">' +
-      '<span class="pattern-chevron">&#9654;</span><span class="pattern-title">' + formatType(group.type) + '</span>' +
+      '<div class="pattern-header" data-files="' + allFiles.join(',') + '" data-type="' + group.type + '">' +
+      '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span><span class="pattern-title">' + formatType(group.type) + '</span>' +
       '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
       '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
       '<div class="pattern-items">' + itemsHtml + '</div></div>';
@@ -12383,22 +12386,29 @@ function renderAntiPatterns() {
       return '<div class="ignored-item" data-idx="' + idx + '" data-is-file-issue="true"><span>' + formatType(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
         '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
     }).join('');
-    html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron">&#9654;</span>' +
+    html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
       '<span>Ignored items (' + totalIgnored + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
   }
 
   list.innerHTML = html;
 
-  // Handle header clicks
-  list.querySelectorAll('.pattern-header').forEach(header => {
-    const files = header.getAttribute('data-files').split(',').filter(f => f);
-    const group = header.closest('.pattern-group');
-    const chevron = header.querySelector('.pattern-chevron');
+  // Handle chevron clicks (expand/collapse only)
+  list.querySelectorAll('.pattern-header .pattern-chevron').forEach(chevron => {
+    const group = chevron.closest('.pattern-group');
     const items = group.querySelector('.pattern-items');
-    header.addEventListener('click', (e) => {
-      if (e.target.classList.contains('pattern-rules-toggle')) return;
+    chevron.addEventListener('click', (e) => {
+      e.stopPropagation();
       chevron.classList.toggle('expanded');
       items.classList.toggle('expanded');
+    });
+  });
+
+  // Handle header clicks (select/highlight only, no expand)
+  list.querySelectorAll('.pattern-header').forEach(header => {
+    const files = header.getAttribute('data-files').split(',').filter(f => f);
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('.pattern-chevron')) return;
+      if (e.target.classList.contains('pattern-rules-toggle')) return;
       if (selectedElement) { selectedElement.style.borderLeftColor = ''; selectedElement.style.background = ''; }
       selectedElement = header;
       highlightIssueFiles(files);
@@ -12428,12 +12438,12 @@ function renderAntiPatterns() {
     });
   });
 
-  // Handle individual item clicks
+  // Handle individual item clicks (entire row, excluding ignore button)
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
     const line = item.getAttribute('data-line');
-    const content = item.querySelector('.pattern-item-content');
-    content.addEventListener('click', (e) => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
       highlightIssueFiles(files);
       if (files.length > 0) {

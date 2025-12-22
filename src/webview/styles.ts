@@ -92,26 +92,28 @@ export const DASHBOARD_STYLES = `
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
     .pattern-group { margin-bottom: 8px; }
-    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-    .pattern-header:hover { opacity: 0.9; }
-    .pattern-header.high { background: rgba(231, 76, 60, 0.2); border-left: 3px solid #e74c3c; }
-    .pattern-header.medium { background: rgba(243, 156, 18, 0.2); border-left: 3px solid #f39c12; }
-    .pattern-header.low { background: rgba(127, 140, 141, 0.2); border-left: 3px solid #7f8c8d; }
-    .pattern-chevron { transition: transform 0.2s; font-size: 0.8em; }
-    .pattern-chevron.expanded { transform: rotate(90deg); }
+    .pattern-header { padding: 10px 12px; border-radius: 4px; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-chevron { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; cursor: pointer; }
+    .pattern-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .pattern-chevron.expanded svg { transform: rotate(90deg); }
     .pattern-title { font-weight: 600; }
     .pattern-count { font-size: 0.8em; color: #fff; background: #555; padding: 2px 6px; border-radius: 10px; margin-left: 6px; }
     .pattern-spacer { flex: 1; }
     .pattern-items { display: none; padding-left: 16px; margin-top: 4px; }
     .pattern-items.expanded { display: block; }
-    .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); }
+    .pattern-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 3px; font-size: 0.8em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border-left: 3px solid transparent; }
     .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
+    .pattern-item.high { border-left-color: #e74c3c; }
+    .pattern-item.medium { border-left-color: #f39c12; }
+    .pattern-item.low { border-left-color: #7f8c8d; }
     .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
     .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
     .pattern-item-row { display: flex; align-items: center; gap: 8px; }
     .pattern-item-content { flex: 1; }
-    .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; color: #000; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; font-size: 0.7em; line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
+    .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
     .pattern-ignore-btn:hover { opacity: 1; background: var(--vscode-errorForeground); }
+    .pattern-ignore-btn svg { width: 10px; height: 10px; fill: none; stroke: #000; stroke-width: 2; stroke-linecap: round; }
     .pattern-rules-toggle { background: none; border: 1px solid var(--vscode-descriptionForeground); color: var(--vscode-descriptionForeground); cursor: pointer; padding: 4px 8px; font-size: 0.8em; border-radius: 3px; }
     .pattern-rules-toggle:hover { border-color: var(--vscode-focusBorder); color: var(--vscode-foreground); }
     .pattern-rules-toggle.active { background: var(--vscode-button-background); border-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }
