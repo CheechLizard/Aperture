@@ -122,7 +122,15 @@ Be concise but helpful. Always use the respond tool to provide your final answer
         }
       } else if (toolUse.name === 'respond') {
         const input = toolUse.input as { message: string; relevantFiles: string[] };
-        return { ...input, usage };
+        return {
+          ...input,
+          usage: {
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            totalTokens: totalInputTokens + totalOutputTokens,
+            contextLimit: CONTEXT_LIMIT,
+          },
+        };
       }
     }
 
