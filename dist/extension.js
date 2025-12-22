@@ -11702,10 +11702,16 @@ var DASHBOARD_STYLES = `
     }
 
     /* Function Distribution Chart */
-    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; }
-    .functions-container.visible { display: block; }
-    #functions-chart { width: 100%; height: 100%; }
+    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; }
+    .functions-container.visible { display: flex; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
+
+    /* Zoom Header */
+    .zoom-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 8px; }
+    .zoom-back { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; }
+    .zoom-back:hover { background: var(--vscode-list-hoverBackground); }
+    .zoom-path { font-weight: 600; font-size: 0.9em; }
 `;
 
 // src/webview/tooltip.ts
@@ -12843,22 +12849,63 @@ const FUNCTION_SIZE_COLORS = {
   large: '#e74c3c'    // 50+ LOC
 };
 
+const ZOOM_DURATION = 500;
+let zoomedFile = null;
+let prevZoomedFile = null;  // Track previous zoomed file for exit animations
+let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
+
 function getFunctionColor(loc) {
   if (loc <= 20) return FUNCTION_SIZE_COLORS.small;
   if (loc <= 50) return FUNCTION_SIZE_COLORS.medium;
   return FUNCTION_SIZE_COLORS.large;
 }
 
-function buildFunctionHierarchy(files) {
+function getFileColor(functions) {
+  const maxLoc = Math.max(...functions.map(f => f.loc));
+  return getFunctionColor(maxLoc);
+}
+
+function zoomTo(filePath) {
+  prevZoomedFile = zoomedFile;
+  zoomedFile = filePath;
+  renderDistributionChart();
+}
+
+function zoomOut() {
+  prevZoomedFile = zoomedFile;
+  zoomedFile = null;
+  renderDistributionChart();
+}
+
+function renderDistributionChart() {
+  const container = document.getElementById('functions-chart');
+  if (!container) return;
+
+  const width = container.clientWidth || 600;
+  const height = container.clientHeight || 400;
+
+  // Build file-level data
+  const fileData = files
+    .filter(f => f.functions && f.functions.length > 0)
+    .map(f => ({
+      name: f.path.split('/').pop(),
+      path: f.path,
+      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
+      functions: f.functions,
+      color: getFileColor(f.functions)
+    }));
+
+  if (fileData.length === 0) {
+    container.innerHTML = '<div class="functions-empty">No functions found.</div>';
+    renderFilesLegend([]);
+    return;
+  }
+
+  // Build hierarchy
   const root = { name: 'root', children: [] };
-
-  for (const file of files) {
-    if (!file.functions || file.functions.length === 0) continue;
-
+  for (const file of fileData) {
     const parts = file.path.split('/');
     let current = root;
-
-    // Build folder structure
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       let child = current.children.find(c => c.name === part && c.children);
@@ -12868,138 +12915,301 @@ function buildFunctionHierarchy(files) {
       }
       current = child;
     }
+    current.children.push(file);
+  }
 
-    // Add file node containing functions
-    const fileName = parts[parts.length - 1];
-    let fileNode = current.children.find(c => c.name === fileName && c.children);
-    if (!fileNode) {
-      fileNode = { name: fileName, children: [], filePath: file.path };
-      current.children.push(fileNode);
-    }
+  const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
+  d3.treemap()
+    .size([width, height])
+    .paddingTop(d => d.depth === 1 ? 16 : 2)
+    .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(1)
+    (hierarchy);
 
-    // Add each function as a leaf
-    for (const fn of file.functions) {
-      fileNode.children.push({
+  const leaves = hierarchy.leaves();
+
+  // Create or select SVG with layered groups
+  let svg = d3.select(container).select('svg');
+  if (svg.empty()) {
+    container.innerHTML = '';
+    svg = d3.select(container).append('svg');
+    svg.append('g').attr('class', 'file-layer');
+    svg.append('g').attr('class', 'func-layer');
+  }
+  svg.attr('width', width).attr('height', height);
+  const fileLayer = svg.select('g.file-layer');
+  const funcLayer = svg.select('g.func-layer');
+
+  // Find clicked file leaf
+  const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
+
+  // Calculate scale transforms
+  let x, y, kx, ky;
+  if (clickedLeaf) {
+    // Zoomed in: scale so clicked file fills container
+    x = clickedLeaf.x0;
+    y = clickedLeaf.y0;
+    kx = width / (clickedLeaf.x1 - clickedLeaf.x0);
+    ky = height / (clickedLeaf.y1 - clickedLeaf.y0);
+  } else {
+    // Zoomed out: normal view
+    x = 0;
+    y = 0;
+    kx = 1;
+    ky = 1;
+  }
+
+  // Previous state for animation start positions
+  const px = prevZoomState.x, py = prevZoomState.y;
+  const pkx = prevZoomState.kx, pky = prevZoomState.ky;
+
+  // Save current state for next animation
+  prevZoomState = { x, y, kx, ky };
+
+  // Shared named transition for sync
+  const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
+
+  // File rectangles (in file layer)
+  const rects = fileLayer.selectAll('rect.file-node').data(leaves, d => d.data.path);
+
+  rects.join(
+    enter => enter.append('rect')
+      .attr('class', 'file-node node')
+      .attr('data-path', d => d.data.path)
+      .attr('fill', d => d.data.color)
+      // Start at PREVIOUS zoom state positions
+      .attr('x', d => (d.x0 - px) * pkx)
+      .attr('y', d => (d.y0 - py) * pky)
+      .attr('width', d => Math.max(0, (d.x1 - d.x0) * pkx))
+      .attr('height', d => Math.max(0, (d.y1 - d.y0) * pky)),
+    update => update,
+    exit => exit.transition(t).remove()
+  )
+    .on('mouseover', (e, d) => {
+      if (zoomedFile) return;
+      const fnCount = d.data.functions.length;
+      const totalLoc = d.data.value;
+      const html = '<div><strong>' + d.data.name + '</strong></div>' +
+        '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + totalLoc + ' LOC</div>' +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (e, d) => {
+      if (!zoomedFile) zoomTo(d.data.path);
+    })
+    .transition(t)
+    .attr('x', d => (d.x0 - x) * kx)
+    .attr('y', d => (d.y0 - y) * ky)
+    .attr('width', d => Math.max(0, (d.x1 - d.x0) * kx))
+    .attr('height', d => Math.max(0, (d.y1 - d.y0) * ky));
+
+  // File labels
+  const labelMinWidth = 40;
+  const labelMinHeight = 16;
+  const labelsData = leaves.filter(d => {
+    const w = (d.x1 - d.x0) * kx;
+    const h = (d.y1 - d.y0) * ky;
+    return w >= labelMinWidth && h >= labelMinHeight;
+  });
+
+  const labels = fileLayer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.path);
+
+  labels.join(
+    enter => enter.append('text')
+      .attr('class', 'file-label')
+      .attr('fill', '#fff')
+      .attr('font-size', '9px')
+      .attr('pointer-events', 'none')
+      // Start at PREVIOUS zoom state positions
+      .attr('x', d => (d.x0 - px) * pkx + 4)
+      .attr('y', d => (d.y0 - py) * pky + 12)
+      .text(d => {
+        const w = (d.x1 - d.x0) * kx - 8;
+        const name = d.data.name;
+        const maxChars = Math.floor(w / 5);
+        return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
+      }),
+    update => update,
+    exit => exit.transition(t).remove()
+  )
+    .transition(t)
+    .attr('x', d => (d.x0 - x) * kx + 4)
+    .attr('y', d => (d.y0 - y) * ky + 12);
+
+  // Folder headers (only when not zoomed)
+  const depth1 = zoomedFile ? [] : hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
+
+  fileLayer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
+    .join(
+      enter => enter.append('rect').attr('class', 'dir-header'),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
+    .transition(t)
+    .attr('x', d => d.x0).attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0).attr('height', 16);
+
+  fileLayer.selectAll('text.dir-label').data(depth1, d => d.data.name)
+    .join(
+      enter => enter.append('text').attr('class', 'dir-label'),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
+    .text(d => {
+      const w = d.x1 - d.x0 - 8;
+      const name = d.data.name;
+      return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\\u2026' : name;
+    })
+    .transition(t)
+    .attr('x', d => d.x0 + 4).attr('y', d => d.y0 + 12);
+
+  // Function rectangles (only when zoomed)
+  let funcLeaves = [];
+  if (clickedLeaf) {
+    const file = files.find(f => f.path === zoomedFile);
+    if (file && file.functions) {
+      const functionData = file.functions.map(fn => ({
         name: fn.name,
         value: fn.loc,
         line: fn.startLine,
-        filePath: file.path,
-        depth: fn.maxNestingDepth
-      });
+        depth: fn.maxNestingDepth,
+        filePath: file.path
+      }));
+
+      const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value);
+
+      d3.treemap().size([width, height]).padding(2)(funcHierarchy);
+      funcLeaves = funcHierarchy.leaves();
     }
   }
 
-  return root;
-}
+  const funcRects = funcLayer.selectAll('rect.func-node').data(funcLeaves, d => d.data.name + d.data.line);
 
-function renderDistributionChart() {
-  const container = document.getElementById('functions-chart');
-  if (!container) return;
+  // For ENTER: start at file's position in PREVIOUS zoom state (unzoomed = file at its normal treemap position)
+  // For EXIT: shrink back to file's position in NEW zoom state (unzoomed = file at its normal position)
+  const prevFileX = clickedLeaf ? (clickedLeaf.x0 - px) * pkx : 0;
+  const prevFileY = clickedLeaf ? (clickedLeaf.y0 - py) * pky : 0;
+  const prevFileW = clickedLeaf ? (clickedLeaf.x1 - clickedLeaf.x0) * pkx : width;
+  const prevFileH = clickedLeaf ? (clickedLeaf.y1 - clickedLeaf.y0) * pky : height;
 
-  container.innerHTML = '';
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 400;
+  // For exit, find file to shrink back to (use prevZoomedFile when zooming out)
+  const exitLeaf = prevZoomedFile ? leaves.find(l => l.data.path === prevZoomedFile) : clickedLeaf;
+  const exitFileX = exitLeaf ? (exitLeaf.x0 - x) * kx : 0;
+  const exitFileY = exitLeaf ? (exitLeaf.y0 - y) * ky : 0;
+  const exitFileW = exitLeaf ? (exitLeaf.x1 - exitLeaf.x0) * kx : width;
+  const exitFileH = exitLeaf ? (exitLeaf.y1 - exitLeaf.y0) * ky : height;
 
-  const rootData = buildFunctionHierarchy(files);
-
-  // Check if there are any functions
-  const hierarchy = d3.hierarchy(rootData).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
-  const leaves = hierarchy.leaves();
-
-  if (leaves.length === 0) {
-    container.innerHTML = '<div class="functions-empty">No functions found. AST parsing may not be available for these file types.</div>';
-    renderFunctionLegend([]);
-    return;
-  }
-
-  d3.treemap()
-    .size([width, height])
-    .paddingTop(d => d.depth === 1 ? 16 : d.depth === 2 ? 14 : 2)
-    .paddingRight(2)
-    .paddingBottom(2)
-    .paddingLeft(2)
-    .paddingInner(1)
-    (hierarchy);
-
-  const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
-
-  // Draw function rectangles - use .node class for consistent hover styling
-  svg.selectAll('rect.node').data(leaves).join('rect')
-    .attr('class', 'node')
-    .attr('data-path', d => d.data.filePath)
-    .attr('data-line', d => d.data.line)
-    .attr('x', d => d.x0).attr('y', d => d.y0)
-    .attr('width', d => Math.max(0, d.x1 - d.x0)).attr('height', d => Math.max(0, d.y1 - d.y0))
-    .attr('fill', d => getFunctionColor(d.data.value))
+  funcRects.join(
+    enter => enter.append('rect')
+      .attr('class', 'func-node node')
+      .attr('data-path', d => d.data.filePath)
+      .attr('data-line', d => d.data.line)
+      .attr('fill', d => getFunctionColor(d.data.value))
+      // Start scaled inside file's PREVIOUS position
+      .attr('x', d => prevFileX + (d.x0 / width) * prevFileW)
+      .attr('y', d => prevFileY + (d.y0 / height) * prevFileH)
+      .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * prevFileW))
+      .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * prevFileH)),
+    update => update,
+    exit => exit.transition(t)
+      // Shrink back into file's NEW position
+      .attr('x', d => exitFileX + (d.x0 / width) * exitFileW)
+      .attr('y', d => exitFileY + (d.y0 / height) * exitFileH)
+      .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * exitFileW))
+      .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * exitFileH))
+      .remove()
+  )
     .on('mouseover', (e, d) => {
       const html = '<div><strong>' + d.data.name + '</strong></div>' +
-        '<div>' + d.data.value + ' LOC' + (d.data.depth ? ' \xB7 depth ' + d.data.depth : '') + '</div>' +
-        '<div style="color:var(--vscode-textLink-foreground)">' + d.data.filePath + ':' + d.data.line + '</div>';
+        '<div>' + d.data.value + ' LOC' + (d.data.depth ? ' \\u00b7 depth ' + d.data.depth : '') + '</div>' +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to open file</div>';
       showTooltip(html, e);
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.filePath, line: d.data.line });
-    });
+    })
+    .transition(t)
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0));
 
-  // Function labels - only on nodes large enough
-  const labelMinWidth = 30;
-  const labelMinHeight = 14;
-  const labelsData = leaves.filter(d => (d.x1 - d.x0) >= labelMinWidth && (d.y1 - d.y0) >= labelMinHeight);
+  // Function labels
+  const funcLabelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
 
-  svg.selectAll('text.file-label').data(labelsData).join('text')
-    .attr('class', 'file-label')
-    .attr('x', d => d.x0 + 3).attr('y', d => d.y0 + 10)
-    .attr('fill', '#fff')
-    .attr('font-size', '8px')
-    .attr('pointer-events', 'none')
-    .text(d => {
-      const w = d.x1 - d.x0 - 6;
-      const name = d.data.name;
-      const maxChars = Math.floor(w / 4.5);
-      return name.length > maxChars ? name.slice(0, maxChars - 1) + '\u2026' : name;
-    });
+  const funcLabels = funcLayer.selectAll('text.func-label').data(funcLabelsData, d => d.data.name + d.data.line);
 
-  // Depth 1: Top-level folder headers
-  const depth1 = hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
+  funcLabels.join(
+    enter => enter.append('text')
+      .attr('class', 'func-label')
+      .attr('fill', '#fff')
+      .attr('font-size', '9px')
+      .attr('pointer-events', 'none')
+      // Start scaled inside file's PREVIOUS position
+      .attr('x', d => prevFileX + ((d.x0 + 3) / width) * prevFileW)
+      .attr('y', d => prevFileY + ((d.y0 + 11) / height) * prevFileH)
+      .text(d => {
+        const w = d.x1 - d.x0 - 6;
+        const name = d.data.name;
+        const maxChars = Math.floor(w / 5);
+        return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
+      }),
+    update => update,
+    exit => exit.transition(t)
+      .attr('x', d => exitFileX + ((d.x0 + 3) / width) * exitFileW)
+      .attr('y', d => exitFileY + ((d.y0 + 11) / height) * exitFileH)
+      .remove()
+  )
+    .transition(t)
+    .attr('x', d => d.x0 + 3)
+    .attr('y', d => d.y0 + 11);
 
-  svg.selectAll('rect.dir-header-1').data(depth1).join('rect')
-    .attr('class', 'dir-header')
-    .attr('x', d => d.x0).attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0).attr('height', 16);
+  // Zoom header
+  let header = container.querySelector('.zoom-header');
+  if (zoomedFile) {
+    if (!header) {
+      header = document.createElement('div');
+      header.className = 'zoom-header';
+      header.style.position = 'absolute';
+      header.style.top = '8px';
+      header.style.left = '8px';
+      header.style.zIndex = '10';
+      container.style.position = 'relative';
+      container.appendChild(header);
+    }
+    const file = files.find(f => f.path === zoomedFile);
+    header.innerHTML = '<button class="zoom-back">\\u2190</button><span class="zoom-path">' + (file ? file.path : zoomedFile) + '</span>';
+    header.querySelector('.zoom-back').addEventListener('click', zoomOut);
+  } else if (header) {
+    header.remove();
+  }
 
-  svg.selectAll('text.dir-label-1').data(depth1).join('text')
-    .attr('class', 'dir-label')
-    .attr('x', d => d.x0 + 4).attr('y', d => d.y0 + 12)
-    .text(d => {
-      const w = d.x1 - d.x0 - 8;
-      const name = d.data.name;
-      return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\u2026' : name;
-    });
+  // Update legend
+  if (zoomedFile) {
+    renderFunctionLegend(funcLeaves);
+  } else {
+    renderFilesLegend(fileData);
+  }
+}
 
-  // Depth 2: File headers
-  const depth2 = hierarchy.descendants().filter(d => d.depth === 2 && d.children && (d.x1 - d.x0) > 40 && (d.y1 - d.y0) > 20);
+function renderFilesLegend(fileData) {
+  const legend = document.getElementById('legend');
+  if (!legend || currentView !== 'functions') return;
 
-  svg.selectAll('rect.dir-badge-2').data(depth2).join('rect')
-    .attr('class', 'dir-header')
-    .attr('x', d => d.x0 + 2).attr('y', d => d.y0 + 2)
-    .attr('width', d => Math.min(d.data.name.length * 6 + 8, d.x1 - d.x0 - 4))
-    .attr('height', 12)
-    .attr('rx', 2)
-    .attr('opacity', 0.85);
+  const total = fileData.length;
+  const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
 
-  svg.selectAll('text.dir-label-2').data(depth2).join('text')
-    .attr('class', 'dir-label-sub')
-    .attr('x', d => d.x0 + 5).attr('y', d => d.y0 + 11)
-    .attr('font-size', '8px')
-    .text(d => {
-      const w = d.x1 - d.x0 - 10;
-      const name = d.data.name;
-      return name.length * 5 > w ? name.slice(0, Math.floor(w/5)) + '\u2026' : name;
-    });
-
-  renderFunctionLegend(leaves);
+  legend.style.display = 'flex';
+  legend.innerHTML =
+    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>All \\u226420 LOC</div>' +
+    '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>Some 21-50 LOC</div>' +
+    '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>Some 50+ LOC</div>' +
+    '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
 }
 
 function renderFunctionLegend(leaves) {
@@ -13013,7 +13223,7 @@ function renderFunctionLegend(leaves) {
 
   legend.style.display = 'flex';
   legend.innerHTML =
-    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>\u226420 LOC (' + small + ')</div>' +
+    '<div class="legend-item"><span class="legend-swatch" style="background:#27ae60;"></span>\\u226420 LOC (' + small + ')</div>' +
     '<div class="legend-item"><span class="legend-swatch" style="background:#f39c12;"></span>21-50 LOC (' + medium + ')</div>' +
     '<div class="legend-item"><span class="legend-swatch" style="background:#e74c3c;"></span>50+ LOC (' + large + ')</div>' +
     '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> functions</div>';

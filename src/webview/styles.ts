@@ -138,8 +138,14 @@ export const DASHBOARD_STYLES = `
     }
 
     /* Function Distribution Chart */
-    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; }
-    .functions-container.visible { display: block; }
-    #functions-chart { width: 100%; height: 100%; }
+    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; }
+    .functions-container.visible { display: flex; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
+
+    /* Zoom Header */
+    .zoom-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; margin-bottom: 8px; }
+    .zoom-back { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 3px; }
+    .zoom-back:hover { background: var(--vscode-list-hoverBackground); }
+    .zoom-path { font-weight: 600; font-size: 0.9em; }
 `;
