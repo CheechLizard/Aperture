@@ -102,6 +102,46 @@ export const BOOLEAN_PREFIXES = [
   'exists',
 ];
 
+export const SETTER_PREFIXES = ['set'];
+
+// Action verbs that aren't boolean getters (exclude from boolean naming check)
+export const ACTION_VERB_PREFIXES = [
+  'build',
+  'create',
+  'make',
+  'render',
+  'load',
+  'save',
+  'update',
+  'delete',
+  'remove',
+  'add',
+  'get',
+  'fetch',
+  'find',
+  'parse',
+  'process',
+  'handle',
+  'init',
+  'setup',
+  'reset',
+  'clear',
+  'show',
+  'hide',
+  'enable',
+  'disable',
+  'start',
+  'stop',
+  'run',
+  'execute',
+  'apply',
+  'convert',
+  'format',
+  'extract',
+  'calculate',
+  'compute',
+];
+
 // Magic numbers - values that don't need to be named constants
 export const ALLOWED_MAGIC_NUMBERS = [
   -1, 0, 1, 2, 10, 100, 1000,

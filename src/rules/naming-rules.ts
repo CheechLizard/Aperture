@@ -3,6 +3,8 @@ import {
   GENERIC_NAMES,
   VERB_PREFIXES,
   BOOLEAN_PREFIXES,
+  SETTER_PREFIXES,
+  ACTION_VERB_PREFIXES,
   ALLOWED_MAGIC_NUMBERS,
 } from './rule-constants';
 
@@ -82,7 +84,13 @@ export function detectNonQuestionBooleans(file: FileInfo): Issue[] {
   ];
 
   for (const func of file.functions) {
-    const nameLower = func.name.toLowerCase();
+    // Handle Class.method or Class:method names - extract just the method part
+    const methodName = func.name.includes('.')
+      ? func.name.split('.').pop() || func.name
+      : func.name.includes(':')
+        ? func.name.split(':').pop() || func.name
+        : func.name;
+    const nameLower = methodName.toLowerCase();
 
     // Check if name suggests boolean but doesn't use proper prefix
     const matchesPattern = booleanPatterns.some(
@@ -94,12 +102,20 @@ export function detectNonQuestionBooleans(file: FileInfo): Issue[] {
         nameLower.startsWith(prefix)
       );
 
-      if (!startsWithBooleanPrefix) {
+      const startsWithSetterPrefix = SETTER_PREFIXES.some((prefix) =>
+        nameLower.startsWith(prefix)
+      );
+
+      const startsWithActionVerb = ACTION_VERB_PREFIXES.some((prefix) =>
+        nameLower.startsWith(prefix)
+      );
+
+      if (!startsWithBooleanPrefix && !startsWithSetterPrefix && !startsWithActionVerb) {
         issues.push({
           ruleId: 'non-question-boolean',
           severity: 'low',
           category: 'naming',
-          message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(func.name)}'`,
+          message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(methodName)}'`,
           locations: [{ file: file.path, line: func.startLine }],
           symbol: func.name,
         });
