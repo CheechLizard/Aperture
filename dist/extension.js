@@ -12880,7 +12880,11 @@ function groupIssuesByRule(activeIssues) {
     group.severity = group.items.length > 0 ? group.items[0].severity : 'low';
   }
 
-  return [...groups.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  return [...groups.values()].sort((a, b) =>
+    SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
+    b.items.length - a.items.length ||
+    a.ruleId.localeCompare(b.ruleId)
+  );
 }
 
 function categorizeGroups(sortedGroups) {
@@ -13022,9 +13026,53 @@ function setupItemHandlers(list) {
   });
 }
 
+function captureGroupPositions() {
+  const positions = new Map();
+  document.querySelectorAll('.pattern-group').forEach(group => {
+    const type = group.getAttribute('data-type');
+    const rect = group.getBoundingClientRect();
+    positions.set(type, { top: rect.top, left: rect.left });
+  });
+  return positions;
+}
+
+function applyFlipAnimation(oldPositions) {
+  const groups = document.querySelectorAll('.pattern-group');
+  groups.forEach(group => {
+    const type = group.getAttribute('data-type');
+    const oldPos = oldPositions.get(type);
+    if (!oldPos) {
+      group.style.opacity = '0';
+      group.style.transform = 'translateY(-10px)';
+      requestAnimationFrame(() => {
+        group.style.transition = 'opacity 0.2s, transform 0.2s';
+        group.style.opacity = '1';
+        group.style.transform = '';
+      });
+      return;
+    }
+    const newRect = group.getBoundingClientRect();
+    const deltaY = oldPos.top - newRect.top;
+    if (Math.abs(deltaY) > 1) {
+      group.style.transform = 'translateY(' + deltaY + 'px)';
+      requestAnimationFrame(() => {
+        group.style.transition = 'transform 0.25s ease-out';
+        group.style.transform = '';
+      });
+    }
+  });
+  setTimeout(() => {
+    groups.forEach(group => {
+      group.style.transition = '';
+    });
+  }, 300);
+}
+
 function refreshAfterChange(selectedType, wasStatusSelected) {
   const expandedState = getExpandedState();
+  const oldPositions = captureGroupPositions();
   renderIssues();
+  applyFlipAnimation(oldPositions);
   restoreExpandedState(expandedState);
   buildIssueFileMap();
   applyPersistentIssueHighlights();
@@ -13050,12 +13098,14 @@ function setupIgnoreHandlers(list) {
       const ruleId = item.getAttribute('data-rule-id');
       const message = item.getAttribute('data-message');
       const filesStr = item.getAttribute('data-files');
+      const line = item.getAttribute('data-line');
 
       const issueToIgnore = issues.find(i =>
         i.ruleId === ruleId && i.message === message &&
-        i.locations.map(l => l.file).join(',') === filesStr
+        i.locations.map(l => l.file).join(',') === filesStr &&
+        (i.locations[0]?.line?.toString() || '') === line
       );
-      if (issueToIgnore) ignoredIssues.push(issueToIgnore);
+      if (issueToIgnore && !isIssueIgnored(issueToIgnore)) ignoredIssues.push(issueToIgnore);
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
