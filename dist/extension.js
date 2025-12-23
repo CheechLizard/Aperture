@@ -11889,6 +11889,19 @@ var DASHBOARD_STYLES = `
     /* SVG file header for L2 */
     .file-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .file-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Files flyout */
+    .files-flyout { position: fixed; z-index: 1000; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); min-width: 200px; max-width: 320px; max-height: 300px; display: flex; flex-direction: column; }
+    .files-flyout-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--vscode-widget-border); font-size: 0.85em; font-weight: 600; }
+    .files-flyout-close { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; }
+    .files-flyout-close:hover { background: rgba(255,255,255,0.1); color: var(--vscode-foreground); }
+    .files-flyout-list { overflow-y: auto; flex: 1; padding: 4px 0; }
+    .files-flyout-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 12px; font-size: 0.85em; cursor: default; }
+    .files-flyout-item:hover { background: var(--vscode-list-hoverBackground); }
+    .files-flyout-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .files-flyout-remove { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0; }
+    .files-flyout-item:hover .files-flyout-remove { opacity: 1; }
+    .files-flyout-remove:hover { background: rgba(255,255,255,0.1); color: var(--vscode-errorForeground); }
 `;
 
 // src/webview/tooltip.ts
@@ -12497,6 +12510,55 @@ function highlightNodes(files) {
 let pendingPrompts = [];
 let promptIdCounter = 0;
 
+// Generate context variants for graceful degradation
+function getContextVariants(fullContext) {
+  const variants = [];
+
+  // 1. Full context (best case)
+  variants.push({
+    label: null,
+    context: fullContext
+  });
+
+  // 2. High severity files only
+  const highSevFiles = getHighSeverityFiles(fullContext.files);
+  if (highSevFiles.length > 0 && highSevFiles.length < fullContext.files.length) {
+    const highSevIssues = fullContext.issues.filter(i =>
+      i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
+    );
+    variants.push({
+      label: ' (high severity only)',
+      context: { ...fullContext, files: highSevFiles, issues: highSevIssues }
+    });
+  }
+
+  // 3. First 5 files
+  if (fullContext.files.length > 5) {
+    const first5 = fullContext.files.slice(0, 5);
+    const first5Issues = fullContext.issues.filter(i =>
+      i.locations.some(l => first5.includes(l.file))
+    );
+    variants.push({
+      label: ' (5 files)',
+      context: { ...fullContext, files: first5, issues: first5Issues }
+    });
+  }
+
+  // 4. First 1 file
+  if (fullContext.files.length > 1) {
+    const first1 = fullContext.files.slice(0, 1);
+    const first1Issues = fullContext.issues.filter(i =>
+      i.locations.some(l => first1.includes(l.file))
+    );
+    variants.push({
+      label: ' (1 file)',
+      context: { ...fullContext, files: first1, issues: first1Issues }
+    });
+  }
+
+  return variants;
+}
+
 function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const state = selection.getState();
@@ -12613,20 +12675,34 @@ function renderDynamicPrompts() {
   // Show spinner while costing prompts
   container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
 
-  // Assign IDs and track pending prompts
-  pendingPrompts = prompts.map(p => ({
-    ...p,
-    id: 'prompt-' + (++promptIdCounter),
-    tokens: null
-  }));
+  // Get full context and generate variants for graceful degradation
+  const fullContext = selection.getAIContext();
+  const variants = getContextVariants(fullContext);
 
-  // Request token counts for each prompt
-  const context = selection.getAIContext();
+  // Assign IDs and create pending prompts for ALL variants of each prompt
+  pendingPrompts = [];
+  for (const p of prompts) {
+    const baseId = 'prompt-' + (++promptIdCounter);
+    for (let i = 0; i < variants.length; i++) {
+      pendingPrompts.push({
+        ...p,
+        baseId: baseId,
+        variantIndex: i,
+        variantLabel: variants[i].label,
+        variantContext: variants[i].context,
+        id: baseId + '-v' + i,
+        tokens: null,
+        tooExpensive: false
+      });
+    }
+  }
+
+  // Request token counts for all variants
   for (const p of pendingPrompts) {
     vscode.postMessage({
       command: 'countTokens',
       text: p.prompt,
-      context: context,
+      context: p.variantContext,
       promptId: p.id
     });
   }
@@ -12647,25 +12723,77 @@ function handleTokenCount(promptId, tokens, limit) {
   }
 }
 
-// Render prompts after costing - hide expensive ones
+// Render prompts after costing - pick best affordable variant for each
 function renderCostdPrompts() {
   const container = document.getElementById('rules');
-  const affordablePrompts = pendingPrompts.filter(p => !p.tooExpensive);
+
+  // Group by base prompt ID
+  const byPrompt = {};
+  for (const p of pendingPrompts) {
+    if (!byPrompt[p.baseId]) byPrompt[p.baseId] = [];
+    byPrompt[p.baseId].push(p);
+  }
+
+  // For each prompt, find first affordable variant (ordered best\u2192worst)
+  const affordablePrompts = [];
+  const usedHighSeverityVariant = new Set(); // Track which rules used high severity degradation
+
+  for (const variants of Object.values(byPrompt)) {
+    variants.sort((a, b) => a.variantIndex - b.variantIndex);
+    const affordable = variants.find(v => !v.tooExpensive);
+    if (affordable) {
+      // Build display label based on variant
+      let displayLabel = affordable.label;
+
+      if (affordable.variantLabel) {
+        // If degraded to high severity, update the issue count in label
+        if (affordable.variantLabel.includes('high severity')) {
+          const highSevIssueCount = affordable.variantContext.issues.length;
+          // Replace the count in the label with high severity count
+          // "Analyze 175 Long Function issues" \u2192 "Analyze 14 high severity Long Function issues"
+          displayLabel = displayLabel.replace(/\\d+/, highSevIssueCount + ' high severity');
+          usedHighSeverityVariant.add(affordable.baseId);
+        } else {
+          // For other variants (5 files, 1 file), append the suffix
+          displayLabel += affordable.variantLabel;
+        }
+      }
+      // File count is shown in chips below, not needed in button
+
+      // Skip "Focus on high severity" buttons if we already degraded another prompt to high severity
+      if (affordable.action === 'filter-high-severity') {
+        continue; // Degradation handles this, don't show duplicate
+      }
+
+      affordablePrompts.push({
+        ...affordable,
+        displayLabel: displayLabel
+      });
+    }
+  }
 
   if (affordablePrompts.length === 0) {
-    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">All prompts exceed token limit</span>';
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Context too large for prompts</span>';
     return;
   }
 
   container.innerHTML = affordablePrompts.map(p =>
     '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
     ' data-prompt-id="' + p.id + '"' +
+    ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
     (p.action ? ' data-action="' + p.action + '"' : '') +
-    '>' + p.label + '</button>'
+    '>' + p.displayLabel + '</button>'
   ).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      // If this is a degraded variant, update selection to match
+      const variantFilesData = btn.getAttribute('data-variant-files');
+      if (variantFilesData) {
+        const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
+        selection.setFocus(variantFiles);
+      }
+
       const action = btn.getAttribute('data-action');
       if (action === 'filter-high-severity') {
         selection.filterToHighSeverity();
@@ -13857,6 +13985,21 @@ setInterval(cycleIssueColors, 16);
 
 // src/webview/selection-state.ts
 var SELECTION_STATE_SCRIPT = `
+// Get files that have high severity issues
+function getHighSeverityFiles(filePaths) {
+  const highSevFiles = new Set();
+  for (const issue of issues) {
+    if (issue.severity === 'high' && !isIssueIgnored(issue)) {
+      for (const loc of issue.locations) {
+        if (filePaths.includes(loc.file)) {
+          highSevFiles.add(loc.file);
+        }
+      }
+    }
+  }
+  return [...highSevFiles];
+}
+
 // Selection state module - manages issue selection and focus for AI context
 const selection = {
   _state: {
@@ -13966,7 +14109,7 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer - show ALL files, no limit
+  // Render context files as chips in footer - show first 5 with +N more button
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
@@ -13977,14 +14120,22 @@ const selection = {
       return;
     }
 
-    // Show ALL files - no artificial limit
-    const html = files.map(filePath => {
+    // Show first 5 files, then +N more button (but ALL files are sent to API)
+    const maxVisible = 5;
+    const visibleFiles = files.slice(0, maxVisible);
+    const hiddenCount = files.length - maxVisible;
+
+    let html = visibleFiles.map(filePath => {
       const fileName = filePath.split('/').pop();
       return '<div class="context-chip" data-path="' + filePath + '">' +
         '<span class="context-chip-name" title="' + filePath + '">' + fileName + '</span>' +
         '<button class="context-chip-remove" title="Remove from context">\xD7</button>' +
         '</div>';
     }).join('');
+
+    if (hiddenCount > 0) {
+      html += '<button class="context-chip more" id="show-all-files-btn">+' + hiddenCount + ' more</button>';
+    }
 
     container.innerHTML = html;
 
@@ -13997,6 +14148,79 @@ const selection = {
         selection.removeFile(filePath);
       });
     });
+
+    // Add click handler for +N more button
+    const moreBtn = document.getElementById('show-all-files-btn');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._showFilesFlyout(files, moreBtn);
+      });
+    }
+  },
+
+  // Show flyout with all files
+  _showFilesFlyout(files, anchorEl) {
+    // Remove existing flyout
+    const existing = document.getElementById('files-flyout');
+    if (existing) existing.remove();
+
+    const flyout = document.createElement('div');
+    flyout.id = 'files-flyout';
+    flyout.className = 'files-flyout';
+
+    const header = document.createElement('div');
+    header.className = 'files-flyout-header';
+    header.innerHTML = '<span>' + files.length + ' files in context</span><button class="files-flyout-close">\xD7</button>';
+    flyout.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'files-flyout-list';
+    list.innerHTML = files.map(filePath => {
+      const fileName = filePath.split('/').pop();
+      return '<div class="files-flyout-item" data-path="' + filePath + '" title="' + filePath + '">' +
+        '<span>' + fileName + '</span>' +
+        '<button class="files-flyout-remove">\xD7</button>' +
+        '</div>';
+    }).join('');
+    flyout.appendChild(list);
+
+    // Position flyout above the button
+    const rect = anchorEl.getBoundingClientRect();
+    flyout.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+    flyout.style.left = rect.left + 'px';
+
+    document.body.appendChild(flyout);
+
+    // Close button handler
+    flyout.querySelector('.files-flyout-close').addEventListener('click', () => flyout.remove());
+
+    // Remove file handlers
+    flyout.querySelectorAll('.files-flyout-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = btn.closest('.files-flyout-item');
+        const filePath = item.getAttribute('data-path');
+        selection.removeFile(filePath);
+        item.remove();
+        // Update header count
+        const remaining = flyout.querySelectorAll('.files-flyout-item').length;
+        if (remaining === 0) {
+          flyout.remove();
+        } else {
+          flyout.querySelector('.files-flyout-header span').textContent = remaining + ' files in context';
+        }
+      });
+    });
+
+    // Click outside to close
+    const closeOnOutsideClick = (e) => {
+      if (!flyout.contains(e.target) && e.target !== anchorEl) {
+        flyout.remove();
+        document.removeEventListener('mousedown', closeOnOutsideClick);
+      }
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeOnOutsideClick), 10);
   }
 };
 `;

@@ -199,4 +199,17 @@ export const DASHBOARD_STYLES = `
     /* SVG file header for L2 */
     .file-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .file-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Files flyout */
+    .files-flyout { position: fixed; z-index: 1000; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); min-width: 200px; max-width: 320px; max-height: 300px; display: flex; flex-direction: column; }
+    .files-flyout-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--vscode-widget-border); font-size: 0.85em; font-weight: 600; }
+    .files-flyout-close { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; }
+    .files-flyout-close:hover { background: rgba(255,255,255,0.1); color: var(--vscode-foreground); }
+    .files-flyout-list { overflow-y: auto; flex: 1; padding: 4px 0; }
+    .files-flyout-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 12px; font-size: 0.85em; cursor: default; }
+    .files-flyout-item:hover { background: var(--vscode-list-hoverBackground); }
+    .files-flyout-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .files-flyout-remove { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0; }
+    .files-flyout-item:hover .files-flyout-remove { opacity: 1; }
+    .files-flyout-remove:hover { background: rgba(255,255,255,0.1); color: var(--vscode-errorForeground); }
 `;

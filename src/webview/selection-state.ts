@@ -1,4 +1,19 @@
 export const SELECTION_STATE_SCRIPT = `
+// Get files that have high severity issues
+function getHighSeverityFiles(filePaths) {
+  const highSevFiles = new Set();
+  for (const issue of issues) {
+    if (issue.severity === 'high' && !isIssueIgnored(issue)) {
+      for (const loc of issue.locations) {
+        if (filePaths.includes(loc.file)) {
+          highSevFiles.add(loc.file);
+        }
+      }
+    }
+  }
+  return [...highSevFiles];
+}
+
 // Selection state module - manages issue selection and focus for AI context
 const selection = {
   _state: {
@@ -108,7 +123,7 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer - show ALL files, no limit
+  // Render context files as chips in footer - show first 5 with +N more button
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
@@ -119,14 +134,22 @@ const selection = {
       return;
     }
 
-    // Show ALL files - no artificial limit
-    const html = files.map(filePath => {
+    // Show first 5 files, then +N more button (but ALL files are sent to API)
+    const maxVisible = 5;
+    const visibleFiles = files.slice(0, maxVisible);
+    const hiddenCount = files.length - maxVisible;
+
+    let html = visibleFiles.map(filePath => {
       const fileName = filePath.split('/').pop();
       return '<div class="context-chip" data-path="' + filePath + '">' +
         '<span class="context-chip-name" title="' + filePath + '">' + fileName + '</span>' +
         '<button class="context-chip-remove" title="Remove from context">×</button>' +
         '</div>';
     }).join('');
+
+    if (hiddenCount > 0) {
+      html += '<button class="context-chip more" id="show-all-files-btn">+' + hiddenCount + ' more</button>';
+    }
 
     container.innerHTML = html;
 
@@ -139,6 +162,79 @@ const selection = {
         selection.removeFile(filePath);
       });
     });
+
+    // Add click handler for +N more button
+    const moreBtn = document.getElementById('show-all-files-btn');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._showFilesFlyout(files, moreBtn);
+      });
+    }
+  },
+
+  // Show flyout with all files
+  _showFilesFlyout(files, anchorEl) {
+    // Remove existing flyout
+    const existing = document.getElementById('files-flyout');
+    if (existing) existing.remove();
+
+    const flyout = document.createElement('div');
+    flyout.id = 'files-flyout';
+    flyout.className = 'files-flyout';
+
+    const header = document.createElement('div');
+    header.className = 'files-flyout-header';
+    header.innerHTML = '<span>' + files.length + ' files in context</span><button class="files-flyout-close">×</button>';
+    flyout.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'files-flyout-list';
+    list.innerHTML = files.map(filePath => {
+      const fileName = filePath.split('/').pop();
+      return '<div class="files-flyout-item" data-path="' + filePath + '" title="' + filePath + '">' +
+        '<span>' + fileName + '</span>' +
+        '<button class="files-flyout-remove">×</button>' +
+        '</div>';
+    }).join('');
+    flyout.appendChild(list);
+
+    // Position flyout above the button
+    const rect = anchorEl.getBoundingClientRect();
+    flyout.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+    flyout.style.left = rect.left + 'px';
+
+    document.body.appendChild(flyout);
+
+    // Close button handler
+    flyout.querySelector('.files-flyout-close').addEventListener('click', () => flyout.remove());
+
+    // Remove file handlers
+    flyout.querySelectorAll('.files-flyout-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = btn.closest('.files-flyout-item');
+        const filePath = item.getAttribute('data-path');
+        selection.removeFile(filePath);
+        item.remove();
+        // Update header count
+        const remaining = flyout.querySelectorAll('.files-flyout-item').length;
+        if (remaining === 0) {
+          flyout.remove();
+        } else {
+          flyout.querySelector('.files-flyout-header span').textContent = remaining + ' files in context';
+        }
+      });
+    });
+
+    // Click outside to close
+    const closeOnOutsideClick = (e) => {
+      if (!flyout.contains(e.target) && e.target !== anchorEl) {
+        flyout.remove();
+        document.removeEventListener('mousedown', closeOnOutsideClick);
+      }
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeOnOutsideClick), 10);
   }
 };
 `;

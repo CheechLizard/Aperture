@@ -44,6 +44,55 @@ function highlightNodes(files) {
 let pendingPrompts = [];
 let promptIdCounter = 0;
 
+// Generate context variants for graceful degradation
+function getContextVariants(fullContext) {
+  const variants = [];
+
+  // 1. Full context (best case)
+  variants.push({
+    label: null,
+    context: fullContext
+  });
+
+  // 2. High severity files only
+  const highSevFiles = getHighSeverityFiles(fullContext.files);
+  if (highSevFiles.length > 0 && highSevFiles.length < fullContext.files.length) {
+    const highSevIssues = fullContext.issues.filter(i =>
+      i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
+    );
+    variants.push({
+      label: ' (high severity only)',
+      context: { ...fullContext, files: highSevFiles, issues: highSevIssues }
+    });
+  }
+
+  // 3. First 5 files
+  if (fullContext.files.length > 5) {
+    const first5 = fullContext.files.slice(0, 5);
+    const first5Issues = fullContext.issues.filter(i =>
+      i.locations.some(l => first5.includes(l.file))
+    );
+    variants.push({
+      label: ' (5 files)',
+      context: { ...fullContext, files: first5, issues: first5Issues }
+    });
+  }
+
+  // 4. First 1 file
+  if (fullContext.files.length > 1) {
+    const first1 = fullContext.files.slice(0, 1);
+    const first1Issues = fullContext.issues.filter(i =>
+      i.locations.some(l => first1.includes(l.file))
+    );
+    variants.push({
+      label: ' (1 file)',
+      context: { ...fullContext, files: first1, issues: first1Issues }
+    });
+  }
+
+  return variants;
+}
+
 function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const state = selection.getState();
@@ -160,20 +209,34 @@ function renderDynamicPrompts() {
   // Show spinner while costing prompts
   container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
 
-  // Assign IDs and track pending prompts
-  pendingPrompts = prompts.map(p => ({
-    ...p,
-    id: 'prompt-' + (++promptIdCounter),
-    tokens: null
-  }));
+  // Get full context and generate variants for graceful degradation
+  const fullContext = selection.getAIContext();
+  const variants = getContextVariants(fullContext);
 
-  // Request token counts for each prompt
-  const context = selection.getAIContext();
+  // Assign IDs and create pending prompts for ALL variants of each prompt
+  pendingPrompts = [];
+  for (const p of prompts) {
+    const baseId = 'prompt-' + (++promptIdCounter);
+    for (let i = 0; i < variants.length; i++) {
+      pendingPrompts.push({
+        ...p,
+        baseId: baseId,
+        variantIndex: i,
+        variantLabel: variants[i].label,
+        variantContext: variants[i].context,
+        id: baseId + '-v' + i,
+        tokens: null,
+        tooExpensive: false
+      });
+    }
+  }
+
+  // Request token counts for all variants
   for (const p of pendingPrompts) {
     vscode.postMessage({
       command: 'countTokens',
       text: p.prompt,
-      context: context,
+      context: p.variantContext,
       promptId: p.id
     });
   }
@@ -194,25 +257,77 @@ function handleTokenCount(promptId, tokens, limit) {
   }
 }
 
-// Render prompts after costing - hide expensive ones
+// Render prompts after costing - pick best affordable variant for each
 function renderCostdPrompts() {
   const container = document.getElementById('rules');
-  const affordablePrompts = pendingPrompts.filter(p => !p.tooExpensive);
+
+  // Group by base prompt ID
+  const byPrompt = {};
+  for (const p of pendingPrompts) {
+    if (!byPrompt[p.baseId]) byPrompt[p.baseId] = [];
+    byPrompt[p.baseId].push(p);
+  }
+
+  // For each prompt, find first affordable variant (ordered best→worst)
+  const affordablePrompts = [];
+  const usedHighSeverityVariant = new Set(); // Track which rules used high severity degradation
+
+  for (const variants of Object.values(byPrompt)) {
+    variants.sort((a, b) => a.variantIndex - b.variantIndex);
+    const affordable = variants.find(v => !v.tooExpensive);
+    if (affordable) {
+      // Build display label based on variant
+      let displayLabel = affordable.label;
+
+      if (affordable.variantLabel) {
+        // If degraded to high severity, update the issue count in label
+        if (affordable.variantLabel.includes('high severity')) {
+          const highSevIssueCount = affordable.variantContext.issues.length;
+          // Replace the count in the label with high severity count
+          // "Analyze 175 Long Function issues" → "Analyze 14 high severity Long Function issues"
+          displayLabel = displayLabel.replace(/\\d+/, highSevIssueCount + ' high severity');
+          usedHighSeverityVariant.add(affordable.baseId);
+        } else {
+          // For other variants (5 files, 1 file), append the suffix
+          displayLabel += affordable.variantLabel;
+        }
+      }
+      // File count is shown in chips below, not needed in button
+
+      // Skip "Focus on high severity" buttons if we already degraded another prompt to high severity
+      if (affordable.action === 'filter-high-severity') {
+        continue; // Degradation handles this, don't show duplicate
+      }
+
+      affordablePrompts.push({
+        ...affordable,
+        displayLabel: displayLabel
+      });
+    }
+  }
 
   if (affordablePrompts.length === 0) {
-    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">All prompts exceed token limit</span>';
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Context too large for prompts</span>';
     return;
   }
 
   container.innerHTML = affordablePrompts.map(p =>
     '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
     ' data-prompt-id="' + p.id + '"' +
+    ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
     (p.action ? ' data-action="' + p.action + '"' : '') +
-    '>' + p.label + '</button>'
+    '>' + p.displayLabel + '</button>'
   ).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      // If this is a degraded variant, update selection to match
+      const variantFilesData = btn.getAttribute('data-variant-files');
+      if (variantFilesData) {
+        const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
+        selection.setFocus(variantFiles);
+      }
+
       const action = btn.getAttribute('data-action');
       if (action === 'filter-high-severity') {
         selection.filterToHighSeverity();
