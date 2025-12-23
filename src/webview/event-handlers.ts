@@ -27,22 +27,7 @@ document.getElementById('send').addEventListener('click', () => {
   // Show panel
   panel.classList.add('visible');
 
-  // Render user message bubble
-  const userMsg = document.createElement('div');
-  userMsg.className = 'user-message';
-  let userHtml = '<div class="user-message-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
-  if (context.files && context.files.length > 0) {
-    const fileNames = context.files.slice(0, 3).map(f => f.split('/').pop());
-    const moreCount = context.files.length - 3;
-    userHtml += '<div class="user-message-files">';
-    userHtml += fileNames.map(f => '<span class="user-message-file">' + f + '</span>').join('');
-    if (moreCount > 0) userHtml += '<span class="user-message-file">+' + moreCount + ' more</span>';
-    userHtml += '</div>';
-  }
-  userMsg.innerHTML = userHtml;
-  chatMessages.appendChild(userMsg);
-
-  // Render thinking bubble
+  // Render thinking bubble (prompt preview will be inserted before this)
   const thinkingMsg = document.createElement('div');
   thinkingMsg.className = 'ai-message thinking';
   thinkingMsg.id = 'thinking-bubble';
@@ -95,6 +80,24 @@ window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
     // Thinking is now handled inline in send handler
+  } else if (msg.type === 'promptPreview') {
+    // Show the actual prompt being sent to the API
+    const chatMessages = document.getElementById('chat-messages');
+    const thinkingBubble = document.getElementById('thinking-bubble');
+
+    const promptMsg = document.createElement('div');
+    promptMsg.className = 'user-message debug';
+    promptMsg.innerHTML = '<pre style="margin:0;font-size:0.7em;white-space:pre-wrap;word-break:break-all;color:#ccc;">' +
+      msg.prompt.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+      '</pre>';
+
+    // Insert before thinking bubble
+    if (thinkingBubble) {
+      chatMessages.insertBefore(promptMsg, thinkingBubble);
+    } else {
+      chatMessages.appendChild(promptMsg);
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   } else if (msg.type === 'response') {
     document.getElementById('send').disabled = false;
     const chatMessages = document.getElementById('chat-messages');
@@ -106,7 +109,22 @@ window.addEventListener('message', event => {
     // Add AI response bubble
     const aiMsg = document.createElement('div');
     aiMsg.className = 'ai-message';
-    aiMsg.textContent = msg.message;
+
+    // Check if response is an error
+    const isError = msg.message && (msg.message.startsWith('Error:') || msg.error);
+    if (isError) {
+      aiMsg.classList.add('error');
+      // Extract friendly message from error
+      if (msg.message.includes('rate_limit')) {
+        aiMsg.textContent = 'Rate limit reached. Please wait a moment and try again.';
+      } else if (msg.message.includes('authentication') || msg.message.includes('401')) {
+        aiMsg.textContent = 'API key issue. Check your configuration.';
+      } else {
+        aiMsg.textContent = 'Something went wrong. Please try again.';
+      }
+    } else {
+      aiMsg.textContent = msg.message;
+    }
     chatMessages.appendChild(aiMsg);
 
     // Scroll to bottom

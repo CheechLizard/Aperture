@@ -11068,12 +11068,86 @@ var sdk_default = Anthropic;
 var vscode3 = __toESM(require("vscode"));
 var fs3 = __toESM(require("fs"));
 var path6 = __toESM(require("path"));
+function buildPromptPreview(query, files, context) {
+  const MAX_CONTEXT_FILES = 5;
+  const MAX_CHARS_PER_FILE = 2e3;
+  const MAX_ISSUES = 10;
+  const fileList = files.map((f2) => `${f2.path} (${f2.language}, ${f2.loc} LOC)`).join("\n");
+  let systemPrompt = `You are analyzing a codebase to answer questions about it.
+You have access to a file list and can read specific files to understand the code.
+
+Files in this project:
+${fileList}
+
+When the user asks a question:
+1. Identify which files are likely relevant based on names and paths
+2. Use read_file to examine those files
+3. Use respond to give your answer with the list of relevant files
+
+Be concise but helpful. Always use the respond tool to provide your final answer.`;
+  if (context && context.highlightedFiles.length > 0) {
+    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
+    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
+    systemPrompt += `
+
+## Current Focus
+The user is looking at these files:
+`;
+    for (const file of limitedFiles) {
+      systemPrompt += `- ${file}
+`;
+    }
+    if (moreFiles > 0) {
+      systemPrompt += `(and ${moreFiles} more files)
+`;
+    }
+    if (context.issues.length > 0) {
+      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
+      const moreIssues = context.issues.length - MAX_ISSUES;
+      systemPrompt += `
+## Detected Issues
+These issues were detected by static analysis:
+`;
+      for (const issue of limitedIssues) {
+        const issueFiles = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
+        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${issueFiles})
+`;
+      }
+      if (moreIssues > 0) {
+        systemPrompt += `(and ${moreIssues} more issues)
+`;
+      }
+    }
+    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
+    if (contentFiles.length > 0) {
+      systemPrompt += `
+## File Contents
+Here are the contents of the highlighted files:
+`;
+      for (const [filePath, content] of contentFiles) {
+        const truncated = content.length > MAX_CHARS_PER_FILE ? content.slice(0, MAX_CHARS_PER_FILE) + "\n...(truncated)" : content;
+        systemPrompt += `
+### ${filePath}
+\`\`\`
+${truncated}
+\`\`\`
+`;
+      }
+    }
+  }
+  return `=== SYSTEM PROMPT (${systemPrompt.length} chars) ===
+${systemPrompt}
+
+=== USER MESSAGE ===
+${query}`;
+}
 async function analyzeQuery(query, files, rootPath, context) {
   const apiKey = getApiKey();
   if (!apiKey) {
     return {
       message: "No API key configured. Set aperture.anthropicApiKey in settings.",
-      relevantFiles: []
+      relevantFiles: [],
+      systemPrompt: "(no API key)"
     };
   }
   const client = new sdk_default({ apiKey });
@@ -11119,34 +11193,50 @@ When the user asks a question:
 3. Use respond to give your answer with the list of relevant files
 
 Be concise but helpful. Always use the respond tool to provide your final answer.`;
+  const MAX_CONTEXT_FILES = 5;
+  const MAX_CHARS_PER_FILE = 2e3;
+  const MAX_ISSUES = 10;
   if (context && context.highlightedFiles.length > 0) {
+    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
+    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
     systemPrompt += `
 
 ## Current Focus
 The user is looking at these files:
 `;
-    for (const file of context.highlightedFiles) {
+    for (const file of limitedFiles) {
       systemPrompt += `- ${file}
 `;
     }
+    if (moreFiles > 0) {
+      systemPrompt += `(and ${moreFiles} more files)
+`;
+    }
     if (context.issues.length > 0) {
+      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
+      const moreIssues = context.issues.length - MAX_ISSUES;
       systemPrompt += `
 ## Detected Issues
 These issues were detected by static analysis:
 `;
-      for (const issue of context.issues) {
-        const files2 = issue.locations.map((l2) => l2.file).join(", ");
+      for (const issue of limitedIssues) {
+        const files2 = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
         systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${files2})
 `;
       }
+      if (moreIssues > 0) {
+        systemPrompt += `(and ${moreIssues} more issues)
+`;
+      }
     }
-    if (Object.keys(context.fileContents).length > 0) {
+    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
+    if (contentFiles.length > 0) {
       systemPrompt += `
 ## File Contents
 Here are the contents of the highlighted files:
 `;
-      for (const [filePath, content] of Object.entries(context.fileContents)) {
-        const truncated = content.length > 5e3 ? content.slice(0, 5e3) + "\n...(truncated)" : content;
+      for (const [filePath, content] of contentFiles) {
+        const truncated = content.length > MAX_CHARS_PER_FILE ? content.slice(0, MAX_CHARS_PER_FILE) + "\n...(truncated)" : content;
         systemPrompt += `
 ### ${filePath}
 \`\`\`
@@ -11198,6 +11288,7 @@ ${truncated}
         const input = toolUse.input;
         return {
           ...input,
+          systemPrompt,
           usage: {
             inputTokens: totalInputTokens,
             outputTokens: totalOutputTokens,
@@ -11231,6 +11322,7 @@ ${truncated}
   return {
     message: textBlock?.text || "No response generated",
     relevantFiles: [],
+    systemPrompt,
     usage
   };
 }
@@ -11656,6 +11748,7 @@ var DASHBOARD_STYLES = `
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
     .chat-messages:empty { display: none; }
     .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 0.9em; line-height: 1.4; }
+    .user-message.debug { align-self: stretch; max-width: 100%; background: rgba(30, 30, 50, 0.9); border: 1px solid rgba(100, 100, 200, 0.5); color: #eee; font-family: monospace; flex-shrink: 0; }
     .user-message-text { margin-bottom: 6px; }
     .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
     .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
@@ -11663,6 +11756,7 @@ var DASHBOARD_STYLES = `
     .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    .ai-message.error { background: rgba(200, 80, 80, 0.15); border: 1px solid rgba(200, 80, 80, 0.3); color: var(--vscode-errorForeground, #f88); }
     /* Chat Actions */
     .chat-actions { margin-top: auto; }
     .chat-actions .action-btns + .chat-actions { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
@@ -12487,9 +12581,10 @@ function renderDynamicPrompts() {
       i.locations.some(l => focusFiles.includes(l.file))
     );
     if (otherIssues.length > 0) {
+      const otherTypes = [...new Set(otherIssues.map(i => formatRuleId(i.ruleId)))].slice(0, 3);
       prompts.push({
         label: otherIssues.length + ' related issues',
-        prompt: 'Also review the other issues in these files'
+        prompt: 'These files also have other issues: ' + otherTypes.join(', ') + '. How do they interact with the ' + formatRuleId(ruleId).toLowerCase() + ' issues?'
       });
     }
 
@@ -13055,22 +13150,7 @@ document.getElementById('send').addEventListener('click', () => {
   // Show panel
   panel.classList.add('visible');
 
-  // Render user message bubble
-  const userMsg = document.createElement('div');
-  userMsg.className = 'user-message';
-  let userHtml = '<div class="user-message-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
-  if (context.files && context.files.length > 0) {
-    const fileNames = context.files.slice(0, 3).map(f => f.split('/').pop());
-    const moreCount = context.files.length - 3;
-    userHtml += '<div class="user-message-files">';
-    userHtml += fileNames.map(f => '<span class="user-message-file">' + f + '</span>').join('');
-    if (moreCount > 0) userHtml += '<span class="user-message-file">+' + moreCount + ' more</span>';
-    userHtml += '</div>';
-  }
-  userMsg.innerHTML = userHtml;
-  chatMessages.appendChild(userMsg);
-
-  // Render thinking bubble
+  // Render thinking bubble (prompt preview will be inserted before this)
   const thinkingMsg = document.createElement('div');
   thinkingMsg.className = 'ai-message thinking';
   thinkingMsg.id = 'thinking-bubble';
@@ -13123,6 +13203,24 @@ window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
     // Thinking is now handled inline in send handler
+  } else if (msg.type === 'promptPreview') {
+    // Show the actual prompt being sent to the API
+    const chatMessages = document.getElementById('chat-messages');
+    const thinkingBubble = document.getElementById('thinking-bubble');
+
+    const promptMsg = document.createElement('div');
+    promptMsg.className = 'user-message debug';
+    promptMsg.innerHTML = '<pre style="margin:0;font-size:0.7em;white-space:pre-wrap;word-break:break-all;color:#ccc;">' +
+      msg.prompt.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+      '</pre>';
+
+    // Insert before thinking bubble
+    if (thinkingBubble) {
+      chatMessages.insertBefore(promptMsg, thinkingBubble);
+    } else {
+      chatMessages.appendChild(promptMsg);
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   } else if (msg.type === 'response') {
     document.getElementById('send').disabled = false;
     const chatMessages = document.getElementById('chat-messages');
@@ -13134,7 +13232,22 @@ window.addEventListener('message', event => {
     // Add AI response bubble
     const aiMsg = document.createElement('div');
     aiMsg.className = 'ai-message';
-    aiMsg.textContent = msg.message;
+
+    // Check if response is an error
+    const isError = msg.message && (msg.message.startsWith('Error:') || msg.error);
+    if (isError) {
+      aiMsg.classList.add('error');
+      // Extract friendly message from error
+      if (msg.message.includes('rate_limit')) {
+        aiMsg.textContent = 'Rate limit reached. Please wait a moment and try again.';
+      } else if (msg.message.includes('authentication') || msg.message.includes('401')) {
+        aiMsg.textContent = 'API key issue. Check your configuration.';
+      } else {
+        aiMsg.textContent = 'Something went wrong. Please try again.';
+      }
+    } else {
+      aiMsg.textContent = msg.message;
+    }
     chatMessages.appendChild(aiMsg);
 
     // Scroll to bottom
@@ -13792,23 +13905,15 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in AI panel
+  // Render context files as chips in footer
   _renderContextFiles() {
     const container = document.getElementById('context-files');
-    const panel = document.getElementById('ai-panel');
     if (!container) return;
 
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Don't auto-hide panel - let soft dismiss handle it
-      // Panel stays visible if there's conversation or user is focused
       return;
-    }
-
-    // Show panel when there are context files
-    if (panel) {
-      panel.classList.add('visible');
     }
 
     // Limit to 5 visible chips
@@ -14039,7 +14144,6 @@ async function openDashboard(context) {
           vscode5.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
         }
       } else if (message.command === "query" && currentData) {
-        panel.webview.postMessage({ type: "thinking" });
         try {
           const fileContents = {};
           if (message.context?.files) {
@@ -14056,6 +14160,8 @@ async function openDashboard(context) {
             issues: message.context.issues || [],
             fileContents
           } : void 0;
+          const promptPreview = buildPromptPreview(message.text, currentData.files, context2);
+          panel.webview.postMessage({ type: "promptPreview", prompt: promptPreview });
           const response = await analyzeQuery(message.text, currentData.files, currentData.root, context2);
           panel.webview.postMessage({ type: "response", ...response });
         } catch (error) {

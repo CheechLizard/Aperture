@@ -88,23 +88,15 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in AI panel
+  // Render context files as chips in footer
   _renderContextFiles() {
     const container = document.getElementById('context-files');
-    const panel = document.getElementById('ai-panel');
     if (!container) return;
 
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Don't auto-hide panel - let soft dismiss handle it
-      // Panel stays visible if there's conversation or user is focused
       return;
-    }
-
-    // Show panel when there are context files
-    if (panel) {
-      panel.classList.add('visible');
     }
 
     // Limit to 5 visible chips

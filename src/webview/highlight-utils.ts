@@ -106,9 +106,10 @@ function renderDynamicPrompts() {
       i.locations.some(l => focusFiles.includes(l.file))
     );
     if (otherIssues.length > 0) {
+      const otherTypes = [...new Set(otherIssues.map(i => formatRuleId(i.ruleId)))].slice(0, 3);
       prompts.push({
         label: otherIssues.length + ' related issues',
-        prompt: 'Also review the other issues in these files'
+        prompt: 'These files also have other issues: ' + otherTypes.join(', ') + '. How do they interact with the ' + formatRuleId(ruleId).toLowerCase() + ' issues?'
       });
     }
 

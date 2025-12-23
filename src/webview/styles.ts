@@ -31,6 +31,7 @@ export const DASHBOARD_STYLES = `
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
     .chat-messages:empty { display: none; }
     .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 0.9em; line-height: 1.4; }
+    .user-message.debug { align-self: stretch; max-width: 100%; background: rgba(30, 30, 50, 0.9); border: 1px solid rgba(100, 100, 200, 0.5); color: #eee; font-family: monospace; flex-shrink: 0; }
     .user-message-text { margin-bottom: 6px; }
     .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
     .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
@@ -38,6 +39,7 @@ export const DASHBOARD_STYLES = `
     .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    .ai-message.error { background: rgba(200, 80, 80, 0.15); border: 1px solid rgba(200, 80, 80, 0.3); color: var(--vscode-errorForeground, #f88); }
     /* Chat Actions */
     .chat-actions { margin-top: auto; }
     .chat-actions .action-btns + .chat-actions { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }

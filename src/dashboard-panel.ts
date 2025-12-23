@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { scanWorkspace } from './scanner';
 import { ProjectData } from './types';
-import { analyzeQuery } from './agent';
+import { analyzeQuery, buildPromptPreview } from './agent';
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
 import { addAntiPatternRule, removeAntiPatternRule } from './anti-pattern-rules';
 import { getLoadingContent, getErrorContent, getDashboardContent } from './dashboard-html';
@@ -46,7 +46,6 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           vscode.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
         }
       } else if (message.command === 'query' && currentData) {
-        panel.webview.postMessage({ type: 'thinking' });
         try {
           // Read file contents for highlighted files
           const fileContents: Record<string, string> = {};
@@ -67,6 +66,11 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
             fileContents
           } : undefined;
 
+          // Build and send the prompt preview immediately
+          const promptPreview = buildPromptPreview(message.text, currentData.files, context);
+          panel.webview.postMessage({ type: 'promptPreview', prompt: promptPreview });
+
+          // Then make the API call
           const response = await analyzeQuery(message.text, currentData.files, currentData.root, context);
           panel.webview.postMessage({ type: 'response', ...response });
         } catch (error) {
