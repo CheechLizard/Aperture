@@ -60,7 +60,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    ${unsupportedCount > 0 ? `<div class="header-warning"><span class="header-warning-icon">⚠</span><span>Missing parsers:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="header-lang">' + l.language + '</span>').join('')}</div>` : '<div></div>'}
+    <div></div>
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -108,6 +108,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
     </div>
   </div>
   <div class="footer">
+    <div id="footer-stats" class="footer-stats"></div>
     <div class="footer-input-container">
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
@@ -118,6 +119,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
       </div>
       <div id="context-files" class="context-files"></div>
     </div>
+    ${unsupportedCount > 0 ? `<div id="footer-parsers" class="footer-parsers"><span class="footer-parsers-icon">⚠</span><span>Missing parsers:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
   </div>
 
 <script>

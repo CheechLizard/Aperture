@@ -251,16 +251,22 @@ document.getElementById('status').addEventListener('click', () => {
 function updateStatus() {
   const statusBtn = document.getElementById('status');
   const issueFiles = getAllIssueFiles();
+
+  if (issueFiles.length > 0) {
+    statusBtn.innerHTML = '<strong>' + issueFiles.length + ' files with issues</strong>';
+  } else {
+    statusBtn.innerHTML = '<span style="opacity:0.7">No issues detected</span>';
+  }
+}
+
+function renderFooterStats() {
+  const container = document.getElementById('footer-stats');
+  if (!container) return;
+
   const totalFiles = files.length;
   const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
   const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
 
-  let statsHtml = '<span class="status-stats">' + totalFiles.toLocaleString() + ' files · ' + totalFunctions.toLocaleString() + ' functions · ' + totalLoc.toLocaleString() + ' LOC</span>';
-
-  if (issueFiles.length > 0) {
-    statusBtn.innerHTML = statsHtml + ' · <strong>' + issueFiles.length + ' with issues</strong>';
-  } else {
-    statusBtn.innerHTML = statsHtml + ' · <span style="opacity:0.7">No issues</span>';
-  }
+  container.innerHTML = totalFiles.toLocaleString() + ' files · ' + totalFunctions.toLocaleString() + ' functions · ' + totalLoc.toLocaleString() + ' LOC';
 }
 `;

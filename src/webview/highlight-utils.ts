@@ -155,54 +155,18 @@ function renderDynamicPrompts() {
     }
 
   } else if (focusFiles.length > 0) {
-    // Scenario 3: No rule, but files selected (status button)
-    const highSeverity = activeIssues.filter(i => i.severity === 'high');
-
-    if (highSeverity.length > 0) {
-      prompts.push({
-        label: 'Review ' + highSeverity.length + ' high severity',
-        prompt: 'Analyze the issues and suggest fixes',
-        action: 'filter-high-severity'
-      });
-    }
-
-    // Group by category
-    const archIssues = activeIssues.filter(i => ARCHITECTURE_RULES.has(i.ruleId));
-    const codeIssues = activeIssues.filter(i => !ARCHITECTURE_RULES.has(i.ruleId) && !FILE_RULES.has(i.ruleId));
-
-    if (archIssues.length > 0) {
-      prompts.push({
-        label: 'Architecture issues (' + archIssues.length + ')',
-        prompt: 'Analyze the architecture issues and suggest how to fix them'
-      });
-    }
-    if (codeIssues.length > 0) {
-      prompts.push({
-        label: 'Code issues (' + codeIssues.length + ')',
-        prompt: 'Analyze the code quality issues and suggest fixes'
-      });
-    }
-
+    // Scenario 3: Files selected via status button but no specific rule
+    // No prompts shown - too broad, user should select a specific issue type
   } else {
     // Scenario 4: Nothing selected (initial state)
-    prompts.push({
-      label: 'Where are the issues?',
-      prompt: 'Identify which areas of the codebase have the most issues and explain why they need attention'
-    });
-
-    const highSeverity = activeIssues.filter(i => i.severity === 'high');
-    if (highSeverity.length > 0) {
-      prompts.push({
-        label: 'High severity first',
-        prompt: 'Analyze the issues and suggest fixes',
-        action: 'filter-high-severity'
-      });
-    }
+    // No prompts shown - user should select issues or files first
   }
 
   // No prompts to show
   if (prompts.length === 0) {
-    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">No issues detected</span>';
+    const hasIssues = activeIssues.length > 0;
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">' +
+      (hasIssues ? 'Select an issue type to analyze' : 'No issues detected') + '</span>';
     return;
   }
 

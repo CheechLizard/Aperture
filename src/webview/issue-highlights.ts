@@ -57,11 +57,7 @@ function applyPersistentIssueHighlights() {
   });
 }
 
-function renderFooterStats() {
-  // Stats are now shown in status button via updateStatus()
-}
-
 function renderStats() {
-  // Stats are now shown in status button via updateStatus()
+  // Stats shown in footer via renderFooterStats()
 }
 `;

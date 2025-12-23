@@ -11741,7 +11741,11 @@ var DASHBOARD_STYLES = `
     /* Prompt Loading Spinner */
     .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; }
+    .footer-stats { font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+    .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
+    .footer-lang { background: rgba(204, 167, 0, 0.15); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
     .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 8px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
@@ -12288,12 +12292,8 @@ function applyPersistentIssueHighlights() {
   });
 }
 
-function renderFooterStats() {
-  // Stats are now shown in status button via updateStatus()
-}
-
 function renderStats() {
-  // Stats are now shown in status button via updateStatus()
+  // Stats shown in footer via renderFooterStats()
 }
 `;
 
@@ -12621,54 +12621,18 @@ function renderDynamicPrompts() {
     }
 
   } else if (focusFiles.length > 0) {
-    // Scenario 3: No rule, but files selected (status button)
-    const highSeverity = activeIssues.filter(i => i.severity === 'high');
-
-    if (highSeverity.length > 0) {
-      prompts.push({
-        label: 'Review ' + highSeverity.length + ' high severity',
-        prompt: 'Analyze the issues and suggest fixes',
-        action: 'filter-high-severity'
-      });
-    }
-
-    // Group by category
-    const archIssues = activeIssues.filter(i => ARCHITECTURE_RULES.has(i.ruleId));
-    const codeIssues = activeIssues.filter(i => !ARCHITECTURE_RULES.has(i.ruleId) && !FILE_RULES.has(i.ruleId));
-
-    if (archIssues.length > 0) {
-      prompts.push({
-        label: 'Architecture issues (' + archIssues.length + ')',
-        prompt: 'Analyze the architecture issues and suggest how to fix them'
-      });
-    }
-    if (codeIssues.length > 0) {
-      prompts.push({
-        label: 'Code issues (' + codeIssues.length + ')',
-        prompt: 'Analyze the code quality issues and suggest fixes'
-      });
-    }
-
+    // Scenario 3: Files selected via status button but no specific rule
+    // No prompts shown - too broad, user should select a specific issue type
   } else {
     // Scenario 4: Nothing selected (initial state)
-    prompts.push({
-      label: 'Where are the issues?',
-      prompt: 'Identify which areas of the codebase have the most issues and explain why they need attention'
-    });
-
-    const highSeverity = activeIssues.filter(i => i.severity === 'high');
-    if (highSeverity.length > 0) {
-      prompts.push({
-        label: 'High severity first',
-        prompt: 'Analyze the issues and suggest fixes',
-        action: 'filter-high-severity'
-      });
-    }
+    // No prompts shown - user should select issues or files first
   }
 
   // No prompts to show
   if (prompts.length === 0) {
-    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">No issues detected</span>';
+    const hasIssues = activeIssues.length > 0;
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">' +
+      (hasIssues ? 'Select an issue type to analyze' : 'No issues detected') + '</span>';
     return;
   }
 
@@ -13528,17 +13492,23 @@ document.getElementById('status').addEventListener('click', () => {
 function updateStatus() {
   const statusBtn = document.getElementById('status');
   const issueFiles = getAllIssueFiles();
+
+  if (issueFiles.length > 0) {
+    statusBtn.innerHTML = '<strong>' + issueFiles.length + ' files with issues</strong>';
+  } else {
+    statusBtn.innerHTML = '<span style="opacity:0.7">No issues detected</span>';
+  }
+}
+
+function renderFooterStats() {
+  const container = document.getElementById('footer-stats');
+  if (!container) return;
+
   const totalFiles = files.length;
   const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
   const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
 
-  let statsHtml = '<span class="status-stats">' + totalFiles.toLocaleString() + ' files \xB7 ' + totalFunctions.toLocaleString() + ' functions \xB7 ' + totalLoc.toLocaleString() + ' LOC</span>';
-
-  if (issueFiles.length > 0) {
-    statusBtn.innerHTML = statsHtml + ' \xB7 <strong>' + issueFiles.length + ' with issues</strong>';
-  } else {
-    statusBtn.innerHTML = statsHtml + ' \xB7 <span style="opacity:0.7">No issues</span>';
-  }
+  container.innerHTML = totalFiles.toLocaleString() + ' files \xB7 ' + totalFunctions.toLocaleString() + ' functions \xB7 ' + totalLoc.toLocaleString() + ' LOC';
 }
 `;
 
@@ -14266,7 +14236,7 @@ function getDashboardContent(data, architectureIssues) {
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    ${unsupportedCount > 0 ? `<div class="header-warning"><span class="header-warning-icon">\u26A0</span><span>Missing parsers:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="header-lang">' + l2.language + "</span>").join("")}</div>` : "<div></div>"}
+    <div></div>
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -14314,6 +14284,7 @@ function getDashboardContent(data, architectureIssues) {
     </div>
   </div>
   <div class="footer">
+    <div id="footer-stats" class="footer-stats"></div>
     <div class="footer-input-container">
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
@@ -14324,6 +14295,7 @@ function getDashboardContent(data, architectureIssues) {
       </div>
       <div id="context-files" class="context-files"></div>
     </div>
+    ${unsupportedCount > 0 ? `<div id="footer-parsers" class="footer-parsers"><span class="footer-parsers-icon">\u26A0</span><span>Missing parsers:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
   </div>
 
 <script>
