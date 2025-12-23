@@ -173,8 +173,8 @@ function renderDynamicPrompts() {
   // Show spinner while costing prompts
   container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
 
-  // Get full context and generate variants for graceful degradation
-  const fullContext = selection.getAIContext();
+  // Get preview context (based on current selection) for prompt costing
+  const fullContext = selection.getPreviewContext();
   const variants = getContextVariants(fullContext);
 
   // Assign IDs and create pending prompts for ALL variants of each prompt
@@ -275,27 +275,27 @@ function renderCostdPrompts() {
     return;
   }
 
-  container.innerHTML = affordablePrompts.map(p =>
-    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
-    ' data-prompt-id="' + p.id + '"' +
-    ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
-    (p.action ? ' data-action="' + p.action + '"' : '') +
-    '>' + p.displayLabel + '</button>'
-  ).join('');
+  container.innerHTML = affordablePrompts.map(p => {
+    const fileCount = p.variantContext.files.length;
+    const fileLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+      ' data-prompt-id="' + p.id + '"' +
+      ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
+      ' data-variant-issues="' + encodeURIComponent(JSON.stringify(p.variantContext.issues)) + '"' +
+      '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
+  }).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      // If this is a degraded variant, update selection to match
+      // Attach context files and issues (commits them for sending)
       const variantFilesData = btn.getAttribute('data-variant-files');
+      const variantIssuesData = btn.getAttribute('data-variant-issues');
       if (variantFilesData) {
         const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
-        selection.setFocus(variantFiles);
+        const variantIssues = variantIssuesData ? JSON.parse(decodeURIComponent(variantIssuesData)) : [];
+        selection.attachContext(variantFiles, variantIssues);
       }
 
-      const action = btn.getAttribute('data-action');
-      if (action === 'filter-high-severity') {
-        selection.filterToHighSeverity();
-      }
       const prompt = btn.getAttribute('data-prompt');
       const input = document.getElementById('query');
       input.value = prompt;

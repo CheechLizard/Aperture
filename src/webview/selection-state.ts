@@ -17,14 +17,16 @@ function getHighSeverityFiles(filePaths) {
 // Selection state module - manages issue selection and focus for AI context
 const selection = {
   _state: {
-    ruleId: null,       // Selected issue type (e.g., 'silent-failure')
-    focusFiles: []      // User's focus selection for AI context
+    ruleId: null,         // Selected issue type (e.g., 'silent-failure')
+    highlightFiles: [],   // Files to highlight visually (what user is browsing)
+    attachedFiles: [],    // Files attached to context (ready to send)
+    attachedIssues: []    // Issues attached to context
   },
 
-  // Select an issue type - computes affected files and highlights them
+  // Select an issue type - highlights affected files but does NOT attach to context
   selectRule(ruleId) {
     this._state.ruleId = ruleId;
-    this._state.focusFiles = this.getAffectedFiles();
+    this._state.highlightFiles = this.getAffectedFiles();
     this._applyHighlights();
   },
 
@@ -42,23 +44,33 @@ const selection = {
     return [...fileSet];
   },
 
-  // Set focus to specific files (for AI context)
+  // Set highlight focus to specific files (visual only, does NOT attach to context)
   setFocus(files) {
-    this._state.focusFiles = files;
+    this._state.highlightFiles = files;
     this._applyHighlights();
   },
 
-  // Select all issues (status button behavior)
+  // Attach files to context (called when prompt button clicked - commits to sending)
+  attachContext(files, contextIssues) {
+    this._state.attachedFiles = files;
+    this._state.attachedIssues = contextIssues || [];
+    this._state.highlightFiles = files;
+    this._renderContextFiles();
+  },
+
+  // Select all issues (status button behavior) - highlights only
   selectAllIssues() {
     this._state.ruleId = null;
-    this._state.focusFiles = getAllIssueFiles();
+    this._state.highlightFiles = getAllIssueFiles();
     this._applyHighlights();
   },
 
-  // Clear selection
+  // Clear selection and attached context
   clear() {
     this._state.ruleId = null;
-    this._state.focusFiles = [];
+    this._state.highlightFiles = [];
+    this._state.attachedFiles = [];
+    this._state.attachedIssues = [];
     this._applyHighlights();
   },
 
@@ -66,69 +78,69 @@ const selection = {
   getState() {
     return {
       ruleId: this._state.ruleId,
-      focusFiles: [...this._state.focusFiles]
+      focusFiles: [...this._state.highlightFiles],
+      attachedFiles: [...this._state.attachedFiles]
     };
   },
 
-  // Get context for AI chat
+  // Get context for AI chat - uses ATTACHED files (not highlight files)
   getAIContext() {
+    // If files are attached, use those; otherwise return empty
+    if (this._state.attachedFiles.length === 0) {
+      return { ruleId: null, files: [], issues: [] };
+    }
+
+    return {
+      ruleId: this._state.ruleId,
+      files: this._state.attachedFiles,
+      issues: this._state.attachedIssues
+    };
+  },
+
+  // Get preview context for prompt costing (based on current selection, not attached)
+  getPreviewContext() {
     const focusedIssues = this._state.ruleId
       ? issues.filter(i =>
           i.ruleId === this._state.ruleId &&
           !isIssueIgnored(i) &&
-          i.locations.some(l => this._state.focusFiles.includes(l.file))
+          i.locations.some(l => this._state.highlightFiles.includes(l.file))
         )
       : issues.filter(i =>
           !isIssueIgnored(i) &&
-          i.locations.some(l => this._state.focusFiles.includes(l.file))
+          i.locations.some(l => this._state.highlightFiles.includes(l.file))
         );
 
     return {
       ruleId: this._state.ruleId,
-      files: this._state.focusFiles,
+      files: this._state.highlightFiles,
       issues: focusedIssues
     };
   },
 
-  // Remove a file from focus (called when user clicks X on chip)
+  // Remove a file from attached context (called when user clicks X on chip)
   removeFile(filePath) {
-    this._state.focusFiles = this._state.focusFiles.filter(f => f !== filePath);
-    this._applyHighlights();
-  },
-
-  // Filter current selection to only high severity issues
-  filterToHighSeverity() {
-    const highSeverityFiles = new Set();
-    const relevantIssues = this._state.ruleId
-      ? issues.filter(i => i.ruleId === this._state.ruleId && !isIssueIgnored(i))
-      : issues.filter(i => !isIssueIgnored(i));
-
-    for (const issue of relevantIssues) {
-      if (issue.severity === 'high') {
-        for (const loc of issue.locations) {
-          if (this._state.focusFiles.includes(loc.file)) {
-            highSeverityFiles.add(loc.file);
-          }
-        }
-      }
-    }
-    this._state.focusFiles = [...highSeverityFiles];
-    this._applyHighlights();
+    this._state.attachedFiles = this._state.attachedFiles.filter(f => f !== filePath);
+    this._state.attachedIssues = this._state.attachedIssues.filter(i =>
+      i.locations.some(l => this._state.attachedFiles.includes(l.file))
+    );
+    this._state.highlightFiles = this._state.highlightFiles.filter(f => f !== filePath);
+    this._renderContextFiles();
+    highlightNodes(this._state.highlightFiles);
   },
 
   // Apply highlights to DOM nodes
   _applyHighlights() {
-    highlightNodes(this._state.focusFiles);
+    highlightNodes(this._state.highlightFiles);
     this._renderContextFiles();
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer - show first 5 with +N more button
+  // Render context files as chips in footer - shows ATTACHED files (ready to send)
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
 
-    const files = this._state.focusFiles;
+    const files = this._state.attachedFiles;
     if (files.length === 0) {
       container.innerHTML = '';
       return;

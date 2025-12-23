@@ -76,6 +76,7 @@ export const DASHBOARD_STYLES = `
     .rules { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     .rule-btn { padding: 8px 16px; font-size: 0.9em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; cursor: pointer; transition: background 0.15s; }
     .rule-btn:hover { background: rgba(255, 255, 255, 0.2); }
+    .rule-btn .file-count { opacity: 0.6; font-size: 0.9em; }
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }

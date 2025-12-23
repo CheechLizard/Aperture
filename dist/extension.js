@@ -11766,6 +11766,7 @@ var DASHBOARD_STYLES = `
     .rules { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     .rule-btn { padding: 8px 16px; font-size: 0.9em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; cursor: pointer; transition: background 0.15s; }
     .rule-btn:hover { background: rgba(255, 255, 255, 0.2); }
+    .rule-btn .file-count { opacity: 0.6; font-size: 0.9em; }
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
@@ -12639,8 +12640,8 @@ function renderDynamicPrompts() {
   // Show spinner while costing prompts
   container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
 
-  // Get full context and generate variants for graceful degradation
-  const fullContext = selection.getAIContext();
+  // Get preview context (based on current selection) for prompt costing
+  const fullContext = selection.getPreviewContext();
   const variants = getContextVariants(fullContext);
 
   // Assign IDs and create pending prompts for ALL variants of each prompt
@@ -12741,27 +12742,27 @@ function renderCostdPrompts() {
     return;
   }
 
-  container.innerHTML = affordablePrompts.map(p =>
-    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
-    ' data-prompt-id="' + p.id + '"' +
-    ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
-    (p.action ? ' data-action="' + p.action + '"' : '') +
-    '>' + p.displayLabel + '</button>'
-  ).join('');
+  container.innerHTML = affordablePrompts.map(p => {
+    const fileCount = p.variantContext.files.length;
+    const fileLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+      ' data-prompt-id="' + p.id + '"' +
+      ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
+      ' data-variant-issues="' + encodeURIComponent(JSON.stringify(p.variantContext.issues)) + '"' +
+      '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
+  }).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      // If this is a degraded variant, update selection to match
+      // Attach context files and issues (commits them for sending)
       const variantFilesData = btn.getAttribute('data-variant-files');
+      const variantIssuesData = btn.getAttribute('data-variant-issues');
       if (variantFilesData) {
         const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
-        selection.setFocus(variantFiles);
+        const variantIssues = variantIssuesData ? JSON.parse(decodeURIComponent(variantIssuesData)) : [];
+        selection.attachContext(variantFiles, variantIssues);
       }
 
-      const action = btn.getAttribute('data-action');
-      if (action === 'filter-high-severity') {
-        selection.filterToHighSeverity();
-      }
       const prompt = btn.getAttribute('data-prompt');
       const input = document.getElementById('query');
       input.value = prompt;
@@ -13015,7 +13016,7 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
-      // Select this rule and focus on specific files
+      // Select this rule and highlight specific files (does NOT attach to context)
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
@@ -14023,14 +14024,16 @@ function getHighSeverityFiles(filePaths) {
 // Selection state module - manages issue selection and focus for AI context
 const selection = {
   _state: {
-    ruleId: null,       // Selected issue type (e.g., 'silent-failure')
-    focusFiles: []      // User's focus selection for AI context
+    ruleId: null,         // Selected issue type (e.g., 'silent-failure')
+    highlightFiles: [],   // Files to highlight visually (what user is browsing)
+    attachedFiles: [],    // Files attached to context (ready to send)
+    attachedIssues: []    // Issues attached to context
   },
 
-  // Select an issue type - computes affected files and highlights them
+  // Select an issue type - highlights affected files but does NOT attach to context
   selectRule(ruleId) {
     this._state.ruleId = ruleId;
-    this._state.focusFiles = this.getAffectedFiles();
+    this._state.highlightFiles = this.getAffectedFiles();
     this._applyHighlights();
   },
 
@@ -14048,23 +14051,33 @@ const selection = {
     return [...fileSet];
   },
 
-  // Set focus to specific files (for AI context)
+  // Set highlight focus to specific files (visual only, does NOT attach to context)
   setFocus(files) {
-    this._state.focusFiles = files;
+    this._state.highlightFiles = files;
     this._applyHighlights();
   },
 
-  // Select all issues (status button behavior)
+  // Attach files to context (called when prompt button clicked - commits to sending)
+  attachContext(files, contextIssues) {
+    this._state.attachedFiles = files;
+    this._state.attachedIssues = contextIssues || [];
+    this._state.highlightFiles = files;
+    this._renderContextFiles();
+  },
+
+  // Select all issues (status button behavior) - highlights only
   selectAllIssues() {
     this._state.ruleId = null;
-    this._state.focusFiles = getAllIssueFiles();
+    this._state.highlightFiles = getAllIssueFiles();
     this._applyHighlights();
   },
 
-  // Clear selection
+  // Clear selection and attached context
   clear() {
     this._state.ruleId = null;
-    this._state.focusFiles = [];
+    this._state.highlightFiles = [];
+    this._state.attachedFiles = [];
+    this._state.attachedIssues = [];
     this._applyHighlights();
   },
 
@@ -14072,69 +14085,69 @@ const selection = {
   getState() {
     return {
       ruleId: this._state.ruleId,
-      focusFiles: [...this._state.focusFiles]
+      focusFiles: [...this._state.highlightFiles],
+      attachedFiles: [...this._state.attachedFiles]
     };
   },
 
-  // Get context for AI chat
+  // Get context for AI chat - uses ATTACHED files (not highlight files)
   getAIContext() {
+    // If files are attached, use those; otherwise return empty
+    if (this._state.attachedFiles.length === 0) {
+      return { ruleId: null, files: [], issues: [] };
+    }
+
+    return {
+      ruleId: this._state.ruleId,
+      files: this._state.attachedFiles,
+      issues: this._state.attachedIssues
+    };
+  },
+
+  // Get preview context for prompt costing (based on current selection, not attached)
+  getPreviewContext() {
     const focusedIssues = this._state.ruleId
       ? issues.filter(i =>
           i.ruleId === this._state.ruleId &&
           !isIssueIgnored(i) &&
-          i.locations.some(l => this._state.focusFiles.includes(l.file))
+          i.locations.some(l => this._state.highlightFiles.includes(l.file))
         )
       : issues.filter(i =>
           !isIssueIgnored(i) &&
-          i.locations.some(l => this._state.focusFiles.includes(l.file))
+          i.locations.some(l => this._state.highlightFiles.includes(l.file))
         );
 
     return {
       ruleId: this._state.ruleId,
-      files: this._state.focusFiles,
+      files: this._state.highlightFiles,
       issues: focusedIssues
     };
   },
 
-  // Remove a file from focus (called when user clicks X on chip)
+  // Remove a file from attached context (called when user clicks X on chip)
   removeFile(filePath) {
-    this._state.focusFiles = this._state.focusFiles.filter(f => f !== filePath);
-    this._applyHighlights();
-  },
-
-  // Filter current selection to only high severity issues
-  filterToHighSeverity() {
-    const highSeverityFiles = new Set();
-    const relevantIssues = this._state.ruleId
-      ? issues.filter(i => i.ruleId === this._state.ruleId && !isIssueIgnored(i))
-      : issues.filter(i => !isIssueIgnored(i));
-
-    for (const issue of relevantIssues) {
-      if (issue.severity === 'high') {
-        for (const loc of issue.locations) {
-          if (this._state.focusFiles.includes(loc.file)) {
-            highSeverityFiles.add(loc.file);
-          }
-        }
-      }
-    }
-    this._state.focusFiles = [...highSeverityFiles];
-    this._applyHighlights();
+    this._state.attachedFiles = this._state.attachedFiles.filter(f => f !== filePath);
+    this._state.attachedIssues = this._state.attachedIssues.filter(i =>
+      i.locations.some(l => this._state.attachedFiles.includes(l.file))
+    );
+    this._state.highlightFiles = this._state.highlightFiles.filter(f => f !== filePath);
+    this._renderContextFiles();
+    highlightNodes(this._state.highlightFiles);
   },
 
   // Apply highlights to DOM nodes
   _applyHighlights() {
-    highlightNodes(this._state.focusFiles);
+    highlightNodes(this._state.highlightFiles);
     this._renderContextFiles();
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer - show first 5 with +N more button
+  // Render context files as chips in footer - shows ATTACHED files (ready to send)
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
 
-    const files = this._state.focusFiles;
+    const files = this._state.attachedFiles;
     if (files.length === 0) {
       container.innerHTML = '';
       return;

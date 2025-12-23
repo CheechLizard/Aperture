@@ -203,7 +203,7 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
-      // Select this rule and focus on specific files
+      // Select this rule and highlight specific files (does NOT attach to context)
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
