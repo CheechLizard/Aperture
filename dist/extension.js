@@ -12536,6 +12536,12 @@ const ARCHITECTURE_RULES = new Set(['circular-dependency', 'hub-file']);
 
 // src/webview/anti-pattern-panel.ts
 var ANTI_PATTERN_PANEL_SCRIPT = `
+const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
+
+function formatRuleId(ruleId) {
+  return ruleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 function getExpandedState() {
   const state = { groups: new Set(), ignored: false, categories: new Set() };
   document.querySelectorAll('.pattern-group').forEach(group => {
@@ -12582,32 +12588,12 @@ function restoreExpandedState(state) {
 function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   selectedRuleId = ruleId;
-
-  // Map rule view names to nav view names
   const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
-  const navView = viewMap[view] || 'files';
-
-  // Navigate to the view, zooming out if needed (file: null ensures L1)
-  nav.goTo({ view: navView, file: null });
+  nav.goTo({ view: viewMap[view] || 'files', file: null });
 }
 
-function renderIssues() {
-  const list = document.getElementById('anti-pattern-list');
-
-  // Filter out ignored issues
-  const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
-
-  if (activeIssues.length === 0 && ignoredIssues.length === 0) {
-    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
-    return;
-  }
-
-  buildIssueFileMap();
-
-  // Group issues by ruleId
+function groupIssuesByRule(activeIssues) {
   const groups = new Map();
-  const severityOrder = { high: 0, medium: 1, low: 2 };
-
   for (const issue of activeIssues) {
     if (!groups.has(issue.ruleId)) {
       groups.set(issue.ruleId, { ruleId: issue.ruleId, items: [] });
@@ -12615,106 +12601,81 @@ function renderIssues() {
     groups.get(issue.ruleId).items.push(issue);
   }
 
-  // Calculate max severity for each group and sort items within each group
   for (const group of groups.values()) {
-    group.items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    group.items.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
     group.severity = group.items.length > 0 ? group.items[0].severity : 'low';
   }
 
-  const sortedGroups = [...groups.values()].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  return [...groups.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+}
 
-  // Split into code, file, and architecture issues
-  const codeGroups = sortedGroups.filter(g => !FILE_RULES.has(g.ruleId) && !ARCHITECTURE_RULES.has(g.ruleId));
-  const fileGroups = sortedGroups.filter(g => FILE_RULES.has(g.ruleId));
-  const archGroups = sortedGroups.filter(g => ARCHITECTURE_RULES.has(g.ruleId));
+function categorizeGroups(sortedGroups) {
+  return {
+    code: sortedGroups.filter(g => !FILE_RULES.has(g.ruleId) && !ARCHITECTURE_RULES.has(g.ruleId)),
+    file: sortedGroups.filter(g => FILE_RULES.has(g.ruleId)),
+    arch: sortedGroups.filter(g => ARCHITECTURE_RULES.has(g.ruleId))
+  };
+}
 
-  // Format rule ID for display (e.g., "long-function" \u2192 "Long Function")
-  function formatRuleId(ruleId) {
-    return ruleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  }
+function renderItemHtml(item) {
+  const filesData = item.locations.map(loc => loc.file).join(',');
+  const firstLoc = item.locations[0];
+  const fileName = firstLoc.file.split('/').pop();
+  const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
 
-  function renderGroupsHtml(groupList) {
-    return groupList.map((group, gIdx) => {
-    const isRuleActive = activeRules.has(group.ruleId);
+  return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-line="' + (firstLoc.line || '') + '" data-rule-id="' + item.ruleId + '" data-message="' + item.message.replace(/"/g, '&quot;') + '">' +
+    '<div class="pattern-item-row"><div class="pattern-item-content">' +
+    '<div class="pattern-item-desc">' + item.message + '</div>' +
+    '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
+    '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
+}
 
-    // Get all files from all locations
-    const allFiles = group.items.flatMap(item => item.locations.map(loc => loc.file));
+function renderGroupHtml(group, gIdx) {
+  const isRuleActive = activeRules.has(group.ruleId);
+  const allFiles = group.items.flatMap(item => item.locations.map(loc => loc.file));
+  const itemsHtml = group.items.map(renderItemHtml).join('');
 
-    const itemsHtml = group.items.map((item, iIdx) => {
-      const filesData = item.locations.map(loc => loc.file).join(',');
-      const firstLoc = item.locations[0];
-      const fileName = firstLoc.file.split('/').pop();
-      const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
+  return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.ruleId + '">' +
+    '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-type="' + group.ruleId + '">' +
+    '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
+    '<span class="pattern-title">' + formatRuleId(group.ruleId) + '</span>' +
+    '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
+    '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
+    '<div class="pattern-items">' + itemsHtml + '</div></div>';
+}
 
-      return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-line="' + (firstLoc.line || '') + '" data-rule-id="' + item.ruleId + '" data-message="' + item.message.replace(/"/g, '&quot;') + '">' +
-        '<div class="pattern-item-row"><div class="pattern-item-content">' +
-        '<div class="pattern-item-desc">' + item.message + '</div>' +
-        '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
-        '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
-    }).join('');
+function renderCategoryHtml(category, label, groups) {
+  if (groups.length === 0) return '';
+  const count = groups.reduce((sum, g) => sum + g.items.length, 0);
+  const groupsHtml = groups.map((g, i) => renderGroupHtml(g, i)).join('');
+  return '<div class="issue-category" data-category="' + category + '">' +
+    '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>' + label + ' (' + count + ')</div>' +
+    '<div class="issue-category-items expanded">' + groupsHtml + '</div></div>';
+}
 
-    return '<div class="pattern-group" data-group="' + gIdx + '" data-type="' + group.ruleId + '">' +
-      '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-type="' + group.ruleId + '">' +
-      '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span><span class="pattern-title">' + formatRuleId(group.ruleId) + '</span>' +
-      '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
-      '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
-      '<div class="pattern-items">' + itemsHtml + '</div></div>';
-    }).join('');
-  }
+function renderIgnoredHtml() {
+  if (ignoredIssues.length === 0) return '';
+  const itemsHtml = ignoredIssues.map((item, idx) => {
+    const firstLoc = item.locations[0];
+    const fileName = firstLoc.file.split('/').pop();
+    const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
+    return '<div class="ignored-item" data-idx="' + idx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
+      '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
+  }).join('');
+  return '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
+    '<span>Ignored items (' + ignoredIssues.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
+}
 
-  // Build category sections
-  let html = '';
-
-  // Code Issues section (function-level, shown on Functions treemap)
-  if (codeGroups.length > 0) {
-    const codeCount = codeGroups.reduce((sum, g) => sum + g.items.length, 0);
-    html += '<div class="issue-category" data-category="code">' +
-      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>Code Issues (' + codeCount + ')</div>' +
-      '<div class="issue-category-items expanded">' + renderGroupsHtml(codeGroups) + '</div></div>';
-  }
-
-  // File Issues section (file-level, shown on Files treemap)
-  if (fileGroups.length > 0) {
-    const fileCount = fileGroups.reduce((sum, g) => sum + g.items.length, 0);
-    html += '<div class="issue-category" data-category="file">' +
-      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>File Issues (' + fileCount + ')</div>' +
-      '<div class="issue-category-items expanded">' + renderGroupsHtml(fileGroups) + '</div></div>';
-  }
-
-  // Architecture Issues section (graph-level, shown on Chord diagram)
-  if (archGroups.length > 0) {
-    const archCount = archGroups.reduce((sum, g) => sum + g.items.length, 0);
-    html += '<div class="issue-category" data-category="architecture">' +
-      '<div class="issue-category-header"><span class="issue-category-chevron expanded">\u25B6</span>Architecture Issues (' + archCount + ')</div>' +
-      '<div class="issue-category-items expanded">' + renderGroupsHtml(archGroups) + '</div></div>';
-  }
-
-  // Ignored section
-  if (ignoredIssues.length > 0) {
-    const ignoredHtml = ignoredIssues.map((item, idx) => {
-      const firstLoc = item.locations[0];
-      const fileName = firstLoc.file.split('/').pop();
-      const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
-      return '<div class="ignored-item" data-idx="' + idx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
-        '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
-    }).join('');
-    html += '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
-      '<span>Ignored items (' + ignoredIssues.length + ')</span></div><div class="ignored-items">' + ignoredHtml + '</div></div>';
-  }
-
-  list.innerHTML = html;
-
-  // Handle category header clicks (expand/collapse)
+function setupCategoryHandlers(list) {
   list.querySelectorAll('.issue-category-header').forEach(header => {
     header.addEventListener('click', () => {
-      const chevron = header.querySelector('.issue-category-chevron');
-      const items = header.nextElementSibling;
-      chevron.classList.toggle('expanded');
-      items.classList.toggle('expanded');
+      header.querySelector('.issue-category-chevron').classList.toggle('expanded');
+      header.nextElementSibling.classList.toggle('expanded');
     });
   });
+}
 
-  // Handle chevron clicks (expand/collapse only)
+function setupChevronHandlers(list) {
   list.querySelectorAll('.pattern-header .pattern-chevron').forEach(chevron => {
     const group = chevron.closest('.pattern-group');
     const items = group.querySelector('.pattern-items');
@@ -12724,23 +12685,27 @@ function renderIssues() {
       items.classList.toggle('expanded');
     });
   });
+}
 
-  // Handle header clicks (select/highlight and switch view)
+function setupHeaderHandlers(list) {
   list.querySelectorAll('.pattern-header').forEach(header => {
     const files = header.getAttribute('data-files').split(',').filter(f => f);
     const ruleId = header.getAttribute('data-type');
     header.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-chevron')) return;
       if (e.target.classList.contains('pattern-rules-toggle')) return;
-      if (selectedElement) { selectedElement.style.borderLeftColor = ''; selectedElement.style.background = ''; }
+      if (selectedElement) {
+        selectedElement.style.borderLeftColor = '';
+        selectedElement.style.background = '';
+      }
       selectedElement = header;
-      // Switch to appropriate view and coloring
       switchToView(ruleId);
       highlightIssueFiles(files);
     });
   });
+}
 
-  // Handle rules toggle clicks
+function setupRulesToggleHandlers(list) {
   list.querySelectorAll('.pattern-rules-toggle').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -12762,8 +12727,9 @@ function renderIssues() {
       }
     });
   });
+}
 
-  // Handle individual item clicks (entire row, excluding ignore button)
+function setupItemHandlers(list) {
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
     const line = item.getAttribute('data-line');
@@ -12771,17 +12737,36 @@ function renderIssues() {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
-      // Switch to appropriate view for this rule type
       switchToView(ruleId);
       highlightIssueFiles(files);
       if (files.length > 0) {
-        const lineNum = line ? parseInt(line) : undefined;
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: lineNum });
+        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: line ? parseInt(line) : undefined });
       }
     });
   });
+}
 
-  // Handle ignore button clicks
+function refreshAfterChange(selectedType, wasStatusSelected) {
+  const expandedState = getExpandedState();
+  renderIssues();
+  restoreExpandedState(expandedState);
+  buildIssueFileMap();
+  applyPersistentIssueHighlights();
+  updateStatusButton();
+  renderFooterStats();
+
+  if (selectedType) {
+    const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
+    if (newHeader) selectedElement = newHeader;
+  } else if (wasStatusSelected) {
+    selectedElement = document.getElementById('status');
+  }
+
+  const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
+  highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
+}
+
+function setupIgnoreHandlers(list) {
   list.querySelectorAll('.pattern-ignore-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -12789,55 +12774,31 @@ function renderIssues() {
       const ruleId = item.getAttribute('data-rule-id');
       const message = item.getAttribute('data-message');
       const filesStr = item.getAttribute('data-files');
-      const line = item.getAttribute('data-line');
 
-      // Find the matching issue and add to ignored
       const issueToIgnore = issues.find(i =>
-        i.ruleId === ruleId &&
-        i.message === message &&
+        i.ruleId === ruleId && i.message === message &&
         i.locations.map(l => l.file).join(',') === filesStr
       );
-      if (issueToIgnore) {
-        ignoredIssues.push(issueToIgnore);
-      }
+      if (issueToIgnore) ignoredIssues.push(issueToIgnore);
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
-      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
-
-      const expandedState = getExpandedState();
-      renderIssues();
-      restoreExpandedState(expandedState);
-      buildIssueFileMap();
-      applyPersistentIssueHighlights();
-      updateStatusButton();
-      renderFooterStats();
-
-      if (selectedType) {
-        const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
-        if (newHeader) selectedElement = newHeader;
-      } else if (wasStatusSelected) {
-        selectedElement = document.getElementById('status');
-      }
-
-      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
-      highlightIssueFiles(stillValid);
+      refreshAfterChange(selectedType, selectedElement && selectedElement.id === 'status');
     });
   });
+}
 
-  // Handle ignored section
+function setupIgnoredSectionHandlers(list) {
   const ignoredHeader = list.querySelector('.ignored-header');
   if (ignoredHeader) {
     ignoredHeader.addEventListener('click', () => {
-      const chevron = ignoredHeader.querySelector('.pattern-chevron');
-      const items = ignoredHeader.nextElementSibling;
-      chevron.classList.toggle('expanded');
-      items.classList.toggle('expanded');
+      ignoredHeader.querySelector('.pattern-chevron').classList.toggle('expanded');
+      ignoredHeader.nextElementSibling.classList.toggle('expanded');
     });
   }
+}
 
-  // Handle restore button clicks
+function setupRestoreHandlers(list) {
   list.querySelectorAll('.ignored-item-restore').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -12870,17 +12831,45 @@ function renderIssues() {
         const newHeader = document.querySelector('.pattern-header[data-type="' + restoredRuleId + '"]');
         if (newHeader) {
           selectedElement = newHeader;
-          const allFiles = newHeader.getAttribute('data-files').split(',').filter(f => f);
-          highlightIssueFiles(allFiles);
+          highlightIssueFiles(newHeader.getAttribute('data-files').split(',').filter(f => f));
           return;
         }
       }
 
       const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-      const stillValid = currentHighlighted.filter(f => issueFileMap.has(f));
-      highlightIssueFiles(stillValid);
+      highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
     });
   });
+}
+
+function renderIssues() {
+  const list = document.getElementById('anti-pattern-list');
+  const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
+
+  if (activeIssues.length === 0 && ignoredIssues.length === 0) {
+    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
+    return;
+  }
+
+  buildIssueFileMap();
+
+  const sortedGroups = groupIssuesByRule(activeIssues);
+  const categories = categorizeGroups(sortedGroups);
+
+  list.innerHTML =
+    renderCategoryHtml('code', 'Code Issues', categories.code) +
+    renderCategoryHtml('file', 'File Issues', categories.file) +
+    renderCategoryHtml('architecture', 'Architecture Issues', categories.arch) +
+    renderIgnoredHtml();
+
+  setupCategoryHandlers(list);
+  setupChevronHandlers(list);
+  setupHeaderHandlers(list);
+  setupRulesToggleHandlers(list);
+  setupItemHandlers(list);
+  setupIgnoreHandlers(list);
+  setupIgnoredSectionHandlers(list);
+  setupRestoreHandlers(list);
 }
 `;
 
@@ -13124,8 +13113,9 @@ function updateStatus() {
 // src/webview/distribution-chart.ts
 var DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
-
 const ZOOM_DURATION = 500;
+const LABEL_MIN_WIDTH = 40;
+const LABEL_MIN_HEIGHT = 16;
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -13135,44 +13125,32 @@ function getDynamicFileColor(fileData) {
   return FUNC_NEUTRAL_COLOR;
 }
 
-// Zoom into a file to show its functions
 function zoomTo(filePath) {
   nav.goTo({ file: filePath, highlight: [filePath] });
 }
 
-// Zoom out to show all files
 function zoomOut() {
   nav.goTo({ file: null, highlight: getAllIssueFiles() });
 }
 
-function renderDistributionChart() {
-  const container = document.getElementById('functions-chart');
-  if (!container) return;
+function truncateLabel(name, maxWidth, charWidth) {
+  const maxChars = Math.floor(maxWidth / charWidth);
+  return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
+}
 
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 400;
-
-  // Build file-level data
-  const fileData = files
+function buildFileData() {
+  return files
     .filter(f => f.functions && f.functions.length > 0)
-    .map(f => {
-      const data = {
-        name: f.path.split('/').pop(),
-        path: f.path,
-        value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
-        functions: f.functions
-      };
-      data.color = getDynamicFileColor(data);
-      return data;
-    });
+    .map(f => ({
+      name: f.path.split('/').pop(),
+      path: f.path,
+      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
+      functions: f.functions,
+      color: getDynamicFileColor(f)
+    }));
+}
 
-  if (fileData.length === 0) {
-    container.innerHTML = '<div class="functions-empty">No functions found.</div>';
-    renderFilesLegend([]);
-    return;
-  }
-
-  // Build hierarchy
+function buildFileHierarchy(fileData) {
   const root = { name: 'root', children: [] };
   for (const file of fileData) {
     const parts = file.path.split('/');
@@ -13188,7 +13166,72 @@ function renderDistributionChart() {
     }
     current.children.push(file);
   }
+  return root;
+}
 
+function calculateZoomTransform(clickedLeaf, width, height) {
+  if (clickedLeaf) {
+    return {
+      x: clickedLeaf.x0,
+      y: clickedLeaf.y0,
+      kx: width / (clickedLeaf.x1 - clickedLeaf.x0),
+      ky: height / (clickedLeaf.y1 - clickedLeaf.y0)
+    };
+  }
+  return { x: 0, y: 0, kx: 1, ky: 1 };
+}
+
+function buildFunctionLeaves(width, height) {
+  const file = files.find(f => f.path === zoomedFile);
+  if (!file || !file.functions) return [];
+
+  const functionData = file.functions.map(fn => ({
+    name: fn.name,
+    value: fn.loc,
+    line: fn.startLine,
+    depth: fn.maxNestingDepth,
+    params: fn.parameterCount,
+    filePath: file.path
+  }));
+
+  const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
+    .sum(d => d.value || 0)
+    .sort((a, b) => b.value - a.value);
+
+  d3.treemap()
+    .size([width, height])
+    .paddingTop(18)
+    .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(2)
+    (funcHierarchy);
+
+  return funcHierarchy.leaves();
+}
+
+function calculateExitBounds(leaf, transform) {
+  if (!leaf) return { x: 0, y: 0, w: 0, h: 0 };
+  return {
+    x: (leaf.x0 - transform.x) * transform.kx,
+    y: (leaf.y0 - transform.y) * transform.ky,
+    w: (leaf.x1 - leaf.x0) * transform.kx,
+    h: (leaf.y1 - leaf.y0) * transform.ky
+  };
+}
+
+function renderDistributionChart() {
+  const container = document.getElementById('functions-chart');
+  if (!container) return;
+
+  const width = container.clientWidth || 600;
+  const height = container.clientHeight || 400;
+
+  const fileData = buildFileData();
+  if (fileData.length === 0) {
+    container.innerHTML = '<div class="functions-empty">No functions found.</div>';
+    renderFilesLegend([]);
+    return;
+  }
+
+  const root = buildFileHierarchy(fileData);
   const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
   d3.treemap()
     .size([width, height])
@@ -13198,7 +13241,6 @@ function renderDistributionChart() {
 
   const leaves = hierarchy.leaves();
 
-  // Create or select SVG with layered groups
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
     container.innerHTML = '';
@@ -13207,39 +13249,17 @@ function renderDistributionChart() {
     svg.append('g').attr('class', 'func-layer');
   }
   svg.attr('width', width).attr('height', height);
+
   const fileLayer = svg.select('g.file-layer');
   const funcLayer = svg.select('g.func-layer');
-
-  // Find clicked file leaf
   const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
 
-  // Calculate scale transforms
-  let x, y, kx, ky;
-  if (clickedLeaf) {
-    // Zoomed in: scale so clicked file fills container
-    x = clickedLeaf.x0;
-    y = clickedLeaf.y0;
-    kx = width / (clickedLeaf.x1 - clickedLeaf.x0);
-    ky = height / (clickedLeaf.y1 - clickedLeaf.y0);
-  } else {
-    // Zoomed out: normal view
-    x = 0;
-    y = 0;
-    kx = 1;
-    ky = 1;
-  }
+  const curr = calculateZoomTransform(clickedLeaf, width, height);
+  const prev = { ...prevZoomState };
+  prevZoomState = curr;
 
-  // Previous state for animation start positions
-  const px = prevZoomState.x, py = prevZoomState.y;
-  const pkx = prevZoomState.kx, pky = prevZoomState.ky;
-
-  // Save current state for next animation
-  prevZoomState = { x, y, kx, ky };
-
-  // Shared named transition for sync
   const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
 
-  // Cross-fade layer opacity
   const isZoomingIn = zoomedFile && !prevZoomedFile;
   const isZoomingOut = !zoomedFile && prevZoomedFile;
   if (isZoomingIn) {
@@ -13250,179 +13270,150 @@ function renderDistributionChart() {
     funcLayer.attr('opacity', 1).transition(t).attr('opacity', 0);
   }
 
-  // File rectangles (in file layer)
-  const rects = fileLayer.selectAll('rect.file-node').data(leaves, d => d.data.path);
+  renderFileRects(fileLayer, leaves, prev, curr, t);
+  renderFileLabels(fileLayer, leaves, prev, curr, t);
+  renderFolderHeaders(fileLayer, hierarchy, prev, curr, t);
 
-  rects.join(
-    enter => enter.append('rect')
-      .attr('class', 'file-node node')
-      .attr('data-path', d => d.data.path)
-      .attr('fill', d => d.data.color)
-      // Start at PREVIOUS zoom state positions
-      .attr('x', d => (d.x0 - px) * pkx)
-      .attr('y', d => (d.y0 - py) * pky)
-      .attr('width', d => Math.max(0, (d.x1 - d.x0) * pkx))
-      .attr('height', d => Math.max(0, (d.y1 - d.y0) * pky)),
-    update => update,
-    exit => exit.transition(t).remove()
-  )
+  const funcLeaves = clickedLeaf ? buildFunctionLeaves(width, height) : [];
+  const prevBounds = calculateExitBounds(clickedLeaf, prev);
+  const exitLeaf = prevZoomedFile ? leaves.find(l => l.data.path === prevZoomedFile) : clickedLeaf;
+  const exitBounds = calculateExitBounds(exitLeaf, curr);
+
+  renderFuncRects(funcLayer, funcLeaves, prevBounds, exitBounds, width, height, t);
+  renderFuncLabels(funcLayer, funcLeaves, prevBounds, exitBounds, width, height, t);
+  renderFileHeader(funcLayer, width, t);
+
+  if (zoomedFile) {
+    renderFunctionLegend(funcLeaves);
+  } else {
+    renderFilesLegend(fileData);
+  }
+
+  applyPersistentIssueHighlights();
+  if (currentHighlightedFiles.length > 0) {
+    highlightIssueFiles(currentHighlightedFiles);
+  }
+}
+
+function renderFileRects(layer, leaves, prev, curr, t) {
+  layer.selectAll('rect.file-node').data(leaves, d => d.data.path)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'file-node node')
+        .attr('data-path', d => d.data.path)
+        .attr('fill', d => d.data.color)
+        .attr('x', d => (d.x0 - prev.x) * prev.kx)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky)
+        .attr('width', d => Math.max(0, (d.x1 - d.x0) * prev.kx))
+        .attr('height', d => Math.max(0, (d.y1 - d.y0) * prev.ky)),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
       const fnCount = d.data.functions.length;
-      const totalLoc = d.data.value;
       const html = '<div><strong>' + d.data.name + '</strong></div>' +
-        '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + totalLoc + ' LOC</div>' +
+        '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>' +
         '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
       showTooltip(html, e);
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => {
-      if (!zoomedFile) zoomTo(d.data.path);
-    })
+    .on('click', (e, d) => { if (!zoomedFile) zoomTo(d.data.path); })
     .transition(t)
-    .attr('x', d => (d.x0 - x) * kx)
-    .attr('y', d => (d.y0 - y) * ky)
-    .attr('width', d => Math.max(0, (d.x1 - d.x0) * kx))
-    .attr('height', d => Math.max(0, (d.y1 - d.y0) * ky));
+    .attr('x', d => (d.x0 - curr.x) * curr.kx)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky)
+    .attr('width', d => Math.max(0, (d.x1 - d.x0) * curr.kx))
+    .attr('height', d => Math.max(0, (d.y1 - d.y0) * curr.ky));
+}
 
-  // File labels
-  const labelMinWidth = 40;
-  const labelMinHeight = 16;
+function renderFileLabels(layer, leaves, prev, curr, t) {
   const labelsData = leaves.filter(d => {
-    const w = (d.x1 - d.x0) * kx;
-    const h = (d.y1 - d.y0) * ky;
-    return w >= labelMinWidth && h >= labelMinHeight;
+    const w = (d.x1 - d.x0) * curr.kx;
+    const h = (d.y1 - d.y0) * curr.ky;
+    return w >= LABEL_MIN_WIDTH && h >= LABEL_MIN_HEIGHT;
   });
 
-  const labels = fileLayer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.path);
-
-  labels.join(
-    enter => enter.append('text')
-      .attr('class', 'file-label')
-      .attr('fill', '#fff')
-      .attr('font-size', '9px')
-      .attr('pointer-events', 'none')
-      // Start at PREVIOUS zoom state positions
-      .attr('x', d => (d.x0 - px) * pkx + 4)
-      .attr('y', d => (d.y0 - py) * pky + 12)
-      .text(d => {
-        const w = (d.x1 - d.x0) * kx - 8;
-        const name = d.data.name;
-        const maxChars = Math.floor(w / 5);
-        return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
-      }),
-    update => update,
-    exit => exit.transition(t).remove()
-  )
+  layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.path)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'file-label')
+        .attr('fill', '#fff')
+        .attr('font-size', '9px')
+        .attr('pointer-events', 'none')
+        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12)
+        .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) * curr.kx - 8, 5)),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
     .transition(t)
-    .attr('x', d => (d.x0 - x) * kx + 4)
-    .attr('y', d => (d.y0 - y) * ky + 12);
+    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+}
 
-  // Folder headers (only when not zoomed)
+function renderFolderHeaders(layer, hierarchy, prev, curr, t) {
   const depth1 = zoomedFile ? [] : hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
 
-  fileLayer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
+  layer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
     .join(
       enter => enter.append('rect')
         .attr('class', 'dir-header')
-        .attr('x', d => (d.x0 - px) * pkx)
-        .attr('y', d => (d.y0 - py) * pky)
-        .attr('width', d => (d.x1 - d.x0) * pkx)
+        .attr('x', d => (d.x0 - prev.x) * prev.kx)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky)
+        .attr('width', d => (d.x1 - d.x0) * prev.kx)
         .attr('height', 16),
       update => update,
       exit => exit.transition(t)
-        .attr('x', d => (d.x0 - x) * kx)
-        .attr('y', d => (d.y0 - y) * ky)
-        .attr('width', d => (d.x1 - d.x0) * kx)
+        .attr('x', d => (d.x0 - curr.x) * curr.kx)
+        .attr('y', d => (d.y0 - curr.y) * curr.ky)
+        .attr('width', d => (d.x1 - d.x0) * curr.kx)
         .remove()
     )
     .transition(t)
-    .attr('x', d => (d.x0 - x) * kx)
-    .attr('y', d => (d.y0 - y) * ky)
-    .attr('width', d => (d.x1 - d.x0) * kx)
+    .attr('x', d => (d.x0 - curr.x) * curr.kx)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky)
+    .attr('width', d => (d.x1 - d.x0) * curr.kx)
     .attr('height', 16);
 
-  fileLayer.selectAll('text.dir-label').data(depth1, d => d.data.name)
+  layer.selectAll('text.dir-label').data(depth1, d => d.data.name)
     .join(
       enter => enter.append('text')
         .attr('class', 'dir-label')
-        .attr('x', d => (d.x0 - px) * pkx + 4)
-        .attr('y', d => (d.y0 - py) * pky + 12),
+        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12),
       update => update,
       exit => exit.transition(t)
-        .attr('x', d => (d.x0 - x) * kx + 4)
-        .attr('y', d => (d.y0 - y) * ky + 12)
+        .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
+        .attr('y', d => (d.y0 - curr.y) * curr.ky + 12)
         .remove()
     )
-    .text(d => {
-      const w = (d.x1 - d.x0) * kx - 8;
-      const name = d.data.name;
-      return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\\u2026' : name;
-    })
+    .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) * curr.kx - 8, 7))
     .transition(t)
-    .attr('x', d => (d.x0 - x) * kx + 4)
-    .attr('y', d => (d.y0 - y) * ky + 12);
+    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+}
 
-  // Function rectangles (only when zoomed)
-  let funcLeaves = [];
-  if (clickedLeaf) {
-    const file = files.find(f => f.path === zoomedFile);
-    if (file && file.functions) {
-      const functionData = file.functions.map(fn => ({
-        name: fn.name,
-        value: fn.loc,
-        line: fn.startLine,
-        depth: fn.maxNestingDepth,
-        params: fn.parameterCount,
-        filePath: file.path
-      }));
-
-      const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
-        .sum(d => d.value || 0)
-        .sort((a, b) => b.value - a.value);
-
-      d3.treemap().size([width, height]).paddingTop(18).paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(2)(funcHierarchy);
-      funcLeaves = funcHierarchy.leaves();
-    }
-  }
-
-  const funcRects = funcLayer.selectAll('rect.func-node').data(funcLeaves, d => d.data.name + d.data.line);
-
-  // For ENTER: start at file's position in PREVIOUS zoom state (unzoomed = file at its normal treemap position)
-  // For EXIT: shrink back to file's position in NEW zoom state (unzoomed = file at its normal position)
-  const prevFileX = clickedLeaf ? (clickedLeaf.x0 - px) * pkx : 0;
-  const prevFileY = clickedLeaf ? (clickedLeaf.y0 - py) * pky : 0;
-  const prevFileW = clickedLeaf ? (clickedLeaf.x1 - clickedLeaf.x0) * pkx : width;
-  const prevFileH = clickedLeaf ? (clickedLeaf.y1 - clickedLeaf.y0) * pky : height;
-
-  // For exit, find file to shrink back to (use prevZoomedFile when zooming out)
-  const exitLeaf = prevZoomedFile ? leaves.find(l => l.data.path === prevZoomedFile) : clickedLeaf;
-  const exitFileX = exitLeaf ? (exitLeaf.x0 - x) * kx : 0;
-  const exitFileY = exitLeaf ? (exitLeaf.y0 - y) * ky : 0;
-  const exitFileW = exitLeaf ? (exitLeaf.x1 - exitLeaf.x0) * kx : width;
-  const exitFileH = exitLeaf ? (exitLeaf.y1 - exitLeaf.y0) * ky : height;
-
-  funcRects.join(
-    enter => enter.append('rect')
-      .attr('class', 'func-node node')
-      .attr('data-path', d => d.data.filePath)
-      .attr('data-line', d => d.data.line)
-      .attr('fill', d => getDynamicFunctionColor(d.data))
-      // Start scaled inside file's PREVIOUS position
-      .attr('x', d => prevFileX + (d.x0 / width) * prevFileW)
-      .attr('y', d => prevFileY + (d.y0 / height) * prevFileH)
-      .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * prevFileW))
-      .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * prevFileH)),
-    update => update,
-    exit => exit.transition(t)
-      // Shrink back into file's NEW position
-      .attr('x', d => exitFileX + (d.x0 / width) * exitFileW)
-      .attr('y', d => exitFileY + (d.y0 / height) * exitFileH)
-      .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * exitFileW))
-      .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * exitFileH))
-      .remove()
-  )
+function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
+  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.name + d.data.line)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'func-node node')
+        .attr('data-path', d => d.data.filePath)
+        .attr('data-line', d => d.data.line)
+        .attr('fill', d => getDynamicFunctionColor(d.data))
+        .attr('x', d => prevBounds.x + (d.x0 / width) * prevBounds.w)
+        .attr('y', d => prevBounds.y + (d.y0 / height) * prevBounds.h)
+        .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * prevBounds.w))
+        .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * prevBounds.h)),
+      update => update,
+      exit => exit.transition(t)
+        .attr('x', d => exitBounds.x + (d.x0 / width) * exitBounds.w)
+        .attr('y', d => exitBounds.y + (d.y0 / height) * exitBounds.h)
+        .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * exitBounds.w))
+        .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * exitBounds.h))
+        .remove()
+    )
     .on('mouseover', (e, d) => {
       const html = '<div><strong>' + d.data.name + '</strong></div>' +
         '<div>' + d.data.value + ' LOC' + (d.data.depth ? ' \\u00b7 depth ' + d.data.depth : '') + '</div>' +
@@ -13439,48 +13430,41 @@ function renderDistributionChart() {
     .attr('y', d => d.y0)
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
+}
 
-  // Function labels
-  const funcLabelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
+function renderFuncLabels(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
+  const labelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
 
-  const funcLabels = funcLayer.selectAll('text.func-label').data(funcLabelsData, d => d.data.name + d.data.line);
-
-  funcLabels.join(
-    enter => enter.append('text')
-      .attr('class', 'func-label')
-      .attr('fill', '#fff')
-      .attr('font-size', '9px')
-      .attr('pointer-events', 'none')
-      // Start scaled inside file's PREVIOUS position
-      .attr('x', d => prevFileX + ((d.x0 + 3) / width) * prevFileW)
-      .attr('y', d => prevFileY + ((d.y0 + 11) / height) * prevFileH)
-      .text(d => {
-        const w = d.x1 - d.x0 - 6;
-        const name = d.data.name;
-        const maxChars = Math.floor(w / 5);
-        return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
-      }),
-    update => update,
-    exit => exit.transition(t)
-      .attr('x', d => exitFileX + ((d.x0 + 3) / width) * exitFileW)
-      .attr('y', d => exitFileY + ((d.y0 + 11) / height) * exitFileH)
-      .remove()
-  )
+  layer.selectAll('text.func-label').data(labelsData, d => d.data.name + d.data.line)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'func-label')
+        .attr('fill', '#fff')
+        .attr('font-size', '9px')
+        .attr('pointer-events', 'none')
+        .attr('x', d => prevBounds.x + ((d.x0 + 3) / width) * prevBounds.w)
+        .attr('y', d => prevBounds.y + ((d.y0 + 11) / height) * prevBounds.h)
+        .text(d => truncateLabel(d.data.name, d.x1 - d.x0 - 6, 5)),
+      update => update,
+      exit => exit.transition(t)
+        .attr('x', d => exitBounds.x + ((d.x0 + 3) / width) * exitBounds.w)
+        .attr('y', d => exitBounds.y + ((d.y0 + 11) / height) * exitBounds.h)
+        .remove()
+    )
     .transition(t)
     .attr('x', d => d.x0 + 3)
     .attr('y', d => d.y0 + 11);
+}
 
-  // SVG file header for L2 (matching folder header style)
-  const fileHeaderData = zoomedFile ? [{ path: zoomedFile, name: zoomedFile.split('/').pop() }] : [];
+function renderFileHeader(layer, width, t) {
+  const headerData = zoomedFile ? [{ path: zoomedFile, name: zoomedFile.split('/').pop() }] : [];
 
-  funcLayer.selectAll('rect.file-header').data(fileHeaderData, d => d.path)
+  layer.selectAll('rect.file-header').data(headerData, d => d.path)
     .join(
       enter => enter.append('rect')
         .attr('class', 'file-header')
-        .attr('x', 0)
-        .attr('y', 0)
-        .attr('width', width)
-        .attr('height', 16)
+        .attr('x', 0).attr('y', 0)
+        .attr('width', width).attr('height', 16)
         .attr('opacity', 0),
       update => update,
       exit => exit.transition(t).attr('opacity', 0).remove()
@@ -13489,35 +13473,18 @@ function renderDistributionChart() {
     .attr('width', width)
     .attr('opacity', 1);
 
-  funcLayer.selectAll('text.file-header-label').data(fileHeaderData, d => d.path)
+  layer.selectAll('text.file-header-label').data(headerData, d => d.path)
     .join(
       enter => enter.append('text')
         .attr('class', 'file-header-label')
-        .attr('x', 4)
-        .attr('y', 12)
+        .attr('x', 4).attr('y', 12)
         .attr('opacity', 0),
       update => update,
       exit => exit.transition(t).attr('opacity', 0).remove()
     )
-    .text(d => {
-      const maxChars = Math.floor((width - 8) / 7);
-      return d.name.length > maxChars ? d.name.slice(0, maxChars - 1) + '\\u2026' : d.name;
-    })
+    .text(d => truncateLabel(d.name, width - 8, 7))
     .transition(t)
     .attr('opacity', 1);
-
-  // Update legend
-  if (zoomedFile) {
-    renderFunctionLegend(funcLeaves);
-  } else {
-    renderFilesLegend(fileData);
-  }
-
-  // Reapply issue highlighting to new elements
-  applyPersistentIssueHighlights();
-  if (currentHighlightedFiles.length > 0) {
-    highlightIssueFiles(currentHighlightedFiles);
-  }
 }
 
 function renderFilesLegend(fileData) {
@@ -13526,7 +13493,6 @@ function renderFilesLegend(fileData) {
 
   const total = fileData.length;
   const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
-
   legend.style.display = 'flex';
   legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
 }
