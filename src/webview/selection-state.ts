@@ -97,9 +97,9 @@ const selection = {
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide panel if no chat messages either
+      // Hide panel if no chat messages and input not focused
       const chatMessages = document.getElementById('chat-messages');
-      if (panel && chatMessages && chatMessages.children.length === 0) {
+      if (panel && chatMessages && chatMessages.children.length === 0 && !aiInputFocused) {
         panel.classList.remove('visible');
       }
       return;

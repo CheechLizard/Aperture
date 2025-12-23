@@ -11650,7 +11650,7 @@ var DASHBOARD_STYLES = `
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
     /* AI Chat Panel - opens upward from footer, centered */
-    .ai-panel { position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px 6px 0 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
+    .ai-panel { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.5); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px 6px 0 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
     .ai-panel.visible { display: flex; }
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -11664,7 +11664,8 @@ var DASHBOARD_STYLES = `
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     /* Chat Actions */
-    .chat-actions { margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .chat-actions { margin-top: auto; }
+    .chat-actions .action-btns + .chat-actions { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
     .chat-actions .action-btns { display: flex; gap: 8px; }
     .chat-actions .action-btn { padding: 6px 12px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; }
     .chat-actions .action-btn:hover { background: rgba(255, 255, 255, 0.2); }
@@ -11686,8 +11687,8 @@ var DASHBOARD_STYLES = `
     .thinking { display: flex; align-items: center; gap: 10px; padding: 12px; }
     .thinking-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .rules { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .rule-btn { padding: 6px 14px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; transition: background 0.15s; }
+    .rules { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .rule-btn { padding: 8px 16px; font-size: 0.9em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; cursor: pointer; transition: background 0.15s; }
     .rule-btn:hover { background: rgba(255, 255, 255, 0.2); }
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -12959,26 +12960,39 @@ var CHAT_PANEL_SCRIPT = `
 const aiPanel = document.getElementById('ai-panel');
 const queryInput = document.getElementById('query');
 const chatMessages = document.getElementById('chat-messages');
+let aiInputFocused = false;
 
 function showAiPanel() {
   aiPanel.classList.add('visible');
 }
 
 function hideAiPanel() {
-  // Only hide if no chat messages
-  if (chatMessages.children.length === 0) {
+  // Only hide if no chat messages AND input not focused
+  if (chatMessages.children.length === 0 && !aiInputFocused) {
     aiPanel.classList.remove('visible');
   }
 }
 
-queryInput.addEventListener('focus', showAiPanel);
+function isAiInputFocused() {
+  return aiInputFocused;
+}
+
+queryInput.addEventListener('focus', () => {
+  aiInputFocused = true;
+  showAiPanel();
+});
+
+queryInput.addEventListener('blur', () => {
+  aiInputFocused = false;
+});
 
 // Close panel when clicking outside
-document.addEventListener('click', (e) => {
+document.addEventListener('mousedown', (e) => {
   const footer = document.querySelector('.footer');
   const panel = document.getElementById('ai-panel');
+  // If clicking outside footer and panel, hide after a short delay to allow blur to fire
   if (!footer.contains(e.target) && !panel.contains(e.target)) {
-    hideAiPanel();
+    setTimeout(() => hideAiPanel(), 10);
   }
 });
 
@@ -12986,7 +13000,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && aiPanel.classList.contains('visible')) {
     queryInput.blur();
-    hideAiPanel();
+    setTimeout(() => hideAiPanel(), 10);
   }
 });
 `;
@@ -13764,9 +13778,9 @@ const selection = {
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide panel if no chat messages either
+      // Hide panel if no chat messages and input not focused
       const chatMessages = document.getElementById('chat-messages');
-      if (panel && chatMessages && chatMessages.children.length === 0) {
+      if (panel && chatMessages && chatMessages.children.length === 0 && !aiInputFocused) {
         panel.classList.remove('visible');
       }
       return;
