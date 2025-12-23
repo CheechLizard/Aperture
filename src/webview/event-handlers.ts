@@ -31,8 +31,20 @@ document.getElementById('send').addEventListener('click', () => {
   const thinkingMsg = document.createElement('div');
   thinkingMsg.className = 'ai-message thinking';
   thinkingMsg.id = 'thinking-bubble';
-  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span>';
+  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span><button class="thinking-abort" title="Cancel">×</button>';
   chatMessages.appendChild(thinkingMsg);
+
+  // Handle abort click
+  thinkingMsg.querySelector('.thinking-abort').addEventListener('click', () => {
+    // Send abort message to extension
+    vscode.postMessage({ command: 'abortQuery' });
+    // Remove thinking bubble and prompt preview
+    const promptPreview = chatMessages.querySelector('.user-message.debug');
+    if (promptPreview) promptPreview.remove();
+    thinkingMsg.remove();
+    document.getElementById('send').disabled = false;
+    document.getElementById('rules').style.display = '';
+  });
 
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;

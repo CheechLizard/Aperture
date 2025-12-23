@@ -25,76 +25,36 @@ export interface AgentResponse {
 // Build a preview of the prompt without making the API call
 export function buildPromptPreview(
   query: string,
-  files: FileInfo[],
+  _files: FileInfo[],
   context?: AnalysisContext
 ): string {
-  const MAX_CONTEXT_FILES = 5;
-  const MAX_CHARS_PER_FILE = 2000;
-  const MAX_ISSUES = 10;
-
-  const fileList = files
-    .map((f) => `${f.path} (${f.language}, ${f.loc} LOC)`)
-    .join('\n');
-
-  let systemPrompt = `You are analyzing a codebase to answer questions about it.
-You have access to a file list and can read specific files to understand the code.
-
-Files in this project:
-${fileList}
-
-When the user asks a question:
-1. Identify which files are likely relevant based on names and paths
-2. Use read_file to examine those files
-3. Use respond to give your answer with the list of relevant files
-
-Be concise but helpful. Always use the respond tool to provide your final answer.`;
+  let preview = '';
 
   if (context && context.highlightedFiles.length > 0) {
-    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
-    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
-
-    systemPrompt += `\n\n## Current Focus\nThe user is looking at these files:\n`;
-    for (const file of limitedFiles) {
-      systemPrompt += `- ${file}\n`;
-    }
-    if (moreFiles > 0) {
-      systemPrompt += `(and ${moreFiles} more files)\n`;
+    preview += `Files:\n`;
+    for (const file of context.highlightedFiles) {
+      const content = context.fileContents[file];
+      preview += `📎 ${file}${content ? ` (${content.length} chars)` : ''}\n`;
     }
 
     if (context.issues.length > 0) {
-      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
-      const moreIssues = context.issues.length - MAX_ISSUES;
-
-      systemPrompt += `\n## Detected Issues\nThese issues were detected by static analysis:\n`;
-      for (const issue of limitedIssues) {
-        const issueFiles = issue.locations.map((l) => l.file).slice(0, 3).join(', ');
-        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${issueFiles})\n`;
-      }
-      if (moreIssues > 0) {
-        systemPrompt += `(and ${moreIssues} more issues)\n`;
-      }
-    }
-
-    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
-    if (contentFiles.length > 0) {
-      systemPrompt += `\n## File Contents\nHere are the contents of the highlighted files:\n`;
-      for (const [filePath, content] of contentFiles) {
-        const truncated = content.length > MAX_CHARS_PER_FILE
-          ? content.slice(0, MAX_CHARS_PER_FILE) + '\n...(truncated)'
-          : content;
-        systemPrompt += `\n### ${filePath}\n\`\`\`\n${truncated}\n\`\`\`\n`;
+      preview += `\nIssues:\n`;
+      for (const issue of context.issues) {
+        preview += `• ${issue.ruleId}: ${issue.message}\n`;
       }
     }
   }
 
-  return `=== SYSTEM PROMPT (${systemPrompt.length} chars) ===\n${systemPrompt}\n\n=== USER MESSAGE ===\n${query}`;
+  preview += `\nQuery: ${query}`;
+  return preview;
 }
 
 export async function analyzeQuery(
   query: string,
   files: FileInfo[],
   rootPath: string,
-  context?: AnalysisContext
+  context?: AnalysisContext,
+  signal?: AbortSignal
 ): Promise<AgentResponse> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -105,11 +65,14 @@ export async function analyzeQuery(
     };
   }
 
+  // Check if already aborted
+  if (signal?.aborted) {
+    return { message: 'Cancelled', relevantFiles: [], systemPrompt: '(cancelled)' };
+  }
+
   const client = new Anthropic({ apiKey });
 
-  const fileList = files
-    .map((f) => `${f.path} (${f.language}, ${f.loc} LOC)`)
-    .join('\n');
+  const hasContext = context && context.highlightedFiles.length > 0;
 
   const tools: Anthropic.Tool[] = [
     {
@@ -142,15 +105,6 @@ export async function analyzeQuery(
   ];
 
   let systemPrompt = `You are analyzing a codebase to answer questions about it.
-You have access to a file list and can read specific files to understand the code.
-
-Files in this project:
-${fileList}
-
-When the user asks a question:
-1. Identify which files are likely relevant based on names and paths
-2. Use read_file to examine those files
-3. Use respond to give your answer with the list of relevant files
 
 Be concise but helpful. Always use the respond tool to provide your final answer.`;
 
@@ -160,36 +114,36 @@ Be concise but helpful. Always use the respond tool to provide your final answer
   const MAX_CHARS_PER_FILE = 2000;
   const MAX_ISSUES = 10;
 
-  if (context && context.highlightedFiles.length > 0) {
+  if (hasContext) {
     const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
     const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
 
-    systemPrompt += `\n\n## Current Focus\nThe user is looking at these files:\n`;
+    systemPrompt += `\n\n## Focus\n`;
     for (const file of limitedFiles) {
       systemPrompt += `- ${file}\n`;
     }
     if (moreFiles > 0) {
-      systemPrompt += `(and ${moreFiles} more files)\n`;
+      systemPrompt += `(+${moreFiles} more)\n`;
     }
 
     if (context.issues.length > 0) {
       const limitedIssues = context.issues.slice(0, MAX_ISSUES);
       const moreIssues = context.issues.length - MAX_ISSUES;
 
-      systemPrompt += `\n## Detected Issues\nThese issues were detected by static analysis:\n`;
+      systemPrompt += `\n## Issues\n`;
       for (const issue of limitedIssues) {
-        const files = issue.locations.map((l) => l.file).slice(0, 3).join(', ');
-        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${files})\n`;
+        const issueFiles = issue.locations.map((l) => l.file).slice(0, 3).join(', ');
+        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})\n`;
       }
       if (moreIssues > 0) {
-        systemPrompt += `(and ${moreIssues} more issues)\n`;
+        systemPrompt += `(+${moreIssues} more)\n`;
       }
     }
 
-    // Only include contents for the limited set of files
+    // Include file contents (still sent to API, just not shown in preview)
     const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
     if (contentFiles.length > 0) {
-      systemPrompt += `\n## File Contents\nHere are the contents of the highlighted files:\n`;
+      systemPrompt += `\n## File Contents\n`;
       for (const [filePath, content] of contentFiles) {
         const truncated = content.length > MAX_CHARS_PER_FILE
           ? content.slice(0, MAX_CHARS_PER_FILE) + '\n...(truncated)'
@@ -207,17 +161,24 @@ Be concise but helpful. Always use the respond tool to provide your final answer
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
-  let response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4096,
-    system: systemPrompt,
-    tools,
-    messages,
-  });
+  let response = await client.messages.create(
+    {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools,
+      messages,
+    },
+    { signal }
+  );
   totalInputTokens += response.usage.input_tokens;
   totalOutputTokens += response.usage.output_tokens;
 
   while (response.stop_reason === 'tool_use') {
+    // Check if aborted between iterations
+    if (signal?.aborted) {
+      return { message: 'Cancelled', relevantFiles: [], systemPrompt: '(cancelled)' };
+    }
     const toolUseBlocks = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
     );
@@ -260,13 +221,16 @@ Be concise but helpful. Always use the respond tool to provide your final answer
     messages.push({ role: 'assistant', content: response.content });
     messages.push({ role: 'user', content: toolResults });
 
-    response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools,
-      messages,
-    });
+    response = await client.messages.create(
+      {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools,
+        messages,
+      },
+      { signal }
+    );
     totalInputTokens += response.usage.input_tokens;
     totalOutputTokens += response.usage.output_tokens;
   }

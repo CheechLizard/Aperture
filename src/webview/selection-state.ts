@@ -81,6 +81,26 @@ const selection = {
     this._applyHighlights();
   },
 
+  // Filter current selection to only high severity issues
+  filterToHighSeverity() {
+    const highSeverityFiles = new Set();
+    const relevantIssues = this._state.ruleId
+      ? issues.filter(i => i.ruleId === this._state.ruleId && !isIssueIgnored(i))
+      : issues.filter(i => !isIssueIgnored(i));
+
+    for (const issue of relevantIssues) {
+      if (issue.severity === 'high') {
+        for (const loc of issue.locations) {
+          if (this._state.focusFiles.includes(loc.file)) {
+            highSeverityFiles.add(loc.file);
+          }
+        }
+      }
+    }
+    this._state.focusFiles = [...highSeverityFiles];
+    this._applyHighlights();
+  },
+
   // Apply highlights to DOM nodes
   _applyHighlights() {
     highlightNodes(this._state.focusFiles);

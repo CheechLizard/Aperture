@@ -96,20 +96,8 @@ function renderDynamicPrompts() {
     if (highSeverity.length > 0 && highSeverity.length < ruleIssues.length) {
       prompts.push({
         label: 'Focus on ' + highSeverity.length + ' high severity',
-        prompt: 'Focus on the high severity ' + formatRuleId(ruleId).toLowerCase() + ' issues first'
-      });
-    }
-
-    // Other issues in affected files
-    const otherIssues = activeIssues.filter(i =>
-      i.ruleId !== ruleId &&
-      i.locations.some(l => focusFiles.includes(l.file))
-    );
-    if (otherIssues.length > 0) {
-      const otherTypes = [...new Set(otherIssues.map(i => formatRuleId(i.ruleId)))].slice(0, 3);
-      prompts.push({
-        label: otherIssues.length + ' related issues',
-        prompt: 'These files also have other issues: ' + otherTypes.join(', ') + '. How do they interact with the ' + formatRuleId(ruleId).toLowerCase() + ' issues?'
+        prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
 
@@ -120,7 +108,8 @@ function renderDynamicPrompts() {
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'Review ' + highSeverity.length + ' high severity',
-        prompt: 'Review the high severity issues first'
+        prompt: 'Analyze the issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
 
@@ -131,13 +120,13 @@ function renderDynamicPrompts() {
     if (archIssues.length > 0) {
       prompts.push({
         label: 'Architecture issues (' + archIssues.length + ')',
-        prompt: 'Review the architecture issues (circular deps, orphans, etc.)'
+        prompt: 'Analyze the architecture issues and suggest how to fix them'
       });
     }
     if (codeIssues.length > 0) {
       prompts.push({
         label: 'Code issues (' + codeIssues.length + ')',
-        prompt: 'Review the code quality issues'
+        prompt: 'Analyze the code quality issues and suggest fixes'
       });
     }
 
@@ -145,14 +134,15 @@ function renderDynamicPrompts() {
     // Scenario 4: Nothing selected (initial state)
     prompts.push({
       label: 'Where are the issues?',
-      prompt: 'Which areas of the codebase have the most code quality issues? Focus on maintainability concerns like complexity, duplication, and coupling.'
+      prompt: 'Identify which areas of the codebase have the most issues and explain why they need attention'
     });
 
     const highSeverity = activeIssues.filter(i => i.severity === 'high');
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'High severity first',
-        prompt: 'What are the high severity code quality issues I should refactor first? Focus on technical debt like deep nesting, long functions, circular dependencies, and code duplication.'
+        prompt: 'Analyze the issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
   }
@@ -164,11 +154,17 @@ function renderDynamicPrompts() {
   }
 
   container.innerHTML = prompts.map(p =>
-    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>'
+    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+    (p.action ? ' data-action="' + p.action + '"' : '') +
+    '>' + p.label + '</button>'
   ).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const action = btn.getAttribute('data-action');
+      if (action === 'filter-high-severity') {
+        selection.filterToHighSeverity();
+      }
       const prompt = btn.getAttribute('data-prompt');
       const input = document.getElementById('query');
       input.value = prompt;

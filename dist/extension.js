@@ -7334,6 +7334,43 @@ var BOOLEAN_PREFIXES = [
   "matches",
   "exists"
 ];
+var SETTER_PREFIXES = ["set"];
+var ACTION_VERB_PREFIXES = [
+  "build",
+  "create",
+  "make",
+  "render",
+  "load",
+  "save",
+  "update",
+  "delete",
+  "remove",
+  "add",
+  "get",
+  "fetch",
+  "find",
+  "parse",
+  "process",
+  "handle",
+  "init",
+  "setup",
+  "reset",
+  "clear",
+  "show",
+  "hide",
+  "enable",
+  "disable",
+  "start",
+  "stop",
+  "run",
+  "execute",
+  "apply",
+  "convert",
+  "format",
+  "extract",
+  "calculate",
+  "compute"
+];
 var ALLOWED_MAGIC_NUMBERS = [
   -1,
   0,
@@ -7542,7 +7579,8 @@ function detectNonQuestionBooleans(file) {
     "authenticated"
   ];
   for (const func of file.functions) {
-    const nameLower = func.name.toLowerCase();
+    const methodName = func.name.includes(".") ? func.name.split(".").pop() || func.name : func.name.includes(":") ? func.name.split(":").pop() || func.name : func.name;
+    const nameLower = methodName.toLowerCase();
     const matchesPattern = booleanPatterns.some(
       (pattern) => nameLower === pattern || nameLower.endsWith(pattern)
     );
@@ -7550,12 +7588,18 @@ function detectNonQuestionBooleans(file) {
       const startsWithBooleanPrefix = BOOLEAN_PREFIXES.some(
         (prefix) => nameLower.startsWith(prefix)
       );
-      if (!startsWithBooleanPrefix) {
+      const startsWithSetterPrefix = SETTER_PREFIXES.some(
+        (prefix) => nameLower.startsWith(prefix)
+      );
+      const startsWithActionVerb = ACTION_VERB_PREFIXES.some(
+        (prefix) => nameLower.startsWith(prefix)
+      );
+      if (!startsWithBooleanPrefix && !startsWithSetterPrefix && !startsWithActionVerb) {
         issues.push({
           ruleId: "non-question-boolean",
           severity: "low",
           category: "naming",
-          message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(func.name)}'`,
+          message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(methodName)}'`,
           locations: [{ file: file.path, line: func.startLine }],
           symbol: func.name
         });
@@ -11068,80 +11112,31 @@ var sdk_default = Anthropic;
 var vscode3 = __toESM(require("vscode"));
 var fs3 = __toESM(require("fs"));
 var path6 = __toESM(require("path"));
-function buildPromptPreview(query, files, context) {
-  const MAX_CONTEXT_FILES = 5;
-  const MAX_CHARS_PER_FILE = 2e3;
-  const MAX_ISSUES = 10;
-  const fileList = files.map((f2) => `${f2.path} (${f2.language}, ${f2.loc} LOC)`).join("\n");
-  let systemPrompt = `You are analyzing a codebase to answer questions about it.
-You have access to a file list and can read specific files to understand the code.
-
-Files in this project:
-${fileList}
-
-When the user asks a question:
-1. Identify which files are likely relevant based on names and paths
-2. Use read_file to examine those files
-3. Use respond to give your answer with the list of relevant files
-
-Be concise but helpful. Always use the respond tool to provide your final answer.`;
+function buildPromptPreview(query, _files, context) {
+  let preview = "";
   if (context && context.highlightedFiles.length > 0) {
-    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
-    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
-    systemPrompt += `
-
-## Current Focus
-The user is looking at these files:
+    preview += `Files:
 `;
-    for (const file of limitedFiles) {
-      systemPrompt += `- ${file}
-`;
-    }
-    if (moreFiles > 0) {
-      systemPrompt += `(and ${moreFiles} more files)
+    for (const file of context.highlightedFiles) {
+      const content = context.fileContents[file];
+      preview += `\u{1F4CE} ${file}${content ? ` (${content.length} chars)` : ""}
 `;
     }
     if (context.issues.length > 0) {
-      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
-      const moreIssues = context.issues.length - MAX_ISSUES;
-      systemPrompt += `
-## Detected Issues
-These issues were detected by static analysis:
+      preview += `
+Issues:
 `;
-      for (const issue of limitedIssues) {
-        const issueFiles = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
-        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${issueFiles})
-`;
-      }
-      if (moreIssues > 0) {
-        systemPrompt += `(and ${moreIssues} more issues)
-`;
-      }
-    }
-    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
-    if (contentFiles.length > 0) {
-      systemPrompt += `
-## File Contents
-Here are the contents of the highlighted files:
-`;
-      for (const [filePath, content] of contentFiles) {
-        const truncated = content.length > MAX_CHARS_PER_FILE ? content.slice(0, MAX_CHARS_PER_FILE) + "\n...(truncated)" : content;
-        systemPrompt += `
-### ${filePath}
-\`\`\`
-${truncated}
-\`\`\`
+      for (const issue of context.issues) {
+        preview += `\u2022 ${issue.ruleId}: ${issue.message}
 `;
       }
     }
   }
-  return `=== SYSTEM PROMPT (${systemPrompt.length} chars) ===
-${systemPrompt}
-
-=== USER MESSAGE ===
-${query}`;
+  preview += `
+Query: ${query}`;
+  return preview;
 }
-async function analyzeQuery(query, files, rootPath, context) {
+async function analyzeQuery(query, files, rootPath, context, signal) {
   const apiKey = getApiKey();
   if (!apiKey) {
     return {
@@ -11150,8 +11145,11 @@ async function analyzeQuery(query, files, rootPath, context) {
       systemPrompt: "(no API key)"
     };
   }
+  if (signal?.aborted) {
+    return { message: "Cancelled", relevantFiles: [], systemPrompt: "(cancelled)" };
+  }
   const client = new sdk_default({ apiKey });
-  const fileList = files.map((f2) => `${f2.path} (${f2.language}, ${f2.loc} LOC)`).join("\n");
+  const hasContext = context && context.highlightedFiles.length > 0;
   const tools = [
     {
       name: "read_file",
@@ -11182,50 +11180,39 @@ async function analyzeQuery(query, files, rootPath, context) {
     }
   ];
   let systemPrompt = `You are analyzing a codebase to answer questions about it.
-You have access to a file list and can read specific files to understand the code.
-
-Files in this project:
-${fileList}
-
-When the user asks a question:
-1. Identify which files are likely relevant based on names and paths
-2. Use read_file to examine those files
-3. Use respond to give your answer with the list of relevant files
 
 Be concise but helpful. Always use the respond tool to provide your final answer.`;
   const MAX_CONTEXT_FILES = 5;
   const MAX_CHARS_PER_FILE = 2e3;
   const MAX_ISSUES = 10;
-  if (context && context.highlightedFiles.length > 0) {
+  if (hasContext) {
     const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
     const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
     systemPrompt += `
 
-## Current Focus
-The user is looking at these files:
+## Focus
 `;
     for (const file of limitedFiles) {
       systemPrompt += `- ${file}
 `;
     }
     if (moreFiles > 0) {
-      systemPrompt += `(and ${moreFiles} more files)
+      systemPrompt += `(+${moreFiles} more)
 `;
     }
     if (context.issues.length > 0) {
       const limitedIssues = context.issues.slice(0, MAX_ISSUES);
       const moreIssues = context.issues.length - MAX_ISSUES;
       systemPrompt += `
-## Detected Issues
-These issues were detected by static analysis:
+## Issues
 `;
       for (const issue of limitedIssues) {
-        const files2 = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
-        systemPrompt += `- **${issue.ruleId}**: ${issue.message} (in ${files2})
+        const issueFiles = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
+        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})
 `;
       }
       if (moreIssues > 0) {
-        systemPrompt += `(and ${moreIssues} more issues)
+        systemPrompt += `(+${moreIssues} more)
 `;
       }
     }
@@ -11233,7 +11220,6 @@ These issues were detected by static analysis:
     if (contentFiles.length > 0) {
       systemPrompt += `
 ## File Contents
-Here are the contents of the highlighted files:
 `;
       for (const [filePath, content] of contentFiles) {
         const truncated = content.length > MAX_CHARS_PER_FILE ? content.slice(0, MAX_CHARS_PER_FILE) + "\n...(truncated)" : content;
@@ -11252,16 +11238,22 @@ ${truncated}
   const CONTEXT_LIMIT = 2e5;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
-  let response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
-    system: systemPrompt,
-    tools,
-    messages
-  });
+  let response = await client.messages.create(
+    {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools,
+      messages
+    },
+    { signal }
+  );
   totalInputTokens += response.usage.input_tokens;
   totalOutputTokens += response.usage.output_tokens;
   while (response.stop_reason === "tool_use") {
+    if (signal?.aborted) {
+      return { message: "Cancelled", relevantFiles: [], systemPrompt: "(cancelled)" };
+    }
     const toolUseBlocks = response.content.filter(
       (block) => block.type === "tool_use"
     );
@@ -11300,13 +11292,16 @@ ${truncated}
     }
     messages.push({ role: "assistant", content: response.content });
     messages.push({ role: "user", content: toolResults });
-    response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools,
-      messages
-    });
+    response = await client.messages.create(
+      {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools,
+        messages
+      },
+      { signal }
+    );
     totalInputTokens += response.usage.input_tokens;
     totalOutputTokens += response.usage.output_tokens;
   }
@@ -11756,6 +11751,8 @@ var DASHBOARD_STYLES = `
     .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    .ai-message .thinking-abort { margin-left: auto; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1; }
+    .ai-message .thinking-abort:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .ai-message.error { background: rgba(200, 80, 80, 0.15); border: 1px solid rgba(200, 80, 80, 0.3); color: var(--vscode-errorForeground, #f88); }
     /* Chat Actions */
     .chat-actions { margin-top: auto; }
@@ -12571,20 +12568,8 @@ function renderDynamicPrompts() {
     if (highSeverity.length > 0 && highSeverity.length < ruleIssues.length) {
       prompts.push({
         label: 'Focus on ' + highSeverity.length + ' high severity',
-        prompt: 'Focus on the high severity ' + formatRuleId(ruleId).toLowerCase() + ' issues first'
-      });
-    }
-
-    // Other issues in affected files
-    const otherIssues = activeIssues.filter(i =>
-      i.ruleId !== ruleId &&
-      i.locations.some(l => focusFiles.includes(l.file))
-    );
-    if (otherIssues.length > 0) {
-      const otherTypes = [...new Set(otherIssues.map(i => formatRuleId(i.ruleId)))].slice(0, 3);
-      prompts.push({
-        label: otherIssues.length + ' related issues',
-        prompt: 'These files also have other issues: ' + otherTypes.join(', ') + '. How do they interact with the ' + formatRuleId(ruleId).toLowerCase() + ' issues?'
+        prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
 
@@ -12595,7 +12580,8 @@ function renderDynamicPrompts() {
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'Review ' + highSeverity.length + ' high severity',
-        prompt: 'Review the high severity issues first'
+        prompt: 'Analyze the issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
 
@@ -12606,13 +12592,13 @@ function renderDynamicPrompts() {
     if (archIssues.length > 0) {
       prompts.push({
         label: 'Architecture issues (' + archIssues.length + ')',
-        prompt: 'Review the architecture issues (circular deps, orphans, etc.)'
+        prompt: 'Analyze the architecture issues and suggest how to fix them'
       });
     }
     if (codeIssues.length > 0) {
       prompts.push({
         label: 'Code issues (' + codeIssues.length + ')',
-        prompt: 'Review the code quality issues'
+        prompt: 'Analyze the code quality issues and suggest fixes'
       });
     }
 
@@ -12620,14 +12606,15 @@ function renderDynamicPrompts() {
     // Scenario 4: Nothing selected (initial state)
     prompts.push({
       label: 'Where are the issues?',
-      prompt: 'Which areas of the codebase have the most code quality issues? Focus on maintainability concerns like complexity, duplication, and coupling.'
+      prompt: 'Identify which areas of the codebase have the most issues and explain why they need attention'
     });
 
     const highSeverity = activeIssues.filter(i => i.severity === 'high');
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'High severity first',
-        prompt: 'What are the high severity code quality issues I should refactor first? Focus on technical debt like deep nesting, long functions, circular dependencies, and code duplication.'
+        prompt: 'Analyze the issues and suggest fixes',
+        action: 'filter-high-severity'
       });
     }
   }
@@ -12639,11 +12626,17 @@ function renderDynamicPrompts() {
   }
 
   container.innerHTML = prompts.map(p =>
-    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>'
+    '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+    (p.action ? ' data-action="' + p.action + '"' : '') +
+    '>' + p.label + '</button>'
   ).join('');
 
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const action = btn.getAttribute('data-action');
+      if (action === 'filter-high-severity') {
+        selection.filterToHighSeverity();
+      }
       const prompt = btn.getAttribute('data-prompt');
       const input = document.getElementById('query');
       input.value = prompt;
@@ -13154,8 +13147,20 @@ document.getElementById('send').addEventListener('click', () => {
   const thinkingMsg = document.createElement('div');
   thinkingMsg.className = 'ai-message thinking';
   thinkingMsg.id = 'thinking-bubble';
-  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span>';
+  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span><button class="thinking-abort" title="Cancel">\xD7</button>';
   chatMessages.appendChild(thinkingMsg);
+
+  // Handle abort click
+  thinkingMsg.querySelector('.thinking-abort').addEventListener('click', () => {
+    // Send abort message to extension
+    vscode.postMessage({ command: 'abortQuery' });
+    // Remove thinking bubble and prompt preview
+    const promptPreview = chatMessages.querySelector('.user-message.debug');
+    if (promptPreview) promptPreview.remove();
+    thinkingMsg.remove();
+    document.getElementById('send').disabled = false;
+    document.getElementById('rules').style.display = '';
+  });
 
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -13898,6 +13903,26 @@ const selection = {
     this._applyHighlights();
   },
 
+  // Filter current selection to only high severity issues
+  filterToHighSeverity() {
+    const highSeverityFiles = new Set();
+    const relevantIssues = this._state.ruleId
+      ? issues.filter(i => i.ruleId === this._state.ruleId && !isIssueIgnored(i))
+      : issues.filter(i => !isIssueIgnored(i));
+
+    for (const issue of relevantIssues) {
+      if (issue.severity === 'high') {
+        for (const loc of issue.locations) {
+          if (this._state.focusFiles.includes(loc.file)) {
+            highSeverityFiles.add(loc.file);
+          }
+        }
+      }
+    }
+    this._state.focusFiles = [...highSeverityFiles];
+    this._applyHighlights();
+  },
+
   // Apply highlights to DOM nodes
   _applyHighlights() {
     highlightNodes(this._state.focusFiles);
@@ -14117,6 +14142,7 @@ ${EVENT_HANDLERS_SCRIPT}
 var currentData = null;
 var currentPanel = null;
 var parserInitPromise = null;
+var currentQueryController = null;
 function setParserInitPromise(promise) {
   parserInitPromise = promise;
 }
@@ -14143,7 +14169,17 @@ async function openDashboard(context) {
           const msg = error instanceof Error ? error.message : "Unknown error";
           vscode5.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
         }
+      } else if (message.command === "abortQuery") {
+        if (currentQueryController) {
+          currentQueryController.abort();
+          currentQueryController = null;
+        }
       } else if (message.command === "query" && currentData) {
+        if (currentQueryController) {
+          currentQueryController.abort();
+        }
+        currentQueryController = new AbortController();
+        const signal = currentQueryController.signal;
         try {
           const fileContents = {};
           if (message.context?.files) {
@@ -14162,11 +14198,18 @@ async function openDashboard(context) {
           } : void 0;
           const promptPreview = buildPromptPreview(message.text, currentData.files, context2);
           panel.webview.postMessage({ type: "promptPreview", prompt: promptPreview });
-          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context2);
-          panel.webview.postMessage({ type: "response", ...response });
+          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context2, signal);
+          if (!signal.aborted) {
+            panel.webview.postMessage({ type: "response", ...response });
+          }
         } catch (error) {
+          if (signal.aborted) {
+            return;
+          }
           const msg = error instanceof Error ? error.message : "Unknown error";
           panel.webview.postMessage({ type: "response", message: `Error: ${msg}`, relevantFiles: [] });
+        } finally {
+          currentQueryController = null;
         }
       } else if (message.command === "getDependencies" && currentData) {
         try {

@@ -11,6 +11,7 @@ import { getLoadingContent, getErrorContent, getDashboardContent } from './dashb
 let currentData: ProjectData | null = null;
 let currentPanel: vscode.WebviewPanel | null = null;
 let parserInitPromise: Promise<void> | null = null;
+let currentQueryController: AbortController | null = null;
 
 export function setParserInitPromise(promise: Promise<void>): void {
   parserInitPromise = promise;
@@ -45,7 +46,19 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           const msg = error instanceof Error ? error.message : 'Unknown error';
           vscode.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
         }
+      } else if (message.command === 'abortQuery') {
+        if (currentQueryController) {
+          currentQueryController.abort();
+          currentQueryController = null;
+        }
       } else if (message.command === 'query' && currentData) {
+        // Abort any existing query
+        if (currentQueryController) {
+          currentQueryController.abort();
+        }
+        currentQueryController = new AbortController();
+        const signal = currentQueryController.signal;
+
         try {
           // Read file contents for highlighted files
           const fileContents: Record<string, string> = {};
@@ -70,12 +83,22 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           const promptPreview = buildPromptPreview(message.text, currentData.files, context);
           panel.webview.postMessage({ type: 'promptPreview', prompt: promptPreview });
 
-          // Then make the API call
-          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context);
-          panel.webview.postMessage({ type: 'response', ...response });
+          // Then make the API call with abort signal
+          const response = await analyzeQuery(message.text, currentData.files, currentData.root, context, signal);
+
+          // Only send response if not aborted
+          if (!signal.aborted) {
+            panel.webview.postMessage({ type: 'response', ...response });
+          }
         } catch (error) {
+          // Don't send error for aborted requests
+          if (signal.aborted) {
+            return;
+          }
           const msg = error instanceof Error ? error.message : 'Unknown error';
           panel.webview.postMessage({ type: 'response', message: `Error: ${msg}`, relevantFiles: [] });
+        } finally {
+          currentQueryController = null;
         }
       } else if (message.command === 'getDependencies' && currentData) {
         try {
