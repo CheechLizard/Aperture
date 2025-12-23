@@ -12417,40 +12417,123 @@ function highlightNodes(files) {
 
 function renderDynamicPrompts() {
   const container = document.getElementById('rules');
+  const state = selection.getState();
+  const navState = nav.getState();
+  const { ruleId, focusFiles } = state;
+  const zoomedFile = navState.zoomedFile;
+
   const prompts = [];
+  const activeIssues = issues.filter(i => !isIssueIgnored(i));
 
-  // Get focus files from selection state
-  const focusFiles = selection.getState().focusFiles;
+  if (ruleId && zoomedFile) {
+    // Scenario 1: Rule selected + zoomed into file
+    const fileName = zoomedFile.split('/').pop();
 
-  // Get issues for currently focused files
-  const focusedIssues = getIssuesForFiles(focusFiles);
-  const ruleTypes = getActiveRuleTypes(focusFiles);
-
-  // Primary prompt - analyze all focused issues
-  if (focusFiles.length > 0 && focusedIssues.length > 0) {
     prompts.push({
-      label: 'Analyze ' + focusedIssues.length + ' issues in ' + focusFiles.length + ' files',
-      prompt: 'Analyze the issues in these files and suggest fixes'
+      label: 'Analyze ' + formatRuleId(ruleId) + ' in ' + fileName,
+      prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues in ' + fileName
     });
+
+    // Other issues in same file
+    const otherInFile = activeIssues.filter(i =>
+      i.ruleId !== ruleId &&
+      i.locations.some(l => l.file === zoomedFile)
+    );
+    if (otherInFile.length > 0) {
+      prompts.push({
+        label: 'All issues in ' + fileName,
+        prompt: 'Analyze all issues in ' + fileName
+      });
+    }
+
+    // Same issue in other files
+    const sameIssueOtherFiles = activeIssues.filter(i =>
+      i.ruleId === ruleId &&
+      !i.locations.some(l => l.file === zoomedFile)
+    );
+    if (sameIssueOtherFiles.length > 0) {
+      prompts.push({
+        label: 'All ' + formatRuleId(ruleId) + ' issues',
+        prompt: 'Analyze all ' + formatRuleId(ruleId).toLowerCase() + ' issues in the codebase'
+      });
+    }
+
+  } else if (ruleId) {
+    // Scenario 2: Rule selected, not zoomed
+    const ruleIssues = activeIssues.filter(i => i.ruleId === ruleId);
+    const highSeverity = ruleIssues.filter(i => i.severity === 'high');
+
+    prompts.push({
+      label: 'Analyze ' + ruleIssues.length + ' ' + formatRuleId(ruleId) + ' issues',
+      prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues and suggest fixes'
+    });
+
+    if (highSeverity.length > 0 && highSeverity.length < ruleIssues.length) {
+      prompts.push({
+        label: 'Focus on ' + highSeverity.length + ' high severity',
+        prompt: 'Focus on the high severity ' + formatRuleId(ruleId).toLowerCase() + ' issues first'
+      });
+    }
+
+    // Other issues in affected files
+    const otherIssues = activeIssues.filter(i =>
+      i.ruleId !== ruleId &&
+      i.locations.some(l => focusFiles.includes(l.file))
+    );
+    if (otherIssues.length > 0) {
+      prompts.push({
+        label: otherIssues.length + ' related issues',
+        prompt: 'Also review the other issues in these files'
+      });
+    }
+
+  } else if (focusFiles.length > 0) {
+    // Scenario 3: No rule, but files selected (status button)
+    const highSeverity = activeIssues.filter(i => i.severity === 'high');
+
+    if (highSeverity.length > 0) {
+      prompts.push({
+        label: 'Review ' + highSeverity.length + ' high severity',
+        prompt: 'Review the high severity issues first'
+      });
+    }
+
+    // Group by category
+    const archIssues = activeIssues.filter(i => ARCHITECTURE_RULES.has(i.ruleId));
+    const codeIssues = activeIssues.filter(i => !ARCHITECTURE_RULES.has(i.ruleId) && !FILE_RULES.has(i.ruleId));
+
+    if (archIssues.length > 0) {
+      prompts.push({
+        label: 'Architecture issues (' + archIssues.length + ')',
+        prompt: 'Review the architecture issues (circular deps, orphans, etc.)'
+      });
+    }
+    if (codeIssues.length > 0) {
+      prompts.push({
+        label: 'Code issues (' + codeIssues.length + ')',
+        prompt: 'Review the code quality issues'
+      });
+    }
+
+  } else {
+    // Scenario 4: Nothing selected (initial state)
+    prompts.push({
+      label: 'Where are the issues?',
+      prompt: 'Which areas of the codebase have the most issues?'
+    });
+
+    const highSeverity = activeIssues.filter(i => i.severity === 'high');
+    if (highSeverity.length > 0) {
+      prompts.push({
+        label: 'High severity first',
+        prompt: 'What are the high severity issues I should address first?'
+      });
+    }
   }
 
-  // Secondary prompts based on issue types
-  if (ruleTypes.has('long-function') || ruleTypes.has('deep-nesting')) {
-    prompts.push({ label: 'Review function complexity', prompt: 'Review the long or complex functions and suggest how to refactor them' });
-  }
-  if (ruleTypes.has('circular-dependency')) {
-    prompts.push({ label: 'Explain circular deps', prompt: 'Explain these circular dependencies and how to break them' });
-  }
-  if (ruleTypes.has('high-comment-density')) {
-    prompts.push({ label: 'Evaluate comment quality', prompt: 'Evaluate the comment quality - are these comments helpful or noise?' });
-  }
-  if (ruleTypes.has('generic-name') || ruleTypes.has('non-verb-function') || ruleTypes.has('non-question-boolean')) {
-    prompts.push({ label: 'Check naming', prompt: 'Review the naming issues and suggest better names' });
-  }
-
-  // Fallback if no specific prompts
+  // Render prompts
   if (prompts.length === 0) {
-    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Select issues to see suggested prompts</span>';
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">No issues detected</span>';
     return;
   }
 
