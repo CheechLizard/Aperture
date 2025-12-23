@@ -201,6 +201,9 @@ window.addEventListener('message', event => {
     updateStatus();
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
+  } else if (msg.type === 'tokenCount') {
+    // Handle token count response for prompt costing
+    handleTokenCount(msg.promptId, msg.tokens, msg.limit);
   }
 });
 

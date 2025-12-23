@@ -22,31 +22,62 @@ export interface AgentResponse {
   };
 }
 
-// Build a preview of the prompt without making the API call
+// Build the system prompt for Claude - used by both analyzeQuery and countTokens
+function buildSystemPrompt(context?: AnalysisContext): string {
+  let systemPrompt = `You are analyzing a codebase to answer questions about it.
+
+Be concise but helpful. Always use the respond tool to provide your final answer.`;
+
+  const hasContext = context && context.highlightedFiles.length > 0;
+
+  if (hasContext) {
+    systemPrompt += `\n\n## Focus\n`;
+    for (const file of context.highlightedFiles) {
+      systemPrompt += `- ${file}\n`;
+    }
+
+    if (context.issues.length > 0) {
+      systemPrompt += `\n## Issues\n`;
+      for (const issue of context.issues) {
+        const issueFiles = issue.locations.map((l) => l.file).join(', ');
+        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})\n`;
+      }
+    }
+
+    const contentFiles = Object.entries(context.fileContents);
+    if (contentFiles.length > 0) {
+      systemPrompt += `\n## File Contents\n`;
+      for (const [filePath, content] of contentFiles) {
+        systemPrompt += `\n### ${filePath}\n\`\`\`\n${content}\n\`\`\`\n`;
+      }
+    }
+  }
+
+  return systemPrompt;
+}
+
+// Estimate tokens for a prompt - uses character count heuristic (~4 chars per token)
+// This avoids an API call and is fast enough for real-time cost estimation
+export function estimatePromptTokens(
+  query: string,
+  context?: AnalysisContext
+): { tokens: number; limit: number } {
+  const systemPrompt = buildSystemPrompt(context);
+  const totalChars = systemPrompt.length + query.length;
+  // Rough estimate: ~4 characters per token for English text
+  const estimatedTokens = Math.ceil(totalChars / 4);
+
+  return { tokens: estimatedTokens, limit: 30000 }; // rate limit constraint
+}
+
+// Build a preview showing exactly what will be sent to Claude - no lies
 export function buildPromptPreview(
   query: string,
   _files: FileInfo[],
   context?: AnalysisContext
 ): string {
-  let preview = '';
-
-  if (context && context.highlightedFiles.length > 0) {
-    preview += `Files:\n`;
-    for (const file of context.highlightedFiles) {
-      const content = context.fileContents[file];
-      preview += `📎 ${file}${content ? ` (${content.length} chars)` : ''}\n`;
-    }
-
-    if (context.issues.length > 0) {
-      preview += `\nIssues:\n`;
-      for (const issue of context.issues) {
-        preview += `• ${issue.ruleId}: ${issue.message}\n`;
-      }
-    }
-  }
-
-  preview += `\nQuery: ${query}`;
-  return preview;
+  const systemPrompt = buildSystemPrompt(context);
+  return `[SYSTEM PROMPT]\n${systemPrompt}\n\n[USER MESSAGE]\n${query}`;
 }
 
 export async function analyzeQuery(
@@ -71,8 +102,6 @@ export async function analyzeQuery(
   }
 
   const client = new Anthropic({ apiKey });
-
-  const hasContext = context && context.highlightedFiles.length > 0;
 
   const tools: Anthropic.Tool[] = [
     {
@@ -104,54 +133,7 @@ export async function analyzeQuery(
     },
   ];
 
-  let systemPrompt = `You are analyzing a codebase to answer questions about it.
-
-Be concise but helpful. Always use the respond tool to provide your final answer.`;
-
-  // Enrich system prompt with context if provided
-  // Limit context to avoid token overflow (30K input token rate limit)
-  const MAX_CONTEXT_FILES = 5;
-  const MAX_CHARS_PER_FILE = 2000;
-  const MAX_ISSUES = 10;
-
-  if (hasContext) {
-    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
-    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
-
-    systemPrompt += `\n\n## Focus\n`;
-    for (const file of limitedFiles) {
-      systemPrompt += `- ${file}\n`;
-    }
-    if (moreFiles > 0) {
-      systemPrompt += `(+${moreFiles} more)\n`;
-    }
-
-    if (context.issues.length > 0) {
-      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
-      const moreIssues = context.issues.length - MAX_ISSUES;
-
-      systemPrompt += `\n## Issues\n`;
-      for (const issue of limitedIssues) {
-        const issueFiles = issue.locations.map((l) => l.file).slice(0, 3).join(', ');
-        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})\n`;
-      }
-      if (moreIssues > 0) {
-        systemPrompt += `(+${moreIssues} more)\n`;
-      }
-    }
-
-    // Include file contents (still sent to API, just not shown in preview)
-    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
-    if (contentFiles.length > 0) {
-      systemPrompt += `\n## File Contents\n`;
-      for (const [filePath, content] of contentFiles) {
-        const truncated = content.length > MAX_CHARS_PER_FILE
-          ? content.slice(0, MAX_CHARS_PER_FILE) + '\n...(truncated)'
-          : content;
-        systemPrompt += `\n### ${filePath}\n\`\`\`\n${truncated}\n\`\`\`\n`;
-      }
-    }
-  }
+  const systemPrompt = buildSystemPrompt(context);
 
   const messages: Anthropic.MessageParam[] = [
     { role: 'user', content: query },

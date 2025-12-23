@@ -108,7 +108,7 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer
+  // Render context files as chips in footer - show ALL files, no limit
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
@@ -119,22 +119,14 @@ const selection = {
       return;
     }
 
-    // Limit to 5 visible chips
-    const maxVisible = 5;
-    const visibleFiles = files.slice(0, maxVisible);
-    const hiddenCount = files.length - maxVisible;
-
-    let html = visibleFiles.map(filePath => {
+    // Show ALL files - no artificial limit
+    const html = files.map(filePath => {
       const fileName = filePath.split('/').pop();
       return '<div class="context-chip" data-path="' + filePath + '">' +
         '<span class="context-chip-name" title="' + filePath + '">' + fileName + '</span>' +
         '<button class="context-chip-remove" title="Remove from context">×</button>' +
         '</div>';
     }).join('');
-
-    if (hiddenCount > 0) {
-      html += '<div class="context-chip context-chip-more">+' + hiddenCount + ' more</div>';
-    }
 
     container.innerHTML = html;
 

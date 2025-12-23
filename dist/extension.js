@@ -11112,29 +11112,60 @@ var sdk_default = Anthropic;
 var vscode3 = __toESM(require("vscode"));
 var fs3 = __toESM(require("fs"));
 var path6 = __toESM(require("path"));
-function buildPromptPreview(query, _files, context) {
-  let preview = "";
-  if (context && context.highlightedFiles.length > 0) {
-    preview += `Files:
+function buildSystemPrompt(context) {
+  let systemPrompt = `You are analyzing a codebase to answer questions about it.
+
+Be concise but helpful. Always use the respond tool to provide your final answer.`;
+  const hasContext = context && context.highlightedFiles.length > 0;
+  if (hasContext) {
+    systemPrompt += `
+
+## Focus
 `;
     for (const file of context.highlightedFiles) {
-      const content = context.fileContents[file];
-      preview += `\u{1F4CE} ${file}${content ? ` (${content.length} chars)` : ""}
+      systemPrompt += `- ${file}
 `;
     }
     if (context.issues.length > 0) {
-      preview += `
-Issues:
+      systemPrompt += `
+## Issues
 `;
       for (const issue of context.issues) {
-        preview += `\u2022 ${issue.ruleId}: ${issue.message}
+        const issueFiles = issue.locations.map((l2) => l2.file).join(", ");
+        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})
+`;
+      }
+    }
+    const contentFiles = Object.entries(context.fileContents);
+    if (contentFiles.length > 0) {
+      systemPrompt += `
+## File Contents
+`;
+      for (const [filePath, content] of contentFiles) {
+        systemPrompt += `
+### ${filePath}
+\`\`\`
+${content}
+\`\`\`
 `;
       }
     }
   }
-  preview += `
-Query: ${query}`;
-  return preview;
+  return systemPrompt;
+}
+function estimatePromptTokens(query, context) {
+  const systemPrompt = buildSystemPrompt(context);
+  const totalChars = systemPrompt.length + query.length;
+  const estimatedTokens = Math.ceil(totalChars / 4);
+  return { tokens: estimatedTokens, limit: 3e4 };
+}
+function buildPromptPreview(query, _files, context) {
+  const systemPrompt = buildSystemPrompt(context);
+  return `[SYSTEM PROMPT]
+${systemPrompt}
+
+[USER MESSAGE]
+${query}`;
 }
 async function analyzeQuery(query, files, rootPath, context, signal) {
   const apiKey = getApiKey();
@@ -11149,7 +11180,6 @@ async function analyzeQuery(query, files, rootPath, context, signal) {
     return { message: "Cancelled", relevantFiles: [], systemPrompt: "(cancelled)" };
   }
   const client = new sdk_default({ apiKey });
-  const hasContext = context && context.highlightedFiles.length > 0;
   const tools = [
     {
       name: "read_file",
@@ -11179,59 +11209,7 @@ async function analyzeQuery(query, files, rootPath, context, signal) {
       }
     }
   ];
-  let systemPrompt = `You are analyzing a codebase to answer questions about it.
-
-Be concise but helpful. Always use the respond tool to provide your final answer.`;
-  const MAX_CONTEXT_FILES = 5;
-  const MAX_CHARS_PER_FILE = 2e3;
-  const MAX_ISSUES = 10;
-  if (hasContext) {
-    const limitedFiles = context.highlightedFiles.slice(0, MAX_CONTEXT_FILES);
-    const moreFiles = context.highlightedFiles.length - MAX_CONTEXT_FILES;
-    systemPrompt += `
-
-## Focus
-`;
-    for (const file of limitedFiles) {
-      systemPrompt += `- ${file}
-`;
-    }
-    if (moreFiles > 0) {
-      systemPrompt += `(+${moreFiles} more)
-`;
-    }
-    if (context.issues.length > 0) {
-      const limitedIssues = context.issues.slice(0, MAX_ISSUES);
-      const moreIssues = context.issues.length - MAX_ISSUES;
-      systemPrompt += `
-## Issues
-`;
-      for (const issue of limitedIssues) {
-        const issueFiles = issue.locations.map((l2) => l2.file).slice(0, 3).join(", ");
-        systemPrompt += `- ${issue.ruleId}: ${issue.message} (${issueFiles})
-`;
-      }
-      if (moreIssues > 0) {
-        systemPrompt += `(+${moreIssues} more)
-`;
-      }
-    }
-    const contentFiles = Object.entries(context.fileContents).slice(0, MAX_CONTEXT_FILES);
-    if (contentFiles.length > 0) {
-      systemPrompt += `
-## File Contents
-`;
-      for (const [filePath, content] of contentFiles) {
-        const truncated = content.length > MAX_CHARS_PER_FILE ? content.slice(0, MAX_CHARS_PER_FILE) + "\n...(truncated)" : content;
-        systemPrompt += `
-### ${filePath}
-\`\`\`
-${truncated}
-\`\`\`
-`;
-      }
-    }
-  }
+  const systemPrompt = buildSystemPrompt(context);
   const messages = [
     { role: "user", content: query }
   ];
@@ -11760,6 +11738,9 @@ var DASHBOARD_STYLES = `
     .chat-actions .action-btns { display: flex; gap: 8px; }
     .chat-actions .action-btn { padding: 6px 12px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; }
     .chat-actions .action-btn:hover { background: rgba(255, 255, 255, 0.2); }
+    /* Prompt Loading Spinner */
+    .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
     .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); }
     .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 8px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
@@ -12512,6 +12493,10 @@ function highlightNodes(files) {
   });
 }
 
+// Track pending prompt token counts
+let pendingPrompts = [];
+let promptIdCounter = 0;
+
 function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const state = selection.getState();
@@ -12619,14 +12604,62 @@ function renderDynamicPrompts() {
     }
   }
 
-  // Render prompts
+  // No prompts to show
   if (prompts.length === 0) {
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">No issues detected</span>';
     return;
   }
 
-  container.innerHTML = prompts.map(p =>
+  // Show spinner while costing prompts
+  container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
+
+  // Assign IDs and track pending prompts
+  pendingPrompts = prompts.map(p => ({
+    ...p,
+    id: 'prompt-' + (++promptIdCounter),
+    tokens: null
+  }));
+
+  // Request token counts for each prompt
+  const context = selection.getAIContext();
+  for (const p of pendingPrompts) {
+    vscode.postMessage({
+      command: 'countTokens',
+      text: p.prompt,
+      context: context,
+      promptId: p.id
+    });
+  }
+}
+
+// Called when a token count response comes back
+function handleTokenCount(promptId, tokens, limit) {
+  const prompt = pendingPrompts.find(p => p.id === promptId);
+  if (!prompt) return;
+
+  prompt.tokens = tokens;
+  prompt.tooExpensive = tokens > limit;
+
+  // Check if all prompts have been costed
+  const allCosted = pendingPrompts.every(p => p.tokens !== null);
+  if (allCosted) {
+    renderCostdPrompts();
+  }
+}
+
+// Render prompts after costing - hide expensive ones
+function renderCostdPrompts() {
+  const container = document.getElementById('rules');
+  const affordablePrompts = pendingPrompts.filter(p => !p.tooExpensive);
+
+  if (affordablePrompts.length === 0) {
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">All prompts exceed token limit</span>';
+    return;
+  }
+
+  container.innerHTML = affordablePrompts.map(p =>
     '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+    ' data-prompt-id="' + p.id + '"' +
     (p.action ? ' data-action="' + p.action + '"' : '') +
     '>' + p.label + '</button>'
   ).join('');
@@ -13317,6 +13350,9 @@ window.addEventListener('message', event => {
     updateStatus();
   } else if (msg.type === 'dependencyError') {
     document.getElementById('status').textContent = 'Error: ' + msg.message;
+  } else if (msg.type === 'tokenCount') {
+    // Handle token count response for prompt costing
+    handleTokenCount(msg.promptId, msg.tokens, msg.limit);
   }
 });
 
@@ -13930,7 +13966,7 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in footer
+  // Render context files as chips in footer - show ALL files, no limit
   _renderContextFiles() {
     const container = document.getElementById('context-files');
     if (!container) return;
@@ -13941,22 +13977,14 @@ const selection = {
       return;
     }
 
-    // Limit to 5 visible chips
-    const maxVisible = 5;
-    const visibleFiles = files.slice(0, maxVisible);
-    const hiddenCount = files.length - maxVisible;
-
-    let html = visibleFiles.map(filePath => {
+    // Show ALL files - no artificial limit
+    const html = files.map(filePath => {
       const fileName = filePath.split('/').pop();
       return '<div class="context-chip" data-path="' + filePath + '">' +
         '<span class="context-chip-name" title="' + filePath + '">' + fileName + '</span>' +
         '<button class="context-chip-remove" title="Remove from context">\xD7</button>' +
         '</div>';
     }).join('');
-
-    if (hiddenCount > 0) {
-      html += '<div class="context-chip context-chip-more">+' + hiddenCount + ' more</div>';
-    }
 
     container.innerHTML = html;
 
@@ -14234,6 +14262,29 @@ async function openDashboard(context) {
         await addAntiPatternRule(currentData?.root || "", message.patternType);
       } else if (message.command === "removeRule") {
         await removeAntiPatternRule(currentData?.root || "", message.patternType);
+      } else if (message.command === "countTokens" && currentData) {
+        const fileContents = {};
+        if (message.context?.files) {
+          for (const filePath of message.context.files) {
+            const fullPath = path11.join(currentData.root, filePath);
+            try {
+              fileContents[filePath] = fs5.readFileSync(fullPath, "utf8");
+            } catch {
+            }
+          }
+        }
+        const context2 = message.context ? {
+          highlightedFiles: message.context.files || [],
+          issues: message.context.issues || [],
+          fileContents
+        } : void 0;
+        const result = estimatePromptTokens(message.text, context2);
+        panel.webview.postMessage({
+          type: "tokenCount",
+          promptId: message.promptId,
+          tokens: result.tokens,
+          limit: result.limit
+        });
       }
     },
     void 0,

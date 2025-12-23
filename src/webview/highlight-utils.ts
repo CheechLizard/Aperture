@@ -40,6 +40,10 @@ function highlightNodes(files) {
   });
 }
 
+// Track pending prompt token counts
+let pendingPrompts = [];
+let promptIdCounter = 0;
+
 function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const state = selection.getState();
@@ -147,14 +151,62 @@ function renderDynamicPrompts() {
     }
   }
 
-  // Render prompts
+  // No prompts to show
   if (prompts.length === 0) {
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">No issues detected</span>';
     return;
   }
 
-  container.innerHTML = prompts.map(p =>
+  // Show spinner while costing prompts
+  container.innerHTML = '<div class="prompt-loading"><div class="thinking-spinner"></div><span style="font-size:0.8em;opacity:0.7;">Costing prompts...</span></div>';
+
+  // Assign IDs and track pending prompts
+  pendingPrompts = prompts.map(p => ({
+    ...p,
+    id: 'prompt-' + (++promptIdCounter),
+    tokens: null
+  }));
+
+  // Request token counts for each prompt
+  const context = selection.getAIContext();
+  for (const p of pendingPrompts) {
+    vscode.postMessage({
+      command: 'countTokens',
+      text: p.prompt,
+      context: context,
+      promptId: p.id
+    });
+  }
+}
+
+// Called when a token count response comes back
+function handleTokenCount(promptId, tokens, limit) {
+  const prompt = pendingPrompts.find(p => p.id === promptId);
+  if (!prompt) return;
+
+  prompt.tokens = tokens;
+  prompt.tooExpensive = tokens > limit;
+
+  // Check if all prompts have been costed
+  const allCosted = pendingPrompts.every(p => p.tokens !== null);
+  if (allCosted) {
+    renderCostdPrompts();
+  }
+}
+
+// Render prompts after costing - hide expensive ones
+function renderCostdPrompts() {
+  const container = document.getElementById('rules');
+  const affordablePrompts = pendingPrompts.filter(p => !p.tooExpensive);
+
+  if (affordablePrompts.length === 0) {
+    container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">All prompts exceed token limit</span>';
+    return;
+  }
+
+  container.innerHTML = affordablePrompts.map(p =>
     '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
+    ' data-prompt-id="' + p.id + '"' +
     (p.action ? ' data-action="' + p.action + '"' : '') +
     '>' + p.label + '</button>'
   ).join('');

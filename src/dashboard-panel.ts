@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { scanWorkspace } from './scanner';
 import { ProjectData } from './types';
-import { analyzeQuery, buildPromptPreview } from './agent';
+import { analyzeQuery, buildPromptPreview, estimatePromptTokens } from './agent';
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
 import { addAntiPatternRule, removeAntiPatternRule } from './anti-pattern-rules';
 import { getLoadingContent, getErrorContent, getDashboardContent } from './dashboard-html';
@@ -123,6 +123,33 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
         await addAntiPatternRule(currentData?.root || '', message.patternType);
       } else if (message.command === 'removeRule') {
         await removeAntiPatternRule(currentData?.root || '', message.patternType);
+      } else if (message.command === 'countTokens' && currentData) {
+        // Estimate tokens for prompt cost estimation (synchronous, no API call)
+        const fileContents: Record<string, string> = {};
+        if (message.context?.files) {
+          for (const filePath of message.context.files) {
+            const fullPath = path.join(currentData.root, filePath);
+            try {
+              fileContents[filePath] = fs.readFileSync(fullPath, 'utf8');
+            } catch {
+              // Skip unreadable files
+            }
+          }
+        }
+
+        const context = message.context ? {
+          highlightedFiles: message.context.files || [],
+          issues: message.context.issues || [],
+          fileContents
+        } : undefined;
+
+        const result = estimatePromptTokens(message.text, context);
+        panel.webview.postMessage({
+          type: 'tokenCount',
+          promptId: message.promptId,
+          tokens: result.tokens,
+          limit: result.limit
+        });
       }
     },
     undefined,
