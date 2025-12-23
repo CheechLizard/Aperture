@@ -12459,6 +12459,11 @@ function switchToView(ruleId) {
     document.getElementById('dep-controls').classList.remove('visible');
     document.getElementById('functions-container').classList.add('visible');
     document.getElementById('legend').style.display = 'flex';
+    // Trigger zoom out animation if currently zoomed
+    if (zoomedFile) {
+      prevZoomedFile = zoomedFile;
+      zoomedFile = null;
+    }
     renderDistributionChart();
   } else if (view === 'chord') {
     currentView = 'deps';
@@ -12662,9 +12667,12 @@ function renderIssues() {
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
     const line = item.getAttribute('data-line');
+    const ruleId = item.getAttribute('data-rule-id');
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
+      // Switch to appropriate view for this rule type
+      switchToView(ruleId);
       highlightIssueFiles(files);
       if (files.length > 0) {
         const lineNum = line ? parseInt(line) : undefined;
@@ -13029,13 +13037,6 @@ function getAllIssueFiles() {
     }
   }
   return [...fileSet];
-}
-
-// Auto-highlight all issue files on initial load
-const initialIssueFiles = getAllIssueFiles();
-if (initialIssueFiles.length > 0) {
-  selectedElement = document.getElementById('status');
-  highlightIssueFiles(initialIssueFiles);
 }
 
 // Status button click - highlight all files with any issue, reset to default view

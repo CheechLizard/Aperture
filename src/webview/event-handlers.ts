@@ -185,13 +185,6 @@ function getAllIssueFiles() {
   return [...fileSet];
 }
 
-// Auto-highlight all issue files on initial load
-const initialIssueFiles = getAllIssueFiles();
-if (initialIssueFiles.length > 0) {
-  selectedElement = document.getElementById('status');
-  highlightIssueFiles(initialIssueFiles);
-}
-
 // Status button click - highlight all files with any issue, reset to default view
 document.getElementById('status').addEventListener('click', () => {
   if (selectedElement) {
