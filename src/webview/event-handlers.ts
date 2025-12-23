@@ -18,11 +18,8 @@ document.getElementById('send').addEventListener('click', () => {
   if (!text) return;
   document.getElementById('send').disabled = true;
 
-  // Build context from current selection
-  const context = {
-    files: currentHighlightedFiles,
-    issues: getIssuesForFiles(currentHighlightedFiles)
-  };
+  // Get context from selection state
+  const context = selection.getAIContext();
 
   vscode.postMessage({ command: 'query', text, context });
 });
@@ -104,9 +101,7 @@ window.addEventListener('message', event => {
     if (currentView === 'deps') {
       renderDepGraph();
       applyPersistentIssueHighlights();
-      if (currentHighlightedFiles.length > 0) {
-        highlightIssueFiles(currentHighlightedFiles);
-      }
+      selection._applyHighlights();
     }
     // Always re-render issues to show architecture issues in sidebar
     renderIssues();
@@ -118,10 +113,9 @@ window.addEventListener('message', event => {
 
 // Initialize with files treemap view (default state)
 colorMode = 'none';
-selectedRuleId = null;
 
-// Initialize navigation to files view with no highlights
-nav.goTo({ view: 'files', file: null, highlight: [] });
+// Initialize navigation to files view
+nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
 renderIssues();
 renderFooterStats();
@@ -150,13 +144,12 @@ document.getElementById('status').addEventListener('click', () => {
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
 
-  // Reset to default state
+  // Reset to default state - select all issues
   colorMode = 'none';
-  selectedRuleId = null;
+  selection.selectAllIssues();
 
-  // Navigate to files view and highlight all issue files
-  const allIssueFiles = getAllIssueFiles();
-  nav.goTo({ view: 'files', file: null, highlight: allIssueFiles });
+  // Navigate to files view
+  nav.goTo({ view: 'files', file: null });
 });
 
 function updateStatus() {

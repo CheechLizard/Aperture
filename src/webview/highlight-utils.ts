@@ -3,13 +3,8 @@ function updateStatusButton() {
   updateStatus();
 }
 
-function highlightIssueFiles(files) {
-  // Track for tab switching
-  currentHighlightedFiles = files;
-
-  // Update dynamic prompts based on new selection
-  renderDynamicPrompts();
-
+// Pure DOM operation - highlights nodes matching the given file paths
+function highlightNodes(files) {
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -49,14 +44,17 @@ function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const prompts = [];
 
-  // Get issues for currently highlighted files
-  const highlightedIssues = getIssuesForFiles(currentHighlightedFiles);
-  const ruleTypes = getActiveRuleTypes(currentHighlightedFiles);
+  // Get focus files from selection state
+  const focusFiles = selection.getState().focusFiles;
 
-  // Primary prompt - analyze all highlighted issues
-  if (currentHighlightedFiles.length > 0 && highlightedIssues.length > 0) {
+  // Get issues for currently focused files
+  const focusedIssues = getIssuesForFiles(focusFiles);
+  const ruleTypes = getActiveRuleTypes(focusFiles);
+
+  // Primary prompt - analyze all focused issues
+  if (focusFiles.length > 0 && focusedIssues.length > 0) {
     prompts.push({
-      label: 'Analyze ' + highlightedIssues.length + ' issues in ' + currentHighlightedFiles.length + ' files',
+      label: 'Analyze ' + focusedIssues.length + ' issues in ' + focusFiles.length + ' files',
       prompt: 'Analyze the issues in these files and suggest fixes'
     });
   }
@@ -94,16 +92,11 @@ function renderDynamicPrompts() {
   });
 }
 
+// Handle AI response highlights (separate from user selection)
 function updateHighlights(relevantFiles) {
-  highlightedFiles = relevantFiles;
-  document.querySelectorAll('.node').forEach(node => {
-    const path = node.getAttribute('data-path');
-    if (relevantFiles.includes(path)) {
-      node.classList.add('highlighted');
-    } else {
-      node.classList.remove('highlighted');
-    }
-  });
+  // AI responses temporarily override the visual highlight
+  // but don't change the selection state
+  highlightNodes(relevantFiles);
   document.getElementById('clear').style.display = relevantFiles.length > 0 ? 'inline-block' : 'none';
 }
 `;

@@ -13,6 +13,7 @@ import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
+import { SELECTION_STATE_SCRIPT } from './webview/selection-state';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -129,7 +130,6 @@ const rootPath = ${rootPath};
 const rules = ${rulesJson};
 const issues = ${issuesJson};
 
-let highlightedFiles = [];
 let currentView = 'treemap';
 let depGraph = null;
 let simulation = null;
@@ -142,7 +142,6 @@ let activeRules = new Set();  // Set of pattern types added as rules
 let zoomedFile = null;
 let prevZoomedFile = null;
 let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
-let currentHighlightedFiles = [];
 
 // Build issue file map from all issues
 const issueFileMap = new Map();
@@ -167,6 +166,8 @@ ${ISSUE_HIGHLIGHTS_SCRIPT}
 ${CHORD_SCRIPT}
 
 ${HIGHLIGHT_UTILS_SCRIPT}
+
+${SELECTION_STATE_SCRIPT}
 
 ${ISSUE_CONFIG_SCRIPT}
 

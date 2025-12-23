@@ -1,16 +1,15 @@
 export const TREEMAP_NAV_SCRIPT = `
-// Unified navigation module for treemap views
+// Navigation module - manages view and zoom state only
 const nav = {
   _state: {
     view: 'files',        // 'files' | 'functions' | 'deps'
     zoomedFile: null,     // null (L1) or filePath (L2)
-    highlightedFiles: [], // Currently highlighted files
     prevZoomedFile: null, // For animation direction
     prevView: null        // For view transition detection
   },
 
-  // Navigate to a target - handles all state and animation automatically
-  // target: { view?, file?, highlight? }
+  // Navigate to a target - handles view/zoom state and triggers render
+  // target: { view?, file? }
   goTo(target) {
     // Save previous state for animation detection
     this._state.prevView = this._state.view;
@@ -22,9 +21,6 @@ const nav = {
     }
     if (target.file !== undefined) {
       this._state.zoomedFile = target.file;
-    }
-    if (target.highlight !== undefined) {
-      this._state.highlightedFiles = target.highlight;
     }
 
     // Sync to legacy globals for compatibility with renderers
@@ -40,24 +36,15 @@ const nav = {
   // Go back one level (L2 -> L1, or no-op at L1)
   back() {
     if (this._state.zoomedFile) {
-      this.goTo({ file: null, highlight: getAllIssueFiles() });
+      this.goTo({ file: null });
     }
-  },
-
-  // Update highlights without changing view
-  highlight(files) {
-    this._state.highlightedFiles = files;
-    currentHighlightedFiles = files; // Sync to global
-    highlightIssueFiles(files);
-    renderDynamicPrompts();
   },
 
   // Get current state (read-only copy)
   getState() {
     return {
       view: this._state.view,
-      zoomedFile: this._state.zoomedFile,
-      highlightedFiles: [...this._state.highlightedFiles]
+      zoomedFile: this._state.zoomedFile
     };
   },
 
@@ -66,7 +53,6 @@ const nav = {
     currentView = this._state.view;
     zoomedFile = this._state.zoomedFile;
     prevZoomedFile = this._state.prevZoomedFile;
-    currentHighlightedFiles = this._state.highlightedFiles;
   },
 
   // Update DOM container visibility based on current view
@@ -118,13 +104,11 @@ const nav = {
       }
     }
 
-    // Apply highlights after render
+    // Apply persistent issue styling and current selection highlights
     applyPersistentIssueHighlights();
-    if (this._state.highlightedFiles.length > 0) {
-      highlightIssueFiles(this._state.highlightedFiles);
-    }
+    selection._applyHighlights();
 
-    // Update dynamic prompts
+    // Update UI
     renderDynamicPrompts();
     updateStatus();
   }

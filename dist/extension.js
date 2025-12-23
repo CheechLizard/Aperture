@@ -11868,18 +11868,17 @@ function buildEdgeTooltip(opts) {
 
 // src/webview/treemap-nav.ts
 var TREEMAP_NAV_SCRIPT = `
-// Unified navigation module for treemap views
+// Navigation module - manages view and zoom state only
 const nav = {
   _state: {
     view: 'files',        // 'files' | 'functions' | 'deps'
     zoomedFile: null,     // null (L1) or filePath (L2)
-    highlightedFiles: [], // Currently highlighted files
     prevZoomedFile: null, // For animation direction
     prevView: null        // For view transition detection
   },
 
-  // Navigate to a target - handles all state and animation automatically
-  // target: { view?, file?, highlight? }
+  // Navigate to a target - handles view/zoom state and triggers render
+  // target: { view?, file? }
   goTo(target) {
     // Save previous state for animation detection
     this._state.prevView = this._state.view;
@@ -11891,9 +11890,6 @@ const nav = {
     }
     if (target.file !== undefined) {
       this._state.zoomedFile = target.file;
-    }
-    if (target.highlight !== undefined) {
-      this._state.highlightedFiles = target.highlight;
     }
 
     // Sync to legacy globals for compatibility with renderers
@@ -11909,24 +11905,15 @@ const nav = {
   // Go back one level (L2 -> L1, or no-op at L1)
   back() {
     if (this._state.zoomedFile) {
-      this.goTo({ file: null, highlight: getAllIssueFiles() });
+      this.goTo({ file: null });
     }
-  },
-
-  // Update highlights without changing view
-  highlight(files) {
-    this._state.highlightedFiles = files;
-    currentHighlightedFiles = files; // Sync to global
-    highlightIssueFiles(files);
-    renderDynamicPrompts();
   },
 
   // Get current state (read-only copy)
   getState() {
     return {
       view: this._state.view,
-      zoomedFile: this._state.zoomedFile,
-      highlightedFiles: [...this._state.highlightedFiles]
+      zoomedFile: this._state.zoomedFile
     };
   },
 
@@ -11935,7 +11922,6 @@ const nav = {
     currentView = this._state.view;
     zoomedFile = this._state.zoomedFile;
     prevZoomedFile = this._state.prevZoomedFile;
-    currentHighlightedFiles = this._state.highlightedFiles;
   },
 
   // Update DOM container visibility based on current view
@@ -11987,13 +11973,11 @@ const nav = {
       }
     }
 
-    // Apply highlights after render
+    // Apply persistent issue styling and current selection highlights
     applyPersistentIssueHighlights();
-    if (this._state.highlightedFiles.length > 0) {
-      highlightIssueFiles(this._state.highlightedFiles);
-    }
+    selection._applyHighlights();
 
-    // Update dynamic prompts
+    // Update UI
     renderDynamicPrompts();
     updateStatus();
   }
@@ -12123,15 +12107,11 @@ window.addEventListener('resize', () => {
   if (currentView === 'treemap') {
     render();
     // Restore current selection after re-render
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
-    }
+    selection._applyHighlights();
   } else if (currentView === 'deps' && depGraph) {
     renderDepGraph();
     // Restore current selection after re-render
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
-    }
+    selection._applyHighlights();
   } else if (currentView === 'functions') {
     renderDistributionChart();
   }
@@ -12398,13 +12378,8 @@ function updateStatusButton() {
   updateStatus();
 }
 
-function highlightIssueFiles(files) {
-  // Track for tab switching
-  currentHighlightedFiles = files;
-
-  // Update dynamic prompts based on new selection
-  renderDynamicPrompts();
-
+// Pure DOM operation - highlights nodes matching the given file paths
+function highlightNodes(files) {
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -12444,14 +12419,17 @@ function renderDynamicPrompts() {
   const container = document.getElementById('rules');
   const prompts = [];
 
-  // Get issues for currently highlighted files
-  const highlightedIssues = getIssuesForFiles(currentHighlightedFiles);
-  const ruleTypes = getActiveRuleTypes(currentHighlightedFiles);
+  // Get focus files from selection state
+  const focusFiles = selection.getState().focusFiles;
 
-  // Primary prompt - analyze all highlighted issues
-  if (currentHighlightedFiles.length > 0 && highlightedIssues.length > 0) {
+  // Get issues for currently focused files
+  const focusedIssues = getIssuesForFiles(focusFiles);
+  const ruleTypes = getActiveRuleTypes(focusFiles);
+
+  // Primary prompt - analyze all focused issues
+  if (focusFiles.length > 0 && focusedIssues.length > 0) {
     prompts.push({
-      label: 'Analyze ' + highlightedIssues.length + ' issues in ' + currentHighlightedFiles.length + ' files',
+      label: 'Analyze ' + focusedIssues.length + ' issues in ' + focusFiles.length + ' files',
       prompt: 'Analyze the issues in these files and suggest fixes'
     });
   }
@@ -12489,16 +12467,11 @@ function renderDynamicPrompts() {
   });
 }
 
+// Handle AI response highlights (separate from user selection)
 function updateHighlights(relevantFiles) {
-  highlightedFiles = relevantFiles;
-  document.querySelectorAll('.node').forEach(node => {
-    const path = node.getAttribute('data-path');
-    if (relevantFiles.includes(path)) {
-      node.classList.add('highlighted');
-    } else {
-      node.classList.remove('highlighted');
-    }
-  });
+  // AI responses temporarily override the visual highlight
+  // but don't change the selection state
+  highlightNodes(relevantFiles);
   document.getElementById('clear').style.display = relevantFiles.length > 0 ? 'inline-block' : 'none';
 }
 `;
@@ -12587,7 +12560,6 @@ function restoreExpandedState(state) {
 
 function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
-  selectedRuleId = ruleId;
   const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
   nav.goTo({ view: viewMap[view] || 'files', file: null });
 }
@@ -12689,7 +12661,6 @@ function setupChevronHandlers(list) {
 
 function setupHeaderHandlers(list) {
   list.querySelectorAll('.pattern-header').forEach(header => {
-    const files = header.getAttribute('data-files').split(',').filter(f => f);
     const ruleId = header.getAttribute('data-type');
     header.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-chevron')) return;
@@ -12699,8 +12670,9 @@ function setupHeaderHandlers(list) {
         selectedElement.style.background = '';
       }
       selectedElement = header;
+      // Select this rule - computes affected files and highlights them
+      selection.selectRule(ruleId);
       switchToView(ruleId);
-      highlightIssueFiles(files);
     });
   });
 }
@@ -12737,8 +12709,10 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
+      // Select this rule and focus on specific files
+      selection.selectRule(ruleId);
+      selection.setFocus(files);
       switchToView(ruleId);
-      highlightIssueFiles(files);
       if (files.length > 0) {
         vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: line ? parseInt(line) : undefined });
       }
@@ -12762,8 +12736,8 @@ function refreshAfterChange(selectedType, wasStatusSelected) {
     selectedElement = document.getElementById('status');
   }
 
-  const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-  highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
+  // Reapply current selection highlights
+  selection._applyHighlights();
 }
 
 function setupIgnoreHandlers(list) {
@@ -12827,17 +12801,17 @@ function setupRestoreHandlers(list) {
         if (newHeader) selectedElement = newHeader;
       }
 
+      // If the restored rule was selected, reselect it to update affected files
       if (selectedType === restoredRuleId) {
+        selection.selectRule(restoredRuleId);
         const newHeader = document.querySelector('.pattern-header[data-type="' + restoredRuleId + '"]');
         if (newHeader) {
           selectedElement = newHeader;
-          highlightIssueFiles(newHeader.getAttribute('data-files').split(',').filter(f => f));
-          return;
         }
+      } else {
+        // Reapply current selection highlights
+        selection._applyHighlights();
       }
-
-      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-      highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
     });
   });
 }
@@ -12958,11 +12932,8 @@ document.getElementById('send').addEventListener('click', () => {
   if (!text) return;
   document.getElementById('send').disabled = true;
 
-  // Build context from current selection
-  const context = {
-    files: currentHighlightedFiles,
-    issues: getIssuesForFiles(currentHighlightedFiles)
-  };
+  // Get context from selection state
+  const context = selection.getAIContext();
 
   vscode.postMessage({ command: 'query', text, context });
 });
@@ -13044,9 +13015,7 @@ window.addEventListener('message', event => {
     if (currentView === 'deps') {
       renderDepGraph();
       applyPersistentIssueHighlights();
-      if (currentHighlightedFiles.length > 0) {
-        highlightIssueFiles(currentHighlightedFiles);
-      }
+      selection._applyHighlights();
     }
     // Always re-render issues to show architecture issues in sidebar
     renderIssues();
@@ -13058,10 +13027,9 @@ window.addEventListener('message', event => {
 
 // Initialize with files treemap view (default state)
 colorMode = 'none';
-selectedRuleId = null;
 
-// Initialize navigation to files view with no highlights
-nav.goTo({ view: 'files', file: null, highlight: [] });
+// Initialize navigation to files view
+nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
 renderIssues();
 renderFooterStats();
@@ -13090,13 +13058,12 @@ document.getElementById('status').addEventListener('click', () => {
   const statusBtn = document.getElementById('status');
   selectedElement = statusBtn;
 
-  // Reset to default state
+  // Reset to default state - select all issues
   colorMode = 'none';
-  selectedRuleId = null;
+  selection.selectAllIssues();
 
-  // Navigate to files view and highlight all issue files
-  const allIssueFiles = getAllIssueFiles();
-  nav.goTo({ view: 'files', file: null, highlight: allIssueFiles });
+  // Navigate to files view
+  nav.goTo({ view: 'files', file: null });
 });
 
 function updateStatus() {
@@ -13126,11 +13093,13 @@ function getDynamicFileColor(fileData) {
 }
 
 function zoomTo(filePath) {
-  nav.goTo({ file: filePath, highlight: [filePath] });
+  // Preserve current highlights - don't override when zooming
+  nav.goTo({ file: filePath });
 }
 
 function zoomOut() {
-  nav.goTo({ file: null, highlight: getAllIssueFiles() });
+  // Just navigate - selection state is preserved
+  nav.goTo({ file: null });
 }
 
 function truncateLabel(name, maxWidth, charWidth) {
@@ -13289,10 +13258,7 @@ function renderDistributionChart() {
     renderFilesLegend(fileData);
   }
 
-  applyPersistentIssueHighlights();
-  if (currentHighlightedFiles.length > 0) {
-    highlightIssueFiles(currentHighlightedFiles);
-  }
+  // Note: Highlights are applied by nav._render() via selection._applyHighlights()
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {
@@ -13556,6 +13522,92 @@ function cycleIssueColors() {
 setInterval(cycleIssueColors, 16);
 `;
 
+// src/webview/selection-state.ts
+var SELECTION_STATE_SCRIPT = `
+// Selection state module - manages issue selection and focus for AI context
+const selection = {
+  _state: {
+    ruleId: null,       // Selected issue type (e.g., 'silent-failure')
+    focusFiles: []      // User's focus selection for AI context
+  },
+
+  // Select an issue type - computes affected files and highlights them
+  selectRule(ruleId) {
+    this._state.ruleId = ruleId;
+    this._state.focusFiles = this.getAffectedFiles();
+    this._applyHighlights();
+  },
+
+  // Get files affected by current rule (derived, not stored)
+  getAffectedFiles() {
+    if (!this._state.ruleId) return [];
+    const fileSet = new Set();
+    for (const issue of issues) {
+      if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
+        for (const loc of issue.locations) {
+          fileSet.add(loc.file);
+        }
+      }
+    }
+    return [...fileSet];
+  },
+
+  // Set focus to specific files (for AI context)
+  setFocus(files) {
+    this._state.focusFiles = files;
+    this._applyHighlights();
+  },
+
+  // Select all issues (status button behavior)
+  selectAllIssues() {
+    this._state.ruleId = null;
+    this._state.focusFiles = getAllIssueFiles();
+    this._applyHighlights();
+  },
+
+  // Clear selection
+  clear() {
+    this._state.ruleId = null;
+    this._state.focusFiles = [];
+    this._applyHighlights();
+  },
+
+  // Get current state (read-only)
+  getState() {
+    return {
+      ruleId: this._state.ruleId,
+      focusFiles: [...this._state.focusFiles]
+    };
+  },
+
+  // Get context for AI chat
+  getAIContext() {
+    const focusedIssues = this._state.ruleId
+      ? issues.filter(i =>
+          i.ruleId === this._state.ruleId &&
+          !isIssueIgnored(i) &&
+          i.locations.some(l => this._state.focusFiles.includes(l.file))
+        )
+      : issues.filter(i =>
+          !isIssueIgnored(i) &&
+          i.locations.some(l => this._state.focusFiles.includes(l.file))
+        );
+
+    return {
+      ruleId: this._state.ruleId,
+      files: this._state.focusFiles,
+      issues: focusedIssues
+    };
+  },
+
+  // Apply highlights to DOM nodes
+  _applyHighlights() {
+    highlightNodes(this._state.focusFiles);
+    renderDynamicPrompts();
+  }
+};
+`;
+
 // src/dashboard-html.ts
 function getLoadingContent() {
   return `<!DOCTYPE html>
@@ -13667,7 +13719,6 @@ const rootPath = ${rootPath};
 const rules = ${rulesJson};
 const issues = ${issuesJson};
 
-let highlightedFiles = [];
 let currentView = 'treemap';
 let depGraph = null;
 let simulation = null;
@@ -13680,7 +13731,6 @@ let activeRules = new Set();  // Set of pattern types added as rules
 let zoomedFile = null;
 let prevZoomedFile = null;
 let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
-let currentHighlightedFiles = [];
 
 // Build issue file map from all issues
 const issueFileMap = new Map();
@@ -13705,6 +13755,8 @@ ${ISSUE_HIGHLIGHTS_SCRIPT}
 ${CHORD_SCRIPT}
 
 ${HIGHLIGHT_UTILS_SCRIPT}
+
+${SELECTION_STATE_SCRIPT}
 
 ${ISSUE_CONFIG_SCRIPT}
 

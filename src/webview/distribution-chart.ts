@@ -13,11 +13,13 @@ function getDynamicFileColor(fileData) {
 }
 
 function zoomTo(filePath) {
-  nav.goTo({ file: filePath, highlight: [filePath] });
+  // Preserve current highlights - don't override when zooming
+  nav.goTo({ file: filePath });
 }
 
 function zoomOut() {
-  nav.goTo({ file: null, highlight: getAllIssueFiles() });
+  // Just navigate - selection state is preserved
+  nav.goTo({ file: null });
 }
 
 function truncateLabel(name, maxWidth, charWidth) {
@@ -176,10 +178,7 @@ function renderDistributionChart() {
     renderFilesLegend(fileData);
   }
 
-  applyPersistentIssueHighlights();
-  if (currentHighlightedFiles.length > 0) {
-    highlightIssueFiles(currentHighlightedFiles);
-  }
+  // Note: Highlights are applied by nav._render() via selection._applyHighlights()
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {

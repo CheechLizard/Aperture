@@ -50,7 +50,6 @@ function restoreExpandedState(state) {
 
 function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
-  selectedRuleId = ruleId;
   const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
   nav.goTo({ view: viewMap[view] || 'files', file: null });
 }
@@ -152,7 +151,6 @@ function setupChevronHandlers(list) {
 
 function setupHeaderHandlers(list) {
   list.querySelectorAll('.pattern-header').forEach(header => {
-    const files = header.getAttribute('data-files').split(',').filter(f => f);
     const ruleId = header.getAttribute('data-type');
     header.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-chevron')) return;
@@ -162,8 +160,9 @@ function setupHeaderHandlers(list) {
         selectedElement.style.background = '';
       }
       selectedElement = header;
+      // Select this rule - computes affected files and highlights them
+      selection.selectRule(ruleId);
       switchToView(ruleId);
-      highlightIssueFiles(files);
     });
   });
 }
@@ -200,8 +199,10 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
+      // Select this rule and focus on specific files
+      selection.selectRule(ruleId);
+      selection.setFocus(files);
       switchToView(ruleId);
-      highlightIssueFiles(files);
       if (files.length > 0) {
         vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: line ? parseInt(line) : undefined });
       }
@@ -225,8 +226,8 @@ function refreshAfterChange(selectedType, wasStatusSelected) {
     selectedElement = document.getElementById('status');
   }
 
-  const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-  highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
+  // Reapply current selection highlights
+  selection._applyHighlights();
 }
 
 function setupIgnoreHandlers(list) {
@@ -290,17 +291,17 @@ function setupRestoreHandlers(list) {
         if (newHeader) selectedElement = newHeader;
       }
 
+      // If the restored rule was selected, reselect it to update affected files
       if (selectedType === restoredRuleId) {
+        selection.selectRule(restoredRuleId);
         const newHeader = document.querySelector('.pattern-header[data-type="' + restoredRuleId + '"]');
         if (newHeader) {
           selectedElement = newHeader;
-          highlightIssueFiles(newHeader.getAttribute('data-files').split(',').filter(f => f));
-          return;
         }
+      } else {
+        // Reapply current selection highlights
+        selection._applyHighlights();
       }
-
-      const currentHighlighted = [...document.querySelectorAll('.node.highlighted')].map(n => n.getAttribute('data-path'));
-      highlightIssueFiles(currentHighlighted.filter(f => issueFileMap.has(f)));
     });
   });
 }
