@@ -97,11 +97,8 @@ const selection = {
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide panel if no chat messages and input not focused
-      const chatMessages = document.getElementById('chat-messages');
-      if (panel && chatMessages && chatMessages.children.length === 0 && !aiInputFocused) {
-        panel.classList.remove('visible');
-      }
+      // Don't auto-hide panel - let soft dismiss handle it
+      // Panel stays visible if there's conversation or user is focused
       return;
     }
 

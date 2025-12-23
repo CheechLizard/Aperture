@@ -58,8 +58,11 @@ document.getElementById('send').addEventListener('click', () => {
   vscode.postMessage({ command: 'query', text, context });
 });
 
-document.getElementById('query').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') document.getElementById('send').click();
+document.getElementById('query').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('send').click();
+  }
 });
 
 function showView(view) {

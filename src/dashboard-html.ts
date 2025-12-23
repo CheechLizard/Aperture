@@ -110,7 +110,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
   <div class="footer">
     <div class="footer-input-container">
       <div class="ai-input-wrapper">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
         <div class="ai-input-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
           <button id="send" class="ai-send-btn">↑</button>

@@ -11634,9 +11634,9 @@ var DASHBOARD_STYLES = `
     .header-warning { display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: var(--vscode-editorWarning-foreground, #cca700); }
     .header-warning-icon { font-size: 1em; }
     .header-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; font-size: 0.9em; }
-    .ai-input-wrapper { display: flex; align-items: center; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 5px 5px 5px 0; }
-    .ai-input-wrapper:focus-within { border-color: var(--vscode-focusBorder); }
-    .ai-input-wrapper input { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
+    .ai-input-wrapper { display: flex; align-items: center; background: transparent; border: none; border-radius: 6px; padding: 5px 5px 5px 0; }
+    @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
+    .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
     .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -11650,7 +11650,7 @@ var DASHBOARD_STYLES = `
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
     /* AI Chat Panel - opens upward from footer, centered */
-    .ai-panel { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.5); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px 6px 0 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
+    .ai-panel { position: fixed; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
     .ai-panel.visible { display: flex; }
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -11669,10 +11669,10 @@ var DASHBOARD_STYLES = `
     .chat-actions .action-btns { display: flex; gap: 8px; }
     .chat-actions .action-btn { padding: 6px 12px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; }
     .chat-actions .action-btn:hover { background: rgba(255, 255, 255, 0.2); }
-    .footer { display: flex; justify-content: center; align-items: flex-start; padding: 8px 20px 12px 20px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); min-height: 70px; }
-    .footer-input-container { width: 520px; min-height: 70px; }
-    .footer .ai-input-wrapper { width: 100%; }
-    .footer .ai-input-wrapper input { width: 100%; }
+    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); }
+    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 8px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; }
+    .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
+    .footer .ai-input-wrapper textarea { width: 100%; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-warning { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(204, 167, 0, 0.15); border: 1px solid rgba(204, 167, 0, 0.4); border-radius: 4px; }
@@ -12525,14 +12525,14 @@ function renderDynamicPrompts() {
     // Scenario 4: Nothing selected (initial state)
     prompts.push({
       label: 'Where are the issues?',
-      prompt: 'Which areas of the codebase have the most issues?'
+      prompt: 'Which areas of the codebase have the most code quality issues? Focus on maintainability concerns like complexity, duplication, and coupling.'
     });
 
     const highSeverity = activeIssues.filter(i => i.severity === 'high');
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'High severity first',
-        prompt: 'What are the high severity issues I should address first?'
+        prompt: 'What are the high severity code quality issues I should refactor first? Focus on technical debt like deep nesting, long functions, circular dependencies, and code duplication.'
       });
     }
   }
@@ -12963,18 +12963,36 @@ const chatMessages = document.getElementById('chat-messages');
 let aiInputFocused = false;
 
 function showAiPanel() {
+  repositionPanel();
   aiPanel.classList.add('visible');
 }
 
 function hideAiPanel() {
-  // Only hide if no chat messages AND input not focused
-  if (chatMessages.children.length === 0 && !aiInputFocused) {
+  // Hide panel (soft dismiss) - conversation is preserved
+  if (!aiInputFocused) {
     aiPanel.classList.remove('visible');
   }
 }
 
 function isAiInputFocused() {
   return aiInputFocused;
+}
+
+// Auto-resize textarea and reposition panel
+function autoResizeInput() {
+  queryInput.style.height = 'auto';
+  queryInput.style.height = Math.min(queryInput.scrollHeight, 120) + 'px';
+  repositionPanel();
+}
+
+function repositionPanel() {
+  const inputContainer = document.querySelector('.footer-input-container');
+  if (inputContainer && aiPanel) {
+    const rect = inputContainer.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    // Position panel above the input container (4px gap)
+    aiPanel.style.bottom = (viewportHeight - rect.top + 4) + 'px';
+  }
 }
 
 queryInput.addEventListener('focus', () => {
@@ -12986,12 +13004,14 @@ queryInput.addEventListener('blur', () => {
   aiInputFocused = false;
 });
 
-// Close panel when clicking outside
+queryInput.addEventListener('input', autoResizeInput);
+
+// Close panel when clicking outside chat components
 document.addEventListener('mousedown', (e) => {
-  const footer = document.querySelector('.footer');
+  const inputContainer = document.querySelector('.footer-input-container');
   const panel = document.getElementById('ai-panel');
-  // If clicking outside footer and panel, hide after a short delay to allow blur to fire
-  if (!footer.contains(e.target) && !panel.contains(e.target)) {
+  // If clicking outside input container and panel, soft dismiss (hide but preserve conversation)
+  if (!inputContainer.contains(e.target) && !panel.contains(e.target)) {
     setTimeout(() => hideAiPanel(), 10);
   }
 });
@@ -13066,8 +13086,11 @@ document.getElementById('send').addEventListener('click', () => {
   vscode.postMessage({ command: 'query', text, context });
 });
 
-document.getElementById('query').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') document.getElementById('send').click();
+document.getElementById('query').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('send').click();
+  }
 });
 
 function showView(view) {
@@ -13778,11 +13801,8 @@ const selection = {
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide panel if no chat messages and input not focused
-      const chatMessages = document.getElementById('chat-messages');
-      if (panel && chatMessages && chatMessages.children.length === 0 && !aiInputFocused) {
-        panel.classList.remove('visible');
-      }
+      // Don't auto-hide panel - let soft dismiss handle it
+      // Panel stays visible if there's conversation or user is focused
       return;
     }
 
@@ -13914,7 +13934,7 @@ function getDashboardContent(data, architectureIssues) {
   <div class="footer">
     <div class="footer-input-container">
       <div class="ai-input-wrapper">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
         <div class="ai-input-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
           <button id="send" class="ai-send-btn">\u2191</button>

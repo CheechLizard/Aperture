@@ -144,14 +144,14 @@ function renderDynamicPrompts() {
     // Scenario 4: Nothing selected (initial state)
     prompts.push({
       label: 'Where are the issues?',
-      prompt: 'Which areas of the codebase have the most issues?'
+      prompt: 'Which areas of the codebase have the most code quality issues? Focus on maintainability concerns like complexity, duplication, and coupling.'
     });
 
     const highSeverity = activeIssues.filter(i => i.severity === 'high');
     if (highSeverity.length > 0) {
       prompts.push({
         label: 'High severity first',
-        prompt: 'What are the high severity issues I should address first?'
+        prompt: 'What are the high severity code quality issues I should refactor first? Focus on technical debt like deep nesting, long functions, circular dependencies, and code duplication.'
       });
     }
   }
