@@ -69,6 +69,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
         </div>
       </div>
       <div id="ai-dropdown" class="ai-dropdown">
+        <div id="context-files" class="context-files"></div>
         <div id="response" class="ai-response"></div>
         <div id="rules" class="rules"></div>
         <button class="clear-btn" id="clear">Clear</button>

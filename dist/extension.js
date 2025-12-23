@@ -11639,6 +11639,14 @@ var DASHBOARD_STYLES = `
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Context Files Chips */
+    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-bottom: 10px; overflow: hidden; }
+    .context-files:empty { display: none; }
+    .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
+    .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
+    .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
+    .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
     /* AI Dropdown Panel */
     .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
     .ai-dropdown.visible { display: block; }
@@ -13683,10 +13691,68 @@ const selection = {
     };
   },
 
+  // Remove a file from focus (called when user clicks X on chip)
+  removeFile(filePath) {
+    this._state.focusFiles = this._state.focusFiles.filter(f => f !== filePath);
+    this._applyHighlights();
+  },
+
   // Apply highlights to DOM nodes
   _applyHighlights() {
     highlightNodes(this._state.focusFiles);
+    this._renderContextFiles();
     renderDynamicPrompts();
+  },
+
+  // Render context files as chips in AI dropdown
+  _renderContextFiles() {
+    const container = document.getElementById('context-files');
+    const dropdown = document.getElementById('ai-dropdown');
+    if (!container) return;
+
+    const files = this._state.focusFiles;
+    if (files.length === 0) {
+      container.innerHTML = '';
+      // Hide dropdown if no response either
+      if (dropdown && !document.getElementById('response').classList.contains('visible')) {
+        dropdown.classList.remove('visible');
+      }
+      return;
+    }
+
+    // Show dropdown when there are context files
+    if (dropdown) {
+      dropdown.classList.add('visible');
+    }
+
+    // Limit to 5 visible chips
+    const maxVisible = 5;
+    const visibleFiles = files.slice(0, maxVisible);
+    const hiddenCount = files.length - maxVisible;
+
+    let html = visibleFiles.map(filePath => {
+      const fileName = filePath.split('/').pop();
+      return '<div class="context-chip" data-path="' + filePath + '">' +
+        '<span class="context-chip-name" title="' + filePath + '">' + fileName + '</span>' +
+        '<button class="context-chip-remove" title="Remove from context">\xD7</button>' +
+        '</div>';
+    }).join('');
+
+    if (hiddenCount > 0) {
+      html += '<div class="context-chip context-chip-more">+' + hiddenCount + ' more</div>';
+    }
+
+    container.innerHTML = html;
+
+    // Add click handlers for remove buttons
+    container.querySelectorAll('.context-chip-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const chip = btn.closest('.context-chip');
+        const filePath = chip.getAttribute('data-path');
+        selection.removeFile(filePath);
+      });
+    });
   }
 };
 `;
@@ -13741,6 +13807,7 @@ function getDashboardContent(data, architectureIssues) {
         </div>
       </div>
       <div id="ai-dropdown" class="ai-dropdown">
+        <div id="context-files" class="context-files"></div>
         <div id="response" class="ai-response"></div>
         <div id="rules" class="rules"></div>
         <button class="clear-btn" id="clear">Clear</button>

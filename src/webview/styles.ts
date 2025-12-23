@@ -14,6 +14,14 @@ export const DASHBOARD_STYLES = `
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Context Files Chips */
+    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-bottom: 10px; overflow: hidden; }
+    .context-files:empty { display: none; }
+    .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
+    .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
+    .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
+    .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
     /* AI Dropdown Panel */
     .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
     .ai-dropdown.visible { display: block; }
