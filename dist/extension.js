@@ -11866,6 +11866,140 @@ function buildEdgeTooltip(opts) {
 }
 `;
 
+// src/webview/treemap-nav.ts
+var TREEMAP_NAV_SCRIPT = `
+// Unified navigation module for treemap views
+const nav = {
+  _state: {
+    view: 'files',        // 'files' | 'functions' | 'deps'
+    zoomedFile: null,     // null (L1) or filePath (L2)
+    highlightedFiles: [], // Currently highlighted files
+    prevZoomedFile: null, // For animation direction
+    prevView: null        // For view transition detection
+  },
+
+  // Navigate to a target - handles all state and animation automatically
+  // target: { view?, file?, highlight? }
+  goTo(target) {
+    // Save previous state for animation detection
+    this._state.prevView = this._state.view;
+    this._state.prevZoomedFile = this._state.zoomedFile;
+
+    // Update state
+    if (target.view !== undefined) {
+      this._state.view = target.view;
+    }
+    if (target.file !== undefined) {
+      this._state.zoomedFile = target.file;
+    }
+    if (target.highlight !== undefined) {
+      this._state.highlightedFiles = target.highlight;
+    }
+
+    // Sync to legacy globals for compatibility with renderers
+    this._syncToGlobals();
+
+    // Update DOM visibility
+    this._updateDOM();
+
+    // Trigger appropriate render
+    this._render();
+  },
+
+  // Go back one level (L2 -> L1, or no-op at L1)
+  back() {
+    if (this._state.zoomedFile) {
+      this.goTo({ file: null, highlight: getAllIssueFiles() });
+    }
+  },
+
+  // Update highlights without changing view
+  highlight(files) {
+    this._state.highlightedFiles = files;
+    currentHighlightedFiles = files; // Sync to global
+    highlightIssueFiles(files);
+    renderDynamicPrompts();
+  },
+
+  // Get current state (read-only copy)
+  getState() {
+    return {
+      view: this._state.view,
+      zoomedFile: this._state.zoomedFile,
+      highlightedFiles: [...this._state.highlightedFiles]
+    };
+  },
+
+  // Sync internal state to legacy globals (for renderer compatibility)
+  _syncToGlobals() {
+    currentView = this._state.view;
+    zoomedFile = this._state.zoomedFile;
+    prevZoomedFile = this._state.prevZoomedFile;
+    currentHighlightedFiles = this._state.highlightedFiles;
+  },
+
+  // Update DOM container visibility based on current view
+  _updateDOM() {
+    const view = this._state.view;
+
+    // Files treemap
+    document.getElementById('treemap').style.display = view === 'files' ? 'block' : 'none';
+
+    // Functions view
+    document.getElementById('functions-container').classList.toggle('visible', view === 'functions');
+
+    // Dependencies chord diagram
+    document.getElementById('dep-container').style.display = view === 'deps' ? 'block' : 'none';
+    document.getElementById('dep-controls').classList.toggle('visible', view === 'deps');
+
+    // Legend (hidden for deps)
+    document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
+
+    // Back header (only in functions view when zoomed)
+    const backHeader = document.getElementById('back-header');
+    if (backHeader) {
+      if (view === 'functions' && this._state.zoomedFile) {
+        const folderPath = this._state.zoomedFile.split('/').slice(0, -1).join('/');
+        backHeader.classList.remove('hidden');
+        backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
+        backHeader.querySelector('.back-btn').addEventListener('click', () => nav.back());
+      } else {
+        backHeader.classList.add('hidden');
+        backHeader.innerHTML = '';
+      }
+    }
+  },
+
+  // Trigger the appropriate renderer for current view
+  _render() {
+    if (this._state.view === 'files') {
+      render();
+      renderTreemapLegend();
+    } else if (this._state.view === 'functions') {
+      renderDistributionChart();
+    } else if (this._state.view === 'deps') {
+      if (!depGraph) {
+        document.getElementById('status').textContent = 'Analyzing dependencies...';
+        vscode.postMessage({ command: 'getDependencies' });
+      } else {
+        renderDepGraph();
+        renderIssues();
+      }
+    }
+
+    // Apply highlights after render
+    applyPersistentIssueHighlights();
+    if (this._state.highlightedFiles.length > 0) {
+      highlightIssueFiles(this._state.highlightedFiles);
+    }
+
+    // Update dynamic prompts
+    renderDynamicPrompts();
+    updateStatus();
+  }
+};
+`;
+
 // src/webview/treemap.ts
 var TREEMAP_SCRIPT = `
 const TREEMAP_NEUTRAL_COLOR = '#3a3a3a';
@@ -12451,44 +12585,12 @@ function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   selectedRuleId = ruleId;
 
-  // Switch visualization
-  if (view === 'functions') {
-    currentView = 'functions';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('dep-controls').classList.remove('visible');
-    document.getElementById('functions-container').classList.add('visible');
-    document.getElementById('legend').style.display = 'flex';
-    // Trigger zoom out animation if currently zoomed
-    if (zoomedFile) {
-      prevZoomedFile = zoomedFile;
-      zoomedFile = null;
-    }
-    renderDistributionChart();
-  } else if (view === 'chord') {
-    currentView = 'deps';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('dep-container').style.display = 'block';
-    document.getElementById('dep-controls').classList.add('visible');
-    document.getElementById('legend').style.display = 'none';
-    if (!depGraph) {
-      document.getElementById('status').textContent = 'Analyzing dependencies...';
-      vscode.postMessage({ command: 'getDependencies' });
-    } else {
-      renderDepGraph();
-    }
-  } else {
-    // files view
-    currentView = 'treemap';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('dep-controls').classList.remove('visible');
-    document.getElementById('treemap').style.display = 'block';
-    document.getElementById('legend').style.display = 'flex';
-    render();
-    renderTreemapLegend();
-  }
+  // Map rule view names to nav view names
+  const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
+  const navView = viewMap[view] || 'files';
+
+  // Navigate to the view, zooming out if needed (file: null ensures L1)
+  nav.goTo({ view: navView, file: null });
 }
 
 function renderIssues() {
@@ -12887,51 +12989,14 @@ document.getElementById('query').addEventListener('keypress', (e) => {
 
 // Clear button handling moved to chat-panel.ts
 
-// Track currently highlighted files for view switching
-let currentHighlightedFiles = [];
+// Note: currentHighlightedFiles is now a global (defined in dashboard-html.ts)
 
 // View switching function - called by anti-pattern-panel when issue is clicked
 function showView(view) {
-  if (view === 'treemap' || view === 'files') {
-    currentView = 'treemap';
-    document.getElementById('treemap').style.display = 'block';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('legend').style.display = 'flex';
-    document.getElementById('dep-controls').classList.remove('visible');
-    render();
-    renderTreemapLegend();
-    applyPersistentIssueHighlights();
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
-    }
-  } else if (view === 'chord' || view === 'deps') {
-    currentView = 'deps';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'block';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('legend').style.display = 'none';
-    document.getElementById('dep-controls').classList.add('visible');
-
-    if (!depGraph) {
-      document.getElementById('status').textContent = 'Analyzing dependencies...';
-      vscode.postMessage({ command: 'getDependencies' });
-    } else {
-      renderDepGraph();
-      renderIssues();
-      applyPersistentIssueHighlights();
-      if (currentHighlightedFiles.length > 0) {
-        highlightIssueFiles(currentHighlightedFiles);
-      }
-    }
-  } else if (view === 'functions') {
-    currentView = 'functions';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('functions-container').classList.add('visible');
-    document.getElementById('dep-controls').classList.remove('visible');
-    renderDistributionChart();
-  }
+  // Map view names to nav view names
+  const viewMap = { treemap: 'files', files: 'files', chord: 'deps', deps: 'deps', functions: 'functions' };
+  const navView = viewMap[view] || 'files';
+  nav.goTo({ view: navView });
 }
 
 document.getElementById('depth-slider').addEventListener('input', (e) => {
@@ -13015,14 +13080,12 @@ window.addEventListener('message', event => {
 // Initialize with files treemap view (default state)
 colorMode = 'none';
 selectedRuleId = null;
-currentView = 'treemap';
-render();
-renderTreemapLegend();
+
+// Initialize navigation to files view with no highlights
+nav.goTo({ view: 'files', file: null, highlight: [] });
 renderRules();
 renderIssues();
-applyPersistentIssueHighlights();
 renderFooterStats();
-updateStatus();
 
 // Trigger dependency analysis to detect architecture issues
 vscode.postMessage({ command: 'getDependencies' });
@@ -13051,10 +13114,10 @@ document.getElementById('status').addEventListener('click', () => {
   // Reset to default state
   colorMode = 'none';
   selectedRuleId = null;
-  showView('treemap');
 
+  // Navigate to files view and highlight all issue files
   const allIssueFiles = getAllIssueFiles();
-  highlightIssueFiles(allIssueFiles);
+  nav.goTo({ view: 'files', file: null, highlight: allIssueFiles });
 });
 
 // JavaScript-driven color cycling for issue highlights
@@ -13121,9 +13184,7 @@ var DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 
 const ZOOM_DURATION = 500;
-let zoomedFile = null;
-let prevZoomedFile = null;  // Track previous zoomed file for exit animations
-let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
+// Note: zoomedFile, prevZoomedFile, prevZoomState are now global (defined in dashboard-html.ts)
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -13133,22 +13194,14 @@ function getDynamicFileColor(fileData) {
   return FUNC_NEUTRAL_COLOR;
 }
 
+// Zoom into a file to show its functions
 function zoomTo(filePath) {
-  prevZoomedFile = zoomedFile;
-  zoomedFile = filePath;
-  // Update context to only include the zoomed file
-  currentHighlightedFiles = [filePath];
-  renderDynamicPrompts();
-  renderDistributionChart();
+  nav.goTo({ file: filePath, highlight: [filePath] });
 }
 
+// Zoom out to show all files
 function zoomOut() {
-  prevZoomedFile = zoomedFile;
-  zoomedFile = null;
-  // Restore context to all issue files
-  currentHighlightedFiles = getAllIssueFiles();
-  renderDynamicPrompts();
-  renderDistributionChart();
+  nav.goTo({ file: null, highlight: getAllIssueFiles() });
 }
 
 function renderDistributionChart() {
@@ -13512,19 +13565,7 @@ function renderDistributionChart() {
     .transition(t)
     .attr('opacity', 1);
 
-  // HTML back button in header
-  const header = document.getElementById('back-header');
-  if (header) {
-    if (zoomedFile) {
-      const folderPath = zoomedFile.split('/').slice(0, -1).join('/');
-      header.classList.remove('hidden');
-      header.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
-      header.querySelector('.back-btn').addEventListener('click', zoomOut);
-    } else {
-      header.classList.add('hidden');
-      header.innerHTML = '';
-    }
-  }
+  // Note: Back header is now handled by nav._updateDOM()
 
   // Update legend
   if (zoomedFile) {
@@ -13680,6 +13721,12 @@ let selectedElement = null;
 // ignoredIssues is defined in FILE_ISSUES_PANEL_SCRIPT
 let activeRules = new Set();  // Set of pattern types added as rules
 
+// Navigation state - managed by nav module but exposed as globals for renderer compatibility
+let zoomedFile = null;
+let prevZoomedFile = null;
+let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
+let currentHighlightedFiles = [];
+
 // Build issue file map from all issues
 const issueFileMap = new Map();
 const severityRank = { high: 0, medium: 1, low: 2 };
@@ -13693,6 +13740,8 @@ for (const issue of issues) {
 }
 
 ${TOOLTIP_SCRIPT}
+
+${TREEMAP_NAV_SCRIPT}
 
 ${TREEMAP_SCRIPT}
 

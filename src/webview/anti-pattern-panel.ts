@@ -76,44 +76,12 @@ function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   selectedRuleId = ruleId;
 
-  // Switch visualization
-  if (view === 'functions') {
-    currentView = 'functions';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('dep-controls').classList.remove('visible');
-    document.getElementById('functions-container').classList.add('visible');
-    document.getElementById('legend').style.display = 'flex';
-    // Trigger zoom out animation if currently zoomed
-    if (zoomedFile) {
-      prevZoomedFile = zoomedFile;
-      zoomedFile = null;
-    }
-    renderDistributionChart();
-  } else if (view === 'chord') {
-    currentView = 'deps';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('dep-container').style.display = 'block';
-    document.getElementById('dep-controls').classList.add('visible');
-    document.getElementById('legend').style.display = 'none';
-    if (!depGraph) {
-      document.getElementById('status').textContent = 'Analyzing dependencies...';
-      vscode.postMessage({ command: 'getDependencies' });
-    } else {
-      renderDepGraph();
-    }
-  } else {
-    // files view
-    currentView = 'treemap';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('dep-controls').classList.remove('visible');
-    document.getElementById('treemap').style.display = 'block';
-    document.getElementById('legend').style.display = 'flex';
-    render();
-    renderTreemapLegend();
-  }
+  // Map rule view names to nav view names
+  const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
+  const navView = viewMap[view] || 'files';
+
+  // Navigate to the view, zooming out if needed (file: null ensures L1)
+  nav.goTo({ view: navView, file: null });
 }
 
 function renderIssues() {

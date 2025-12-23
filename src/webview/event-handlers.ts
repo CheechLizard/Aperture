@@ -33,51 +33,14 @@ document.getElementById('query').addEventListener('keypress', (e) => {
 
 // Clear button handling moved to chat-panel.ts
 
-// Track currently highlighted files for view switching
-let currentHighlightedFiles = [];
+// Note: currentHighlightedFiles is now a global (defined in dashboard-html.ts)
 
 // View switching function - called by anti-pattern-panel when issue is clicked
 function showView(view) {
-  if (view === 'treemap' || view === 'files') {
-    currentView = 'treemap';
-    document.getElementById('treemap').style.display = 'block';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('legend').style.display = 'flex';
-    document.getElementById('dep-controls').classList.remove('visible');
-    render();
-    renderTreemapLegend();
-    applyPersistentIssueHighlights();
-    if (currentHighlightedFiles.length > 0) {
-      highlightIssueFiles(currentHighlightedFiles);
-    }
-  } else if (view === 'chord' || view === 'deps') {
-    currentView = 'deps';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'block';
-    document.getElementById('functions-container').classList.remove('visible');
-    document.getElementById('legend').style.display = 'none';
-    document.getElementById('dep-controls').classList.add('visible');
-
-    if (!depGraph) {
-      document.getElementById('status').textContent = 'Analyzing dependencies...';
-      vscode.postMessage({ command: 'getDependencies' });
-    } else {
-      renderDepGraph();
-      renderIssues();
-      applyPersistentIssueHighlights();
-      if (currentHighlightedFiles.length > 0) {
-        highlightIssueFiles(currentHighlightedFiles);
-      }
-    }
-  } else if (view === 'functions') {
-    currentView = 'functions';
-    document.getElementById('treemap').style.display = 'none';
-    document.getElementById('dep-container').style.display = 'none';
-    document.getElementById('functions-container').classList.add('visible');
-    document.getElementById('dep-controls').classList.remove('visible');
-    renderDistributionChart();
-  }
+  // Map view names to nav view names
+  const viewMap = { treemap: 'files', files: 'files', chord: 'deps', deps: 'deps', functions: 'functions' };
+  const navView = viewMap[view] || 'files';
+  nav.goTo({ view: navView });
 }
 
 document.getElementById('depth-slider').addEventListener('input', (e) => {
@@ -161,14 +124,12 @@ window.addEventListener('message', event => {
 // Initialize with files treemap view (default state)
 colorMode = 'none';
 selectedRuleId = null;
-currentView = 'treemap';
-render();
-renderTreemapLegend();
+
+// Initialize navigation to files view with no highlights
+nav.goTo({ view: 'files', file: null, highlight: [] });
 renderRules();
 renderIssues();
-applyPersistentIssueHighlights();
 renderFooterStats();
-updateStatus();
 
 // Trigger dependency analysis to detect architecture issues
 vscode.postMessage({ command: 'getDependencies' });
@@ -197,10 +158,10 @@ document.getElementById('status').addEventListener('click', () => {
   // Reset to default state
   colorMode = 'none';
   selectedRuleId = null;
-  showView('treemap');
 
+  // Navigate to files view and highlight all issue files
   const allIssueFiles = getAllIssueFiles();
-  highlightIssueFiles(allIssueFiles);
+  nav.goTo({ view: 'files', file: null, highlight: allIssueFiles });
 });
 
 // JavaScript-driven color cycling for issue highlights

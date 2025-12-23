@@ -2,9 +2,7 @@ export const DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 
 const ZOOM_DURATION = 500;
-let zoomedFile = null;
-let prevZoomedFile = null;  // Track previous zoomed file for exit animations
-let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };  // Track previous zoom for animation
+// Note: zoomedFile, prevZoomedFile, prevZoomState are now global (defined in dashboard-html.ts)
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -14,22 +12,14 @@ function getDynamicFileColor(fileData) {
   return FUNC_NEUTRAL_COLOR;
 }
 
+// Zoom into a file to show its functions
 function zoomTo(filePath) {
-  prevZoomedFile = zoomedFile;
-  zoomedFile = filePath;
-  // Update context to only include the zoomed file
-  currentHighlightedFiles = [filePath];
-  renderDynamicPrompts();
-  renderDistributionChart();
+  nav.goTo({ file: filePath, highlight: [filePath] });
 }
 
+// Zoom out to show all files
 function zoomOut() {
-  prevZoomedFile = zoomedFile;
-  zoomedFile = null;
-  // Restore context to all issue files
-  currentHighlightedFiles = getAllIssueFiles();
-  renderDynamicPrompts();
-  renderDistributionChart();
+  nav.goTo({ file: null, highlight: getAllIssueFiles() });
 }
 
 function renderDistributionChart() {
@@ -393,19 +383,7 @@ function renderDistributionChart() {
     .transition(t)
     .attr('opacity', 1);
 
-  // HTML back button in header
-  const header = document.getElementById('back-header');
-  if (header) {
-    if (zoomedFile) {
-      const folderPath = zoomedFile.split('/').slice(0, -1).join('/');
-      header.classList.remove('hidden');
-      header.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
-      header.querySelector('.back-btn').addEventListener('click', zoomOut);
-    } else {
-      header.classList.add('hidden');
-      header.innerHTML = '';
-    }
-  }
+  // Note: Back header is now handled by nav._updateDOM()
 
   // Update legend
   if (zoomedFile) {

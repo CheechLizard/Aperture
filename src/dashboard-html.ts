@@ -1,6 +1,7 @@
 import { ProjectData, Issue } from './types';
 import { DASHBOARD_STYLES } from './webview/styles';
 import { TOOLTIP_SCRIPT } from './webview/tooltip';
+import { TREEMAP_NAV_SCRIPT } from './webview/treemap-nav';
 import { TREEMAP_SCRIPT } from './webview/treemap';
 import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
@@ -135,6 +136,12 @@ let selectedElement = null;
 // ignoredIssues is defined in FILE_ISSUES_PANEL_SCRIPT
 let activeRules = new Set();  // Set of pattern types added as rules
 
+// Navigation state - managed by nav module but exposed as globals for renderer compatibility
+let zoomedFile = null;
+let prevZoomedFile = null;
+let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
+let currentHighlightedFiles = [];
+
 // Build issue file map from all issues
 const issueFileMap = new Map();
 const severityRank = { high: 0, medium: 1, low: 2 };
@@ -148,6 +155,8 @@ for (const issue of issues) {
 }
 
 ${TOOLTIP_SCRIPT}
+
+${TREEMAP_NAV_SCRIPT}
 
 ${TREEMAP_SCRIPT}
 
