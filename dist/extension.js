@@ -11625,37 +11625,53 @@ async function removeAntiPatternRule(rootPath, patternType) {
 // src/webview/styles.ts
 var DASHBOARD_STYLES = `
     *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); display: flex; flex-direction: column; }
     /* App Header */
-    .app-header { display: flex; align-items: center; justify-content: center; margin: 0; padding: 12px 20px; gap: 12px; border-bottom: 1px solid var(--vscode-widget-border); position: relative; }
-    .back-header { position: absolute; left: 20px; display: flex; align-items: center; gap: 8px; }
-    .header-center { position: relative; }
+    .app-header { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 8px 20px; gap: 12px; border-bottom: 1px solid var(--vscode-widget-border); height: 40px; }
+    .back-header { display: flex; align-items: center; gap: 8px; min-width: 200px; }
+    .back-header.hidden { visibility: hidden; }
+    .header-warning { display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: var(--vscode-editorWarning-foreground, #cca700); }
+    .header-warning-icon { font-size: 1em; }
+    .header-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.2); border-radius: 3px; font-size: 0.9em; }
     .ai-input-wrapper { display: flex; align-items: center; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 5px 5px 5px 0; }
     .ai-input-wrapper:focus-within { border-color: var(--vscode-focusBorder); }
-    .ai-input-wrapper input { width: 520px; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
+    .ai-input-wrapper input { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1; outline: none; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
     .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    /* Context Files Chips */
-    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-bottom: 10px; overflow: hidden; }
-    .context-files:empty { display: none; }
+    /* Context Files Chips - shown below input in footer */
+    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 8px; overflow: hidden; min-height: 24px; }
     .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
     .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
-    /* AI Dropdown Panel */
-    .ai-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 300px; overflow-y: auto; }
-    .ai-dropdown.visible { display: block; }
-    .ai-response { padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; white-space: pre-wrap; display: none; font-size: 0.9em; line-height: 1.5; }
-    .ai-response.visible { display: block; }
-    .ai-dropdown .clear-btn { display: none; margin-top: 8px; padding: 4px 10px; font-size: 0.8em; background: transparent; border: 1px solid var(--vscode-widget-border); color: var(--vscode-foreground); border-radius: 4px; cursor: pointer; }
-    .ai-dropdown .clear-btn.visible { display: inline-block; }
-    .footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); }
-    .footer-stats { display: flex; gap: 16px; align-items: center; }
+    /* AI Chat Panel - opens upward from footer, centered */
+    .ai-panel { position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: none; border-radius: 6px 6px 0 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
+    .ai-panel.visible { display: flex; }
+    /* Chat Messages Area */
+    .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .chat-messages:empty { display: none; }
+    .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 0.9em; line-height: 1.4; }
+    .user-message-text { margin-bottom: 6px; }
+    .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
+    .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
+    .user-message-file::before { content: '\u{1F4CE}'; font-size: 0.9em; }
+    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
+    .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
+    .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    /* Chat Actions */
+    .chat-actions { margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .chat-actions .action-btns { display: flex; gap: 8px; }
+    .chat-actions .action-btn { padding: 6px 12px; font-size: 0.85em; background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; cursor: pointer; }
+    .chat-actions .action-btn:hover { background: rgba(255, 255, 255, 0.2); }
+    .footer { display: flex; justify-content: center; align-items: flex-start; padding: 8px 20px 12px 20px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); min-height: 70px; }
+    .footer-input-container { width: 520px; min-height: 70px; }
+    .footer .ai-input-wrapper { width: 100%; }
+    .footer .ai-input-wrapper input { width: 100%; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-warning { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(204, 167, 0, 0.15); border: 1px solid rgba(204, 167, 0, 0.4); border-radius: 4px; }
@@ -11676,7 +11692,7 @@ var DASHBOARD_STYLES = `
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
-    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
     /* Back header in app header */
@@ -11706,10 +11722,10 @@ var DASHBOARD_STYLES = `
     .file-entry:hover { background: var(--vscode-list-hoverBackground); }
     .file-path { color: var(--vscode-textLink-foreground); }
     .file-reason { color: var(--vscode-descriptionForeground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .main-split { display: flex; gap: 16px; height: calc(100vh - 140px); padding: 0 20px 12px 20px; }
+    .main-split { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 0 20px 0 20px; }
     .main-content { flex: 3; display: flex; flex-direction: column; position: relative; }
     .main-sidebar { flex: 1; min-width: 250px; max-width: 320px; overflow-y: auto; border-left: 1px solid var(--vscode-panel-border, #444); padding-left: 12px; }
-    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .diagram-area { flex: 1; position: relative; min-height: 0; overflow: hidden; display: flex; flex-direction: column; margin: 0; padding: 0; }
     .dep-container { display: none; width: 100%; flex: 1; min-height: 0; }
     .dep-chord { display: flex; align-items: center; justify-content: center; height: 100%; }
     .dep-chord svg { display: block; }
@@ -11787,9 +11803,9 @@ var DASHBOARD_STYLES = `
     }
 
     /* Function Distribution Chart */
-    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; }
+    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
     .functions-container.visible { display: flex; }
-    #functions-chart { width: 100%; flex: 1; min-height: 0; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 
     /* Zoom Header - positioned absolutely to left */
@@ -12186,31 +12202,12 @@ function applyPersistentIssueHighlights() {
   });
 }
 
-function renderFooterStats(nodeCount, edgeCount) {
-  const footerStats = document.getElementById('footer-dep-stats');
-  const activeIssues = issues.filter(i => !isIssueIgnored(i));
-
-  // Count unique files with issues
-  const fileSet = new Set();
-  for (const issue of activeIssues) {
-    for (const loc of issue.locations) {
-      fileSet.add(loc.file);
-    }
-  }
-
-  let html = '';
-  if (nodeCount !== undefined && edgeCount !== undefined) {
-    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
-    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
-  }
-  if (fileSet.size > 0) {
-    html += '<span class="footer-stat"><strong>' + fileSet.size + '</strong> files with issues</span>';
-  }
-  footerStats.innerHTML = html;
+function renderFooterStats() {
+  // Stats are now shown in status button via updateStatus()
 }
 
-function renderStats(nodeCount, edgeCount) {
-  renderFooterStats(nodeCount, edgeCount);
+function renderStats() {
+  // Stats are now shown in status button via updateStatus()
 }
 `;
 
@@ -12552,8 +12549,9 @@ function renderDynamicPrompts() {
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const prompt = btn.getAttribute('data-prompt');
-      document.getElementById('query').value = prompt;
-      document.getElementById('send').click();
+      const input = document.getElementById('query');
+      input.value = prompt;
+      input.focus();
     });
   });
 }
@@ -12563,7 +12561,6 @@ function updateHighlights(relevantFiles) {
   // AI responses temporarily override the visual highlight
   // but don't change the selection state
   highlightNodes(relevantFiles);
-  document.getElementById('clear').style.display = relevantFiles.length > 0 ? 'inline-block' : 'none';
 }
 `;
 
@@ -12958,47 +12955,39 @@ function getActiveIssueCount() {
 
 // src/webview/chat-panel.ts
 var CHAT_PANEL_SCRIPT = `
-// AI Dropdown panel - shown when input is focused
-const aiDropdown = document.getElementById('ai-dropdown');
+// AI Chat panel - shown when input is focused
+const aiPanel = document.getElementById('ai-panel');
 const queryInput = document.getElementById('query');
-const responseEl = document.getElementById('response');
-const clearBtn = document.getElementById('clear');
+const chatMessages = document.getElementById('chat-messages');
 
-function showAiDropdown() {
-  aiDropdown.classList.add('visible');
+function showAiPanel() {
+  aiPanel.classList.add('visible');
 }
 
-function hideAiDropdown() {
-  // Only hide if no response is showing
-  if (!responseEl.classList.contains('visible')) {
-    aiDropdown.classList.remove('visible');
+function hideAiPanel() {
+  // Only hide if no chat messages
+  if (chatMessages.children.length === 0) {
+    aiPanel.classList.remove('visible');
   }
 }
 
-queryInput.addEventListener('focus', showAiDropdown);
+queryInput.addEventListener('focus', showAiPanel);
 
-// Close dropdown when clicking outside
+// Close panel when clicking outside
 document.addEventListener('click', (e) => {
-  const headerCenter = document.querySelector('.header-center');
-  if (!headerCenter.contains(e.target)) {
-    hideAiDropdown();
+  const footer = document.querySelector('.footer');
+  const panel = document.getElementById('ai-panel');
+  if (!footer.contains(e.target) && !panel.contains(e.target)) {
+    hideAiPanel();
   }
 });
 
 // Close with Escape key
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && aiDropdown.classList.contains('visible')) {
+  if (e.key === 'Escape' && aiPanel.classList.contains('visible')) {
     queryInput.blur();
-    hideAiDropdown();
+    hideAiPanel();
   }
-});
-
-clearBtn.addEventListener('click', () => {
-  responseEl.classList.remove('visible');
-  responseEl.textContent = '';
-  clearBtn.classList.remove('visible');
-  updateHighlights([]);
-  hideAiDropdown();
 });
 `;
 
@@ -13022,9 +13011,43 @@ document.getElementById('send').addEventListener('click', () => {
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
+  input.value = '';
 
   // Get context from selection state
   const context = selection.getAIContext();
+  const chatMessages = document.getElementById('chat-messages');
+  const panel = document.getElementById('ai-panel');
+
+  // Show panel
+  panel.classList.add('visible');
+
+  // Render user message bubble
+  const userMsg = document.createElement('div');
+  userMsg.className = 'user-message';
+  let userHtml = '<div class="user-message-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+  if (context.files && context.files.length > 0) {
+    const fileNames = context.files.slice(0, 3).map(f => f.split('/').pop());
+    const moreCount = context.files.length - 3;
+    userHtml += '<div class="user-message-files">';
+    userHtml += fileNames.map(f => '<span class="user-message-file">' + f + '</span>').join('');
+    if (moreCount > 0) userHtml += '<span class="user-message-file">+' + moreCount + ' more</span>';
+    userHtml += '</div>';
+  }
+  userMsg.innerHTML = userHtml;
+  chatMessages.appendChild(userMsg);
+
+  // Render thinking bubble
+  const thinkingMsg = document.createElement('div');
+  thinkingMsg.className = 'ai-message thinking';
+  thinkingMsg.id = 'thinking-bubble';
+  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span>';
+  chatMessages.appendChild(thinkingMsg);
+
+  // Scroll to bottom
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  // Hide prompts, will show action buttons after response
+  document.getElementById('rules').style.display = 'none';
 
   vscode.postMessage({ command: 'query', text, context });
 });
@@ -13062,18 +13085,44 @@ document.getElementById('show-orphans').addEventListener('change', () => {
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
-    const resp = document.getElementById('response');
-    resp.classList.add('visible');
-    resp.innerHTML = '<div class="thinking"><div class="thinking-spinner"></div><span>Analyzing...</span></div>';
-    document.getElementById('ai-dropdown').classList.add('visible');
+    // Thinking is now handled inline in send handler
   } else if (msg.type === 'response') {
-    document.getElementById('response').classList.remove('thinking');
     document.getElementById('send').disabled = false;
-    const resp = document.getElementById('response');
-    resp.classList.add('visible');
-    resp.textContent = msg.message;
-    document.getElementById('clear').classList.add('visible');
+    const chatMessages = document.getElementById('chat-messages');
+
+    // Remove thinking bubble
+    const thinkingBubble = document.getElementById('thinking-bubble');
+    if (thinkingBubble) thinkingBubble.remove();
+
+    // Add AI response bubble
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'ai-message';
+    aiMsg.textContent = msg.message;
+    chatMessages.appendChild(aiMsg);
+
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Show action buttons instead of prompts
+    const chatActions = document.getElementById('chat-actions');
+    chatActions.innerHTML = '<div class="action-btns">' +
+      '<button class="action-btn" id="copy-response">Copy response</button>' +
+      '<button class="action-btn" id="clear-chat">Clear</button>' +
+      '</div>';
+
+    document.getElementById('copy-response').addEventListener('click', () => {
+      navigator.clipboard.writeText(msg.message);
+    });
+
+    document.getElementById('clear-chat').addEventListener('click', () => {
+      chatMessages.innerHTML = '';
+      chatActions.innerHTML = '<div id="rules" class="rules"></div>';
+      renderDynamicPrompts();
+      selection.clear();
+    });
+
     updateHighlights(msg.relevantFiles || []);
+
     // Update context pie chart with actual usage
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
@@ -13160,10 +13209,16 @@ document.getElementById('status').addEventListener('click', () => {
 function updateStatus() {
   const statusBtn = document.getElementById('status');
   const issueFiles = getAllIssueFiles();
+  const totalFiles = files.length;
+  const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
+  const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
+
+  let statsHtml = '<span class="status-stats">' + totalFiles.toLocaleString() + ' files \xB7 ' + totalFunctions.toLocaleString() + ' functions \xB7 ' + totalLoc.toLocaleString() + ' LOC</span>';
+
   if (issueFiles.length > 0) {
-    statusBtn.textContent = 'Possible issues in ' + issueFiles.length + ' files';
+    statusBtn.innerHTML = statsHtml + ' \xB7 <strong>' + issueFiles.length + ' with issues</strong>';
   } else {
-    statusBtn.textContent = 'No issues found';
+    statusBtn.innerHTML = statsHtml + ' \xB7 <span style="opacity:0.7">No issues</span>';
   }
 }
 `;
@@ -13545,13 +13600,9 @@ function renderFileHeader(layer, width, t) {
 }
 
 function renderFilesLegend(fileData) {
+  // Stats now shown in status button via updateStatus()
   const legend = document.getElementById('legend');
-  if (!legend || currentView !== 'functions') return;
-
-  const total = fileData.length;
-  const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
-  legend.style.display = 'flex';
-  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+  if (legend) legend.style.display = 'none';
 }
 
 function renderFunctionLegend(leaves) {
@@ -13704,25 +13755,26 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in AI dropdown
+  // Render context files as chips in AI panel
   _renderContextFiles() {
     const container = document.getElementById('context-files');
-    const dropdown = document.getElementById('ai-dropdown');
+    const panel = document.getElementById('ai-panel');
     if (!container) return;
 
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide dropdown if no response either
-      if (dropdown && !document.getElementById('response').classList.contains('visible')) {
-        dropdown.classList.remove('visible');
+      // Hide panel if no chat messages either
+      const chatMessages = document.getElementById('chat-messages');
+      if (panel && chatMessages && chatMessages.children.length === 0) {
+        panel.classList.remove('visible');
       }
       return;
     }
 
-    // Show dropdown when there are context files
-    if (dropdown) {
-      dropdown.classList.add('visible');
+    // Show panel when there are context files
+    if (panel) {
+      panel.classList.add('visible');
     }
 
     // Limit to 5 visible chips
@@ -13798,21 +13850,7 @@ function getDashboardContent(data, architectureIssues) {
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    <div class="header-center">
-      <div class="ai-input-wrapper">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
-        <div class="ai-input-actions">
-          <div id="context-pie" class="context-pie" title="Context used"></div>
-          <button id="send" class="ai-send-btn">\u2191</button>
-        </div>
-      </div>
-      <div id="ai-dropdown" class="ai-dropdown">
-        <div id="context-files" class="context-files"></div>
-        <div id="response" class="ai-response"></div>
-        <div id="rules" class="rules"></div>
-        <button class="clear-btn" id="clear">Clear</button>
-      </div>
-    </div>
+    ${unsupportedCount > 0 ? `<div class="header-warning"><span class="header-warning-icon">\u26A0</span><span>Missing parsers:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="header-lang">' + l2.language + "</span>").join("")}</div>` : "<div></div>"}
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -13853,13 +13891,23 @@ function getDashboardContent(data, architectureIssues) {
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
-  <div class="footer">
-    <div class="footer-stats">
-      <span class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</span>
-      <span class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> LOC</span>
-      <span id="footer-dep-stats"></span>
+  <div id="ai-panel" class="ai-panel">
+    <div id="chat-messages" class="chat-messages"></div>
+    <div id="chat-actions" class="chat-actions">
+      <div id="rules" class="rules"></div>
     </div>
-    ${unsupportedCount > 0 ? `<div class="footer-warning"><span class="footer-warning-icon">\u26A0</span><span class="footer-warning-text">Missing AST parsers for:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
+  </div>
+  <div class="footer">
+    <div class="footer-input-container">
+      <div class="ai-input-wrapper">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <div class="ai-input-actions">
+          <div id="context-pie" class="context-pie" title="Context used"></div>
+          <button id="send" class="ai-send-btn">\u2191</button>
+        </div>
+      </div>
+      <div id="context-files" class="context-files"></div>
+    </div>
   </div>
 
 <script>

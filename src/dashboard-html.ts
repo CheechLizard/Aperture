@@ -60,21 +60,7 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    <div class="header-center">
-      <div class="ai-input-wrapper">
-        <input type="text" id="query" placeholder="Ask about this codebase..." />
-        <div class="ai-input-actions">
-          <div id="context-pie" class="context-pie" title="Context used"></div>
-          <button id="send" class="ai-send-btn">↑</button>
-        </div>
-      </div>
-      <div id="ai-dropdown" class="ai-dropdown">
-        <div id="context-files" class="context-files"></div>
-        <div id="response" class="ai-response"></div>
-        <div id="rules" class="rules"></div>
-        <button class="clear-btn" id="clear">Clear</button>
-      </div>
-    </div>
+    ${unsupportedCount > 0 ? `<div class="header-warning"><span class="header-warning-icon">⚠</span><span>Missing parsers:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="header-lang">' + l.language + '</span>').join('')}</div>` : '<div></div>'}
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -115,13 +101,23 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
-  <div class="footer">
-    <div class="footer-stats">
-      <span class="footer-stat"><strong>${data.totals.files.toLocaleString()}</strong> files</span>
-      <span class="footer-stat"><strong>${data.totals.loc.toLocaleString()}</strong> LOC</span>
-      <span id="footer-dep-stats"></span>
+  <div id="ai-panel" class="ai-panel">
+    <div id="chat-messages" class="chat-messages"></div>
+    <div id="chat-actions" class="chat-actions">
+      <div id="rules" class="rules"></div>
     </div>
-    ${unsupportedCount > 0 ? `<div class="footer-warning"><span class="footer-warning-icon">⚠</span><span class="footer-warning-text">Missing AST parsers for:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
+  </div>
+  <div class="footer">
+    <div class="footer-input-container">
+      <div class="ai-input-wrapper">
+        <input type="text" id="query" placeholder="Ask about this codebase..." />
+        <div class="ai-input-actions">
+          <div id="context-pie" class="context-pie" title="Context used"></div>
+          <button id="send" class="ai-send-btn">↑</button>
+        </div>
+      </div>
+      <div id="context-files" class="context-files"></div>
+    </div>
   </div>
 
 <script>

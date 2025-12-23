@@ -57,30 +57,11 @@ function applyPersistentIssueHighlights() {
   });
 }
 
-function renderFooterStats(nodeCount, edgeCount) {
-  const footerStats = document.getElementById('footer-dep-stats');
-  const activeIssues = issues.filter(i => !isIssueIgnored(i));
-
-  // Count unique files with issues
-  const fileSet = new Set();
-  for (const issue of activeIssues) {
-    for (const loc of issue.locations) {
-      fileSet.add(loc.file);
-    }
-  }
-
-  let html = '';
-  if (nodeCount !== undefined && edgeCount !== undefined) {
-    html += '<span class="footer-stat"><strong>' + nodeCount + '</strong> connected</span>';
-    html += '<span class="footer-stat"><strong>' + edgeCount + '</strong> dependencies</span>';
-  }
-  if (fileSet.size > 0) {
-    html += '<span class="footer-stat"><strong>' + fileSet.size + '</strong> files with issues</span>';
-  }
-  footerStats.innerHTML = html;
+function renderFooterStats() {
+  // Stats are now shown in status button via updateStatus()
 }
 
-function renderStats(nodeCount, edgeCount) {
-  renderFooterStats(nodeCount, edgeCount);
+function renderStats() {
+  // Stats are now shown in status button via updateStatus()
 }
 `;

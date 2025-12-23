@@ -169,8 +169,9 @@ function renderDynamicPrompts() {
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const prompt = btn.getAttribute('data-prompt');
-      document.getElementById('query').value = prompt;
-      document.getElementById('send').click();
+      const input = document.getElementById('query');
+      input.value = prompt;
+      input.focus();
     });
   });
 }
@@ -180,6 +181,5 @@ function updateHighlights(relevantFiles) {
   // AI responses temporarily override the visual highlight
   // but don't change the selection state
   highlightNodes(relevantFiles);
-  document.getElementById('clear').style.display = relevantFiles.length > 0 ? 'inline-block' : 'none';
 }
 `;

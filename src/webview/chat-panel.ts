@@ -1,44 +1,36 @@
 export const CHAT_PANEL_SCRIPT = `
-// AI Dropdown panel - shown when input is focused
-const aiDropdown = document.getElementById('ai-dropdown');
+// AI Chat panel - shown when input is focused
+const aiPanel = document.getElementById('ai-panel');
 const queryInput = document.getElementById('query');
-const responseEl = document.getElementById('response');
-const clearBtn = document.getElementById('clear');
+const chatMessages = document.getElementById('chat-messages');
 
-function showAiDropdown() {
-  aiDropdown.classList.add('visible');
+function showAiPanel() {
+  aiPanel.classList.add('visible');
 }
 
-function hideAiDropdown() {
-  // Only hide if no response is showing
-  if (!responseEl.classList.contains('visible')) {
-    aiDropdown.classList.remove('visible');
+function hideAiPanel() {
+  // Only hide if no chat messages
+  if (chatMessages.children.length === 0) {
+    aiPanel.classList.remove('visible');
   }
 }
 
-queryInput.addEventListener('focus', showAiDropdown);
+queryInput.addEventListener('focus', showAiPanel);
 
-// Close dropdown when clicking outside
+// Close panel when clicking outside
 document.addEventListener('click', (e) => {
-  const headerCenter = document.querySelector('.header-center');
-  if (!headerCenter.contains(e.target)) {
-    hideAiDropdown();
+  const footer = document.querySelector('.footer');
+  const panel = document.getElementById('ai-panel');
+  if (!footer.contains(e.target) && !panel.contains(e.target)) {
+    hideAiPanel();
   }
 });
 
 // Close with Escape key
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && aiDropdown.classList.contains('visible')) {
+  if (e.key === 'Escape' && aiPanel.classList.contains('visible')) {
     queryInput.blur();
-    hideAiDropdown();
+    hideAiPanel();
   }
-});
-
-clearBtn.addEventListener('click', () => {
-  responseEl.classList.remove('visible');
-  responseEl.textContent = '';
-  clearBtn.classList.remove('visible');
-  updateHighlights([]);
-  hideAiDropdown();
 });
 `;

@@ -374,13 +374,9 @@ function renderFileHeader(layer, width, t) {
 }
 
 function renderFilesLegend(fileData) {
+  // Stats now shown in status button via updateStatus()
   const legend = document.getElementById('legend');
-  if (!legend || currentView !== 'functions') return;
-
-  const total = fileData.length;
-  const totalFns = fileData.reduce((sum, f) => sum + f.functions.length, 0);
-  legend.style.display = 'flex';
-  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + total + '</strong> files \\u00b7 <strong>' + totalFns + '</strong> functions</div>';
+  if (legend) legend.style.display = 'none';
 }
 
 function renderFunctionLegend(leaves) {

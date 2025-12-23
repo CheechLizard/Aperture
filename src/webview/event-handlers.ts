@@ -17,9 +17,43 @@ document.getElementById('send').addEventListener('click', () => {
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
+  input.value = '';
 
   // Get context from selection state
   const context = selection.getAIContext();
+  const chatMessages = document.getElementById('chat-messages');
+  const panel = document.getElementById('ai-panel');
+
+  // Show panel
+  panel.classList.add('visible');
+
+  // Render user message bubble
+  const userMsg = document.createElement('div');
+  userMsg.className = 'user-message';
+  let userHtml = '<div class="user-message-text">' + text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+  if (context.files && context.files.length > 0) {
+    const fileNames = context.files.slice(0, 3).map(f => f.split('/').pop());
+    const moreCount = context.files.length - 3;
+    userHtml += '<div class="user-message-files">';
+    userHtml += fileNames.map(f => '<span class="user-message-file">' + f + '</span>').join('');
+    if (moreCount > 0) userHtml += '<span class="user-message-file">+' + moreCount + ' more</span>';
+    userHtml += '</div>';
+  }
+  userMsg.innerHTML = userHtml;
+  chatMessages.appendChild(userMsg);
+
+  // Render thinking bubble
+  const thinkingMsg = document.createElement('div');
+  thinkingMsg.className = 'ai-message thinking';
+  thinkingMsg.id = 'thinking-bubble';
+  thinkingMsg.innerHTML = '<div class="thinking-spinner"></div><span>Analyzing...</span>';
+  chatMessages.appendChild(thinkingMsg);
+
+  // Scroll to bottom
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  // Hide prompts, will show action buttons after response
+  document.getElementById('rules').style.display = 'none';
 
   vscode.postMessage({ command: 'query', text, context });
 });
@@ -57,18 +91,44 @@ document.getElementById('show-orphans').addEventListener('change', () => {
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'thinking') {
-    const resp = document.getElementById('response');
-    resp.classList.add('visible');
-    resp.innerHTML = '<div class="thinking"><div class="thinking-spinner"></div><span>Analyzing...</span></div>';
-    document.getElementById('ai-dropdown').classList.add('visible');
+    // Thinking is now handled inline in send handler
   } else if (msg.type === 'response') {
-    document.getElementById('response').classList.remove('thinking');
     document.getElementById('send').disabled = false;
-    const resp = document.getElementById('response');
-    resp.classList.add('visible');
-    resp.textContent = msg.message;
-    document.getElementById('clear').classList.add('visible');
+    const chatMessages = document.getElementById('chat-messages');
+
+    // Remove thinking bubble
+    const thinkingBubble = document.getElementById('thinking-bubble');
+    if (thinkingBubble) thinkingBubble.remove();
+
+    // Add AI response bubble
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'ai-message';
+    aiMsg.textContent = msg.message;
+    chatMessages.appendChild(aiMsg);
+
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Show action buttons instead of prompts
+    const chatActions = document.getElementById('chat-actions');
+    chatActions.innerHTML = '<div class="action-btns">' +
+      '<button class="action-btn" id="copy-response">Copy response</button>' +
+      '<button class="action-btn" id="clear-chat">Clear</button>' +
+      '</div>';
+
+    document.getElementById('copy-response').addEventListener('click', () => {
+      navigator.clipboard.writeText(msg.message);
+    });
+
+    document.getElementById('clear-chat').addEventListener('click', () => {
+      chatMessages.innerHTML = '';
+      chatActions.innerHTML = '<div id="rules" class="rules"></div>';
+      renderDynamicPrompts();
+      selection.clear();
+    });
+
     updateHighlights(msg.relevantFiles || []);
+
     // Update context pie chart with actual usage
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
@@ -155,10 +215,16 @@ document.getElementById('status').addEventListener('click', () => {
 function updateStatus() {
   const statusBtn = document.getElementById('status');
   const issueFiles = getAllIssueFiles();
+  const totalFiles = files.length;
+  const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
+  const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
+
+  let statsHtml = '<span class="status-stats">' + totalFiles.toLocaleString() + ' files · ' + totalFunctions.toLocaleString() + ' functions · ' + totalLoc.toLocaleString() + ' LOC</span>';
+
   if (issueFiles.length > 0) {
-    statusBtn.textContent = 'Possible issues in ' + issueFiles.length + ' files';
+    statusBtn.innerHTML = statsHtml + ' · <strong>' + issueFiles.length + ' with issues</strong>';
   } else {
-    statusBtn.textContent = 'No issues found';
+    statusBtn.innerHTML = statsHtml + ' · <span style="opacity:0.7">No issues</span>';
   }
 }
 `;

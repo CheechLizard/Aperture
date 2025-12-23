@@ -88,25 +88,26 @@ const selection = {
     renderDynamicPrompts();
   },
 
-  // Render context files as chips in AI dropdown
+  // Render context files as chips in AI panel
   _renderContextFiles() {
     const container = document.getElementById('context-files');
-    const dropdown = document.getElementById('ai-dropdown');
+    const panel = document.getElementById('ai-panel');
     if (!container) return;
 
     const files = this._state.focusFiles;
     if (files.length === 0) {
       container.innerHTML = '';
-      // Hide dropdown if no response either
-      if (dropdown && !document.getElementById('response').classList.contains('visible')) {
-        dropdown.classList.remove('visible');
+      // Hide panel if no chat messages either
+      const chatMessages = document.getElementById('chat-messages');
+      if (panel && chatMessages && chatMessages.children.length === 0) {
+        panel.classList.remove('visible');
       }
       return;
     }
 
-    // Show dropdown when there are context files
-    if (dropdown) {
-      dropdown.classList.add('visible');
+    // Show panel when there are context files
+    if (panel) {
+      panel.classList.add('visible');
     }
 
     // Limit to 5 visible chips
