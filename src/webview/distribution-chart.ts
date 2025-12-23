@@ -2,7 +2,6 @@ export const DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 
 const ZOOM_DURATION = 500;
-// Note: zoomedFile, prevZoomedFile, prevZoomState are now global (defined in dashboard-html.ts)
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -382,8 +381,6 @@ function renderDistributionChart() {
     })
     .transition(t)
     .attr('opacity', 1);
-
-  // Note: Back header is now handled by nav._updateDOM()
 
   // Update legend
   if (zoomedFile) {

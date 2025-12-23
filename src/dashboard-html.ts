@@ -6,11 +6,13 @@ import { TREEMAP_SCRIPT } from './webview/treemap';
 import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
 import { HIGHLIGHT_UTILS_SCRIPT } from './webview/highlight-utils';
+import { ISSUE_CONFIG_SCRIPT } from './webview/issue-config';
 import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
 import { FILE_ISSUES_PANEL_SCRIPT } from './webview/file-issues-panel';
 import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
+import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -166,6 +168,8 @@ ${CHORD_SCRIPT}
 
 ${HIGHLIGHT_UTILS_SCRIPT}
 
+${ISSUE_CONFIG_SCRIPT}
+
 ${ANTI_PATTERN_PANEL_SCRIPT}
 
 ${FILE_ISSUES_PANEL_SCRIPT}
@@ -173,6 +177,8 @@ ${FILE_ISSUES_PANEL_SCRIPT}
 ${CHAT_PANEL_SCRIPT}
 
 ${DISTRIBUTION_CHART_SCRIPT}
+
+${COLOR_ANIMATION_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>

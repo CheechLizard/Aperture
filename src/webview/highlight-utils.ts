@@ -94,9 +94,6 @@ function renderDynamicPrompts() {
   });
 }
 
-// Alias for backwards compatibility
-function renderRules() { renderDynamicPrompts(); }
-
 function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;
   document.querySelectorAll('.node').forEach(node => {

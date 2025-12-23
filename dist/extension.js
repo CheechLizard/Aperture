@@ -12489,9 +12489,6 @@ function renderDynamicPrompts() {
   });
 }
 
-// Alias for backwards compatibility
-function renderRules() { renderDynamicPrompts(); }
-
 function updateHighlights(relevantFiles) {
   highlightedFiles = relevantFiles;
   document.querySelectorAll('.node').forEach(node => {
@@ -12506,8 +12503,8 @@ function updateHighlights(relevantFiles) {
 }
 `;
 
-// src/webview/anti-pattern-panel.ts
-var ANTI_PATTERN_PANEL_SCRIPT = `
+// src/webview/issue-config.ts
+var ISSUE_CONFIG_SCRIPT = `
 // Issue view mapping - determines which view to show for each rule
 const ISSUE_VIEW_MAP = {
   // Functions treemap
@@ -12535,9 +12532,10 @@ const FILE_RULES = new Set(['long-file', 'mixed-concerns', 'orphan-file', 'high-
 
 // Architecture rule IDs (graph-level, shown on Chord diagram)
 const ARCHITECTURE_RULES = new Set(['circular-dependency', 'hub-file']);
+`;
 
-// selectedRuleId and colorMode are global variables (set in event-handlers.ts)
-
+// src/webview/anti-pattern-panel.ts
+var ANTI_PATTERN_PANEL_SCRIPT = `
 function getExpandedState() {
   const state = { groups: new Set(), ignored: false, categories: new Set() };
   document.querySelectorAll('.pattern-group').forEach(group => {
@@ -12884,9 +12882,6 @@ function renderIssues() {
     });
   });
 }
-
-// Alias for backwards compatibility
-function renderAntiPatterns() { renderIssues(); }
 `;
 
 // src/webview/file-issues-panel.ts
@@ -12987,11 +12982,6 @@ document.getElementById('query').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') document.getElementById('send').click();
 });
 
-// Clear button handling moved to chat-panel.ts
-
-// Note: currentHighlightedFiles is now a global (defined in dashboard-html.ts)
-
-// View switching function - called by anti-pattern-panel when issue is clicked
 function showView(view) {
   // Map view names to nav view names
   const viewMap = { treemap: 'files', files: 'files', chord: 'deps', deps: 'deps', functions: 'functions' };
@@ -13083,7 +13073,7 @@ selectedRuleId = null;
 
 // Initialize navigation to files view with no highlights
 nav.goTo({ view: 'files', file: null, highlight: [] });
-renderRules();
+renderDynamicPrompts();
 renderIssues();
 renderFooterStats();
 
@@ -13120,54 +13110,6 @@ document.getElementById('status').addEventListener('click', () => {
   nav.goTo({ view: 'files', file: null, highlight: allIssueFiles });
 });
 
-// JavaScript-driven color cycling for issue highlights
-let cycleTime = 0;
-
-function hslToHex(h, s, l) {
-  const a = s * Math.min(l, 1 - l);
-  const f = n => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, '0');
-  };
-  return '#' + f(0) + f(8) + f(4);
-}
-
-function cycleIssueColors() {
-  cycleTime += 0.016;
-  const hue = (cycleTime * 36) % 360;
-  const color = hslToHex(hue, 0.85, 0.6);
-
-  const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
-  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);
-  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);
-
-  document.querySelectorAll('.node.highlighted').forEach(node => {
-    node.style.setProperty('fill', color, 'important');
-    node.style.setProperty('fill-opacity', alpha.toString(), 'important');
-  });
-
-  document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
-    arc.style.setProperty('fill', color, 'important');
-    arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
-  });
-
-  document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
-    ribbon.style.setProperty('fill', color, 'important');
-    ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
-  });
-
-  if (selectedElement && selectedElement.isConnected) {
-    const bgColor = color.replace('#', 'rgba(')
-      .replace(/(..)(..)(..)/, (_, r, g, b) =>
-        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
-    selectedElement.style.borderLeftColor = color;
-    selectedElement.style.background = bgColor;
-  }
-}
-
-setInterval(cycleIssueColors, 16);
-
 function updateStatus() {
   const statusBtn = document.getElementById('status');
   const issueFiles = getAllIssueFiles();
@@ -13184,7 +13126,6 @@ var DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 
 const ZOOM_DURATION = 500;
-// Note: zoomedFile, prevZoomedFile, prevZoomState are now global (defined in dashboard-html.ts)
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -13565,8 +13506,6 @@ function renderDistributionChart() {
     .transition(t)
     .attr('opacity', 1);
 
-  // Note: Back header is now handled by nav._updateDOM()
-
   // Update legend
   if (zoomedFile) {
     renderFunctionLegend(funcLeaves);
@@ -13599,6 +13538,56 @@ function renderFunctionLegend(leaves) {
   legend.style.display = 'flex';
   legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + leaves.length + '</strong> functions</div>';
 }
+`;
+
+// src/webview/color-animation.ts
+var COLOR_ANIMATION_SCRIPT = `
+let cycleTime = 0;
+
+function hslToHex(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return '#' + f(0) + f(8) + f(4);
+}
+
+function cycleIssueColors() {
+  cycleTime += 0.016;
+  const hue = (cycleTime * 36) % 360;
+  const color = hslToHex(hue, 0.85, 0.6);
+
+  const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
+  const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);
+  const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);
+
+  document.querySelectorAll('.node.highlighted').forEach(node => {
+    node.style.setProperty('fill', color, 'important');
+    node.style.setProperty('fill-opacity', alpha.toString(), 'important');
+  });
+
+  document.querySelectorAll('.chord-arc.highlighted').forEach(arc => {
+    arc.style.setProperty('fill', color, 'important');
+    arc.style.setProperty('fill-opacity', alpha.toString(), 'important');
+  });
+
+  document.querySelectorAll('.chord-ribbon.highlighted').forEach(ribbon => {
+    ribbon.style.setProperty('fill', color, 'important');
+    ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
+  });
+
+  if (selectedElement && selectedElement.isConnected) {
+    const bgColor = color.replace('#', 'rgba(')
+      .replace(/(..)(..)(..)/, (_, r, g, b) =>
+        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
+    selectedElement.style.borderLeftColor = color;
+    selectedElement.style.background = bgColor;
+  }
+}
+
+setInterval(cycleIssueColors, 16);
 `;
 
 // src/dashboard-html.ts
@@ -13751,6 +13740,8 @@ ${CHORD_SCRIPT}
 
 ${HIGHLIGHT_UTILS_SCRIPT}
 
+${ISSUE_CONFIG_SCRIPT}
+
 ${ANTI_PATTERN_PANEL_SCRIPT}
 
 ${FILE_ISSUES_PANEL_SCRIPT}
@@ -13758,6 +13749,8 @@ ${FILE_ISSUES_PANEL_SCRIPT}
 ${CHAT_PANEL_SCRIPT}
 
 ${DISTRIBUTION_CHART_SCRIPT}
+
+${COLOR_ANIMATION_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>
