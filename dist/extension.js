@@ -11755,7 +11755,6 @@ var DASHBOARD_STYLES = `
     .footer-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1em; }
     .footer-warning-text { color: var(--vscode-editorWarning-foreground, #cca700); margin-right: 4px; }
     .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.25); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
-    #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.highlighted { }
@@ -12043,11 +12042,8 @@ const nav = {
   _updateDOM() {
     const view = this._state.view;
 
-    // Files treemap
-    document.getElementById('treemap').style.display = view === 'files' ? 'block' : 'none';
-
-    // Functions view
-    document.getElementById('functions-container').classList.toggle('visible', view === 'functions');
+    // Unified treemap container for both files and functions views
+    document.getElementById('functions-container').classList.toggle('visible', view === 'files' || view === 'functions');
 
     // Dependencies chord diagram
     document.getElementById('dep-container').style.display = view === 'deps' ? 'block' : 'none';
@@ -12056,10 +12052,10 @@ const nav = {
     // Legend (hidden for deps)
     document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
 
-    // Back header (only in functions view when zoomed)
+    // Back header (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
     if (backHeader) {
-      if (view === 'functions' && this._state.zoomedFile) {
+      if ((view === 'files' || view === 'functions') && this._state.zoomedFile) {
         const folderPath = this._state.zoomedFile.split('/').slice(0, -1).join('/');
         backHeader.classList.remove('hidden');
         backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
@@ -12073,10 +12069,7 @@ const nav = {
 
   // Trigger the appropriate renderer for current view
   _render() {
-    if (this._state.view === 'files') {
-      render();
-      renderTreemapLegend();
-    } else if (this._state.view === 'functions') {
+    if (this._state.view === 'files' || this._state.view === 'functions') {
       renderDistributionChart();
     } else if (this._state.view === 'deps') {
       if (!depGraph) {
@@ -12097,140 +12090,6 @@ const nav = {
     updateStatus();
   }
 };
-`;
-
-// src/webview/treemap.ts
-var TREEMAP_SCRIPT = `
-const TREEMAP_NEUTRAL_COLOR = '#3a3a3a';
-
-function getDynamicFilesTreemapColor(d) {
-  return TREEMAP_NEUTRAL_COLOR;
-}
-
-function buildHierarchy(files) {
-  const root = { name: 'root', children: [] };
-  for (const file of files) {
-    const parts = file.path.split('/');
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isFile = i === parts.length - 1;
-      let child = current.children.find(c => c.name === part);
-      if (!child) {
-        child = isFile ? { name: part, value: file.loc, language: file.language, path: file.path } : { name: part, children: [] };
-        current.children.push(child);
-      }
-      current = child;
-    }
-  }
-  return root;
-}
-
-function render() {
-  const container = document.getElementById('treemap');
-  container.innerHTML = '';
-  const width = container.clientWidth;
-  const height = container.clientHeight || 400;
-
-  const rootData = buildHierarchy(files);
-  const hierarchy = d3.hierarchy(rootData).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
-
-  d3.treemap()
-    .size([width, height])
-    .paddingTop(d => d.depth === 1 ? 16 : 2)
-    .paddingRight(2)
-    .paddingBottom(2)
-    .paddingLeft(2)
-    .paddingInner(2)
-    (hierarchy);
-
-  const svg = d3.select('#treemap').append('svg').attr('width', width).attr('height', height);
-  const leaves = hierarchy.leaves();
-
-  svg.selectAll('rect.node').data(leaves).join('rect')
-    .attr('class', 'node')
-    .attr('data-path', d => d.data.path)
-    .attr('x', d => d.x0).attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
-    .attr('fill', getDynamicFilesTreemapColor)
-    .on('mouseover', (e, d) => {
-      const html = buildFileTooltip({ path: d.data.path, language: d.data.language, loc: d.value });
-      showTooltip(html, e);
-    })
-    .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path }); });
-
-  // File labels - only show on nodes large enough to fit text
-  const labelMinWidth = 40;
-  const labelMinHeight = 16;
-  const labelsData = leaves.filter(d => (d.x1 - d.x0) >= labelMinWidth && (d.y1 - d.y0) >= labelMinHeight);
-
-  svg.selectAll('text.file-label').data(labelsData).join('text')
-    .attr('class', 'file-label')
-    .attr('x', d => d.x0 + 3).attr('y', d => d.y0 + 11)
-    .attr('fill', '#fff')
-    .attr('font-size', '9px')
-    .attr('pointer-events', 'none')
-    .text(d => {
-      const w = d.x1 - d.x0 - 6;
-      const name = d.data.name;
-      const maxChars = Math.floor(w / 5.5);
-      return name.length > maxChars ? name.slice(0, maxChars - 1) + '\u2026' : name;
-    });
-
-  // Depth 1: Top-level headers (folders or patterns)
-  const depth1 = hierarchy.descendants().filter(d => d.depth === 1 && (d.x1 - d.x0) > 30);
-
-  svg.selectAll('rect.dir-header-1').data(depth1).join('rect')
-    .attr('class', 'dir-header')
-    .attr('x', d => d.x0).attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0).attr('height', 16);
-
-  svg.selectAll('text.dir-label-1').data(depth1).join('text')
-    .attr('class', 'dir-label')
-    .attr('x', d => d.x0 + 4).attr('y', d => d.y0 + 12)
-    .text(d => { const w = d.x1 - d.x0 - 8; const name = d.data.name; return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\u2026' : name; });
-
-  // Depth 2: Sub-labels
-  const depth2 = hierarchy.descendants().filter(d => d.depth === 2 && d.children && (d.x1 - d.x0) > 50 && (d.y1 - d.y0) > 25);
-
-  svg.selectAll('rect.dir-badge-2').data(depth2).join('rect')
-    .attr('class', 'dir-header')
-    .attr('x', d => d.x0 + 2).attr('y', d => d.y0 + 2)
-    .attr('width', d => Math.min(d.data.name.length * 7 + 8, d.x1 - d.x0 - 4))
-    .attr('height', 14)
-    .attr('rx', 2)
-    .attr('opacity', 0.85);
-
-  svg.selectAll('text.dir-label-2').data(depth2).join('text')
-    .attr('class', 'dir-label-sub')
-    .attr('x', d => d.x0 + 6).attr('y', d => d.y0 + 12)
-    .text(d => { const w = d.x1 - d.x0 - 12; const name = d.data.name; return name.length * 7 > w ? name.slice(0, Math.floor(w/7)) + '\u2026' : name; });
-}
-
-function renderTreemapLegend() {
-  const container = document.getElementById('legend');
-  if (!container || currentView !== 'treemap') return;
-
-  container.style.display = 'flex';
-  container.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + files.length + '</strong> files</div>';
-}
-
-// Re-render on window resize
-window.addEventListener('resize', () => {
-  if (currentView === 'treemap') {
-    render();
-    // Restore current selection after re-render
-    selection._applyHighlights();
-  } else if (currentView === 'deps' && depGraph) {
-    renderDepGraph();
-    // Restore current selection after re-render
-    selection._applyHighlights();
-  } else if (currentView === 'functions') {
-    renderDistributionChart();
-  }
-});
 `;
 
 // src/webview/issue-highlights.ts
@@ -13566,6 +13425,7 @@ function renderFooterStats() {
 // src/webview/distribution-chart.ts
 var DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
+const FILE_NO_FUNCTIONS_COLOR = '#2a2a2a';
 const ZOOM_DURATION = 500;
 const LABEL_MIN_WIDTH = 40;
 const LABEL_MIN_HEIGHT = 16;
@@ -13575,7 +13435,8 @@ function getDynamicFunctionColor(func) {
 }
 
 function getDynamicFileColor(fileData) {
-  return FUNC_NEUTRAL_COLOR;
+  // Darker color for files without functions
+  return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
 }
 
 function zoomTo(filePath) {
@@ -13594,15 +13455,20 @@ function truncateLabel(name, maxWidth, charWidth) {
 }
 
 function buildFileData() {
+  // Include all files in both views for consistency
   return files
-    .filter(f => f.functions && f.functions.length > 0)
-    .map(f => ({
-      name: f.path.split('/').pop(),
-      path: f.path,
-      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
-      functions: f.functions,
-      color: getDynamicFileColor(f)
-    }));
+    .map(f => {
+      const hasFunctions = f.functions && f.functions.length > 0;
+      const fileData = {
+        name: f.path.split('/').pop(),
+        path: f.path,
+        value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
+        functions: f.functions || [],
+        hasFunctions: hasFunctions
+      };
+      fileData.color = getDynamicFileColor(fileData);
+      return fileData;
+    });
 }
 
 function buildFileHierarchy(fileData) {
@@ -13764,14 +13630,27 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
       const fnCount = d.data.functions.length;
-      const html = '<div><strong>' + d.data.name + '</strong></div>' +
-        '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>' +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
+      let html = '<div><strong>' + d.data.name + '</strong></div>';
+      if (d.data.hasFunctions) {
+        html += '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>';
+        html += '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
+      } else {
+        html += '<div>' + d.data.value + ' LOC</div>';
+        html += '<div style="color:var(--vscode-descriptionForeground)">Click to open file</div>';
+      }
       showTooltip(html, e);
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => { if (!zoomedFile) zoomTo(d.data.path); })
+    .on('click', (e, d) => {
+      if (zoomedFile) return;
+      if (d.data.hasFunctions) {
+        zoomTo(d.data.path);
+      } else {
+        // Open file directly if no functions to zoom into
+        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path });
+      }
+    })
     .transition(t)
     .attr('x', d => (d.x0 - curr.x) * curr.kx)
     .attr('y', d => (d.y0 - curr.y) * curr.ky)
@@ -13952,6 +13831,17 @@ function renderFunctionLegend(leaves) {
   legend.style.display = 'flex';
   legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + leaves.length + '</strong> functions</div>';
 }
+
+// Re-render on window resize
+window.addEventListener('resize', () => {
+  if (currentView === 'files' || currentView === 'functions') {
+    renderDistributionChart();
+    selection._applyHighlights();
+  } else if (currentView === 'deps' && depGraph) {
+    renderDepGraph();
+    selection._applyHighlights();
+  }
+});
 `;
 
 // src/webview/color-animation.ts
@@ -14304,7 +14194,6 @@ function getDashboardContent(data, architectureIssues) {
   <div class="main-split">
     <div class="main-content">
       <div class="diagram-area">
-        <div id="treemap"></div>
         <div id="dep-container" class="dep-container">
           <div id="dep-chord" class="dep-chord"></div>
         </div>
@@ -14396,8 +14285,6 @@ for (const issue of issues) {
 ${TOOLTIP_SCRIPT}
 
 ${TREEMAP_NAV_SCRIPT}
-
-${TREEMAP_SCRIPT}
 
 ${ISSUE_HIGHLIGHTS_SCRIPT}
 

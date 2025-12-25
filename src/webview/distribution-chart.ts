@@ -1,5 +1,6 @@
 export const DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
+const FILE_NO_FUNCTIONS_COLOR = '#2a2a2a';
 const ZOOM_DURATION = 500;
 const LABEL_MIN_WIDTH = 40;
 const LABEL_MIN_HEIGHT = 16;
@@ -9,7 +10,8 @@ function getDynamicFunctionColor(func) {
 }
 
 function getDynamicFileColor(fileData) {
-  return FUNC_NEUTRAL_COLOR;
+  // Darker color for files without functions
+  return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
 }
 
 function zoomTo(filePath) {
@@ -28,15 +30,20 @@ function truncateLabel(name, maxWidth, charWidth) {
 }
 
 function buildFileData() {
+  // Include all files in both views for consistency
   return files
-    .filter(f => f.functions && f.functions.length > 0)
-    .map(f => ({
-      name: f.path.split('/').pop(),
-      path: f.path,
-      value: f.functions.reduce((sum, fn) => sum + fn.loc, 0),
-      functions: f.functions,
-      color: getDynamicFileColor(f)
-    }));
+    .map(f => {
+      const hasFunctions = f.functions && f.functions.length > 0;
+      const fileData = {
+        name: f.path.split('/').pop(),
+        path: f.path,
+        value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
+        functions: f.functions || [],
+        hasFunctions: hasFunctions
+      };
+      fileData.color = getDynamicFileColor(fileData);
+      return fileData;
+    });
 }
 
 function buildFileHierarchy(fileData) {
@@ -198,14 +205,27 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
       const fnCount = d.data.functions.length;
-      const html = '<div><strong>' + d.data.name + '</strong></div>' +
-        '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>' +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
+      let html = '<div><strong>' + d.data.name + '</strong></div>';
+      if (d.data.hasFunctions) {
+        html += '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>';
+        html += '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
+      } else {
+        html += '<div>' + d.data.value + ' LOC</div>';
+        html += '<div style="color:var(--vscode-descriptionForeground)">Click to open file</div>';
+      }
       showTooltip(html, e);
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => { if (!zoomedFile) zoomTo(d.data.path); })
+    .on('click', (e, d) => {
+      if (zoomedFile) return;
+      if (d.data.hasFunctions) {
+        zoomTo(d.data.path);
+      } else {
+        // Open file directly if no functions to zoom into
+        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path });
+      }
+    })
     .transition(t)
     .attr('x', d => (d.x0 - curr.x) * curr.kx)
     .attr('y', d => (d.y0 - curr.y) * curr.ky)
@@ -386,4 +406,15 @@ function renderFunctionLegend(leaves) {
   legend.style.display = 'flex';
   legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + leaves.length + '</strong> functions</div>';
 }
+
+// Re-render on window resize
+window.addEventListener('resize', () => {
+  if (currentView === 'files' || currentView === 'functions') {
+    renderDistributionChart();
+    selection._applyHighlights();
+  } else if (currentView === 'deps' && depGraph) {
+    renderDepGraph();
+    selection._applyHighlights();
+  }
+});
 `;

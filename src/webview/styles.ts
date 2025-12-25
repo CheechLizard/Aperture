@@ -65,7 +65,6 @@ export const DASHBOARD_STYLES = `
     .footer-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1em; }
     .footer-warning-text { color: var(--vscode-editorWarning-foreground, #cca700); margin-right: 4px; }
     .footer-lang { padding: 2px 6px; background: rgba(204, 167, 0, 0.25); border-radius: 3px; color: var(--vscode-editorWarning-foreground, #cca700); font-size: 0.9em; }
-    #treemap { width: 100%; flex: 1; min-height: 0; }
     .node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .node.highlighted { }

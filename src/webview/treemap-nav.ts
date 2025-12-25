@@ -59,11 +59,8 @@ const nav = {
   _updateDOM() {
     const view = this._state.view;
 
-    // Files treemap
-    document.getElementById('treemap').style.display = view === 'files' ? 'block' : 'none';
-
-    // Functions view
-    document.getElementById('functions-container').classList.toggle('visible', view === 'functions');
+    // Unified treemap container for both files and functions views
+    document.getElementById('functions-container').classList.toggle('visible', view === 'files' || view === 'functions');
 
     // Dependencies chord diagram
     document.getElementById('dep-container').style.display = view === 'deps' ? 'block' : 'none';
@@ -72,10 +69,10 @@ const nav = {
     // Legend (hidden for deps)
     document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
 
-    // Back header (only in functions view when zoomed)
+    // Back header (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
     if (backHeader) {
-      if (view === 'functions' && this._state.zoomedFile) {
+      if ((view === 'files' || view === 'functions') && this._state.zoomedFile) {
         const folderPath = this._state.zoomedFile.split('/').slice(0, -1).join('/');
         backHeader.classList.remove('hidden');
         backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
@@ -89,10 +86,7 @@ const nav = {
 
   // Trigger the appropriate renderer for current view
   _render() {
-    if (this._state.view === 'files') {
-      render();
-      renderTreemapLegend();
-    } else if (this._state.view === 'functions') {
+    if (this._state.view === 'files' || this._state.view === 'functions') {
       renderDistributionChart();
     } else if (this._state.view === 'deps') {
       if (!depGraph) {

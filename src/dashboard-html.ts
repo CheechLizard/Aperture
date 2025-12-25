@@ -2,7 +2,6 @@ import { ProjectData, Issue } from './types';
 import { DASHBOARD_STYLES } from './webview/styles';
 import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_NAV_SCRIPT } from './webview/treemap-nav';
-import { TREEMAP_SCRIPT } from './webview/treemap';
 import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
 import { HIGHLIGHT_UTILS_SCRIPT } from './webview/highlight-utils';
@@ -65,7 +64,6 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
   <div class="main-split">
     <div class="main-content">
       <div class="diagram-area">
-        <div id="treemap"></div>
         <div id="dep-container" class="dep-container">
           <div id="dep-chord" class="dep-chord"></div>
         </div>
@@ -157,8 +155,6 @@ for (const issue of issues) {
 ${TOOLTIP_SCRIPT}
 
 ${TREEMAP_NAV_SCRIPT}
-
-${TREEMAP_SCRIPT}
 
 ${ISSUE_HIGHLIGHTS_SCRIPT}
 
