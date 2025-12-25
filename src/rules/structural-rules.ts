@@ -6,6 +6,7 @@ import {
   MAX_NESTING_DEPTH,
   MAX_PARAMETER_COUNT,
 } from './rule-constants';
+import { createUriFromPathAndLine } from '../uri';
 
 export function detectLongFunctions(file: FileInfo): Issue[] {
   const issues: Issue[] = [];
@@ -17,7 +18,7 @@ export function detectLongFunctions(file: FileInfo): Issue[] {
         severity: 'high',
         category: 'structural',
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
-        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name,
       });
     } else if (func.loc > FUNCTION_LOC_WARNING) {
@@ -26,7 +27,7 @@ export function detectLongFunctions(file: FileInfo): Issue[] {
         severity: 'medium',
         category: 'structural',
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
-        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name,
       });
     }
@@ -42,7 +43,7 @@ export function detectLongFile(file: FileInfo): Issue | null {
       severity: 'medium',
       category: 'structural',
       message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
-      locations: [{ file: file.path }],
+      locations: [{ uri: file.uri, file: file.path }],
     };
   }
   return null;
@@ -58,7 +59,7 @@ export function detectDeepNesting(file: FileInfo): Issue[] {
         severity: 'medium',
         category: 'structural',
         message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }
@@ -80,7 +81,7 @@ export function detectSilentFailures(
         severity: 'high',
         category: 'structural',
         message: `Empty catch block - errors are silently ignored`,
-        locations: [{ file: file.path, line: catchBlock.line }],
+        locations: [{ uri: createUriFromPathAndLine(file.path, undefined, catchBlock.line), file: file.path, line: catchBlock.line }],
       });
     }
   }
@@ -98,7 +99,7 @@ export function detectTooManyParameters(file: FileInfo): Issue[] {
         severity: 'medium',
         category: 'structural',
         message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }

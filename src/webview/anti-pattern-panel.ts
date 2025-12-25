@@ -51,7 +51,7 @@ function restoreExpandedState(state) {
 function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
-  nav.goTo({ view: viewMap[view] || 'files', file: null });
+  nav.goTo({ view: viewMap[view] || 'files', uri: null });
 }
 
 function groupIssuesByRule(activeIssues) {
@@ -203,12 +203,13 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
-      // Select this rule and highlight specific files (does NOT attach to context)
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
       if (files.length > 0) {
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: line ? parseInt(line) : undefined });
+        const lineNum = line ? parseInt(line) : undefined;
+        const uri = createUriFromPathAndLine(files[0], null, lineNum);
+        vscode.postMessage({ command: 'openFile', uri: uri });
       }
     });
   });

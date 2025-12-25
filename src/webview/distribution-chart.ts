@@ -14,14 +14,14 @@ function getDynamicFileColor(fileData) {
   return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
 }
 
-function zoomTo(filePath) {
+function zoomTo(uri) {
   // Preserve current highlights - don't override when zooming
-  nav.goTo({ file: filePath });
+  nav.goTo({ uri: uri });
 }
 
 function zoomOut() {
   // Just navigate - selection state is preserved
-  nav.goTo({ file: null });
+  nav.goTo({ uri: null });
 }
 
 function truncateLabel(name, maxWidth, charWidth) {
@@ -37,6 +37,7 @@ function buildFileData() {
       const fileData = {
         name: f.path.split('/').pop(),
         path: f.path,
+        uri: f.uri,  // Use pre-computed URI from data model
         value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
         functions: f.functions || [],
         hasFunctions: hasFunctions
@@ -87,7 +88,8 @@ function buildFunctionLeaves(width, height) {
     line: fn.startLine,
     depth: fn.maxNestingDepth,
     params: fn.parameterCount,
-    filePath: file.path
+    filePath: file.path,
+    uri: fn.uri  // Use pre-computed URI from data model
   }));
 
   const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
@@ -189,10 +191,11 @@ function renderDistributionChart() {
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {
-  layer.selectAll('rect.file-node').data(leaves, d => d.data.path)
+  layer.selectAll('rect.file-node').data(leaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'file-node node')
+        .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
         .attr('fill', d => d.data.color)
         .attr('x', d => (d.x0 - prev.x) * prev.kx)
@@ -220,10 +223,10 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('click', (e, d) => {
       if (zoomedFile) return;
       if (d.data.hasFunctions) {
-        zoomTo(d.data.path);
+        zoomTo(d.data.uri);
       } else {
         // Open file directly if no functions to zoom into
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path });
+        vscode.postMessage({ command: 'openFile', uri: d.data.uri });
       }
     })
     .transition(t)
@@ -240,7 +243,7 @@ function renderFileLabels(layer, leaves, prev, curr, t) {
     return w >= LABEL_MIN_WIDTH && h >= LABEL_MIN_HEIGHT;
   });
 
-  layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.path)
+  layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.uri)
     .join(
       enter => enter.append('text')
         .attr('class', 'file-label')
@@ -301,12 +304,12 @@ function renderFolderHeaders(layer, hierarchy, prev, curr, t) {
 }
 
 function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
-  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.name + d.data.line)
+  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'func-node node')
+        .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.filePath)
-        .attr('data-line', d => d.data.line)
         .attr('fill', d => getDynamicFunctionColor(d.data))
         .attr('x', d => prevBounds.x + (d.x0 / width) * prevBounds.w)
         .attr('y', d => prevBounds.y + (d.y0 / height) * prevBounds.h)
@@ -329,7 +332,7 @@ function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, heigh
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.filePath, line: d.data.line });
+      vscode.postMessage({ command: 'openFile', uri: d.data.uri });
     })
     .transition(t)
     .attr('x', d => d.x0)
@@ -341,7 +344,7 @@ function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, heigh
 function renderFuncLabels(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
   const labelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
 
-  layer.selectAll('text.func-label').data(labelsData, d => d.data.name + d.data.line)
+  layer.selectAll('text.func-label').data(labelsData, d => d.data.uri)
     .join(
       enter => enter.append('text')
         .attr('class', 'func-label')

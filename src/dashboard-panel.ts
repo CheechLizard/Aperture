@@ -7,6 +7,7 @@ import { analyzeQuery, buildPromptPreview, estimatePromptTokens } from './agent'
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
 import { addAntiPatternRule, removeAntiPatternRule } from './anti-pattern-rules';
 import { getLoadingContent, getErrorContent, getDashboardContent } from './dashboard-html';
+import { parseUri, getFilePath, getFragment, getLineFromUri } from './uri';
 
 let currentData: ProjectData | null = null;
 let currentPanel: vscode.WebviewPanel | null = null;
@@ -35,16 +36,28 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
     async (message) => {
       if (message.command === 'openFile') {
         try {
-          const uri = vscode.Uri.file(message.path);
+          let filePath: string;
+          let line: number | null = null;
+
+          if (message.uri) {
+            const relativePath = getFilePath(message.uri);
+            filePath = path.join(currentData?.root || '', relativePath);
+            line = getLineFromUri(message.uri);
+          } else {
+            filePath = message.path;
+            line = message.line || null;
+          }
+
+          const uri = vscode.Uri.file(filePath);
           const options: { selection?: vscode.Range } = {};
-          if (message.line && message.line > 0) {
-            const line = Math.max(0, message.line - 1);
-            options.selection = new vscode.Range(line, 0, line, 0);
+          if (line && line > 0) {
+            const lineIndex = Math.max(0, line - 1);
+            options.selection = new vscode.Range(lineIndex, 0, lineIndex, 0);
           }
           await vscode.commands.executeCommand('vscode.open', uri, options);
         } catch (error) {
           const msg = error instanceof Error ? error.message : 'Unknown error';
-          vscode.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
+          vscode.window.showErrorMessage(`Failed to open file: ${message.uri || message.path} - ${msg}`);
         }
       } else if (message.command === 'abortQuery') {
         if (currentQueryController) {

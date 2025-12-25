@@ -7,6 +7,7 @@ import {
   ACTION_VERB_PREFIXES,
   ALLOWED_MAGIC_NUMBERS,
 } from './rule-constants';
+import { createUriFromPathAndLine } from '../uri';
 
 export function detectGenericNames(file: FileInfo): Issue[] {
   const issues: Issue[] = [];
@@ -19,7 +20,7 @@ export function detectGenericNames(file: FileInfo): Issue[] {
         severity: 'medium',
         category: 'naming',
         message: `Function '${func.name}' uses a generic name - consider more descriptive naming`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }
@@ -51,7 +52,7 @@ export function detectNonVerbFunctions(file: FileInfo): Issue[] {
         severity: 'low',
         category: 'naming',
         message: `Function '${func.name}' should start with a verb (e.g., get${capitalize(func.name)})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });
     }
@@ -116,7 +117,7 @@ export function detectNonQuestionBooleans(file: FileInfo): Issue[] {
           severity: 'low',
           category: 'naming',
           message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(methodName)}'`,
-          locations: [{ file: file.path, line: func.startLine }],
+          locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
           symbol: func.name,
         });
       }
@@ -147,7 +148,7 @@ export function detectMagicNumbers(
       severity: 'low',
       category: 'naming',
       message: `Magic number ${literal.value} - consider using a named constant`,
-      locations: [{ file: file.path, line: literal.line }],
+      locations: [{ uri: createUriFromPathAndLine(file.path, undefined, literal.line), file: file.path, line: literal.line }],
     });
   }
 

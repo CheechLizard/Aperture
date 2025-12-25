@@ -23,6 +23,7 @@ export type ParseStatus = 'parsed' | 'unsupported' | 'error';
 
 export interface FileInfo {
   path: string;
+  uri: string;
   language: string;
   loc: number;
   functions: FunctionInfo[];
@@ -33,6 +34,7 @@ export interface FileInfo {
 
 export interface FunctionInfo {
   name: string;
+  uri?: string;  // Added by scanner after AST extraction
   startLine: number;
   endLine: number;
   loc: number;
@@ -44,6 +46,7 @@ export type Severity = 'high' | 'medium' | 'low';
 export type IssueCategory = 'structural' | 'naming' | 'architecture' | 'comment';
 
 export interface IssueLocation {
+  uri?: string;  // Optional for backward compatibility with architecture issues
   file: string;
   line?: number;
   endLine?: number;

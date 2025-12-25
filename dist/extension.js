@@ -1330,7 +1330,7 @@ var require_url_state_machine = __commonJS({
       }
       return true;
     };
-    URLStateMachine.prototype["parse fragment"] = function parseFragment(c2) {
+    URLStateMachine.prototype["parse fragment"] = function parseFragment2(c2) {
       if (isNaN(c2)) {
       } else if (c2 === 0) {
         this.parseError = true;
@@ -7431,6 +7431,71 @@ var RENDER_KEYWORDS = [
   "svg"
 ];
 
+// src/uri.ts
+var URI_SCHEME = "file://";
+function createFileUri(path13) {
+  return `${URI_SCHEME}/${normalizePath(path13)}`;
+}
+function createSymbolUri(path13, symbolName) {
+  return `${URI_SCHEME}/${normalizePath(path13)}#${symbolName}`;
+}
+function createUriFromPathAndLine(path13, symbolName, line) {
+  if (symbolName) {
+    return createSymbolUri(path13, symbolName);
+  }
+  if (line !== void 0) {
+    return `${URI_SCHEME}/${normalizePath(path13)}#L${line}`;
+  }
+  return createFileUri(path13);
+}
+function parseUri(uri) {
+  if (!uri.startsWith(URI_SCHEME)) {
+    throw new Error(`Invalid URI scheme: ${uri}`);
+  }
+  const withoutScheme = uri.slice(URI_SCHEME.length);
+  const hashIndex = withoutScheme.indexOf("#");
+  if (hashIndex === -1) {
+    return {
+      scheme: "file",
+      path: withoutScheme.startsWith("/") ? withoutScheme.slice(1) : withoutScheme,
+      fragment: null
+    };
+  }
+  return {
+    scheme: "file",
+    path: withoutScheme.slice(0, hashIndex).replace(/^\//, ""),
+    fragment: withoutScheme.slice(hashIndex + 1) || null
+  };
+}
+function getFilePath(uri) {
+  return parseUri(uri).path;
+}
+function getFragment(uri) {
+  return parseUri(uri).fragment;
+}
+function parseFragment(fragment) {
+  const parts = fragment.split(".");
+  const leafName = parts[parts.length - 1];
+  const lineMatch = leafName.match(/^(\w+):(\d+)$/);
+  const leafLine = lineMatch ? parseInt(lineMatch[2], 10) : null;
+  return {
+    symbolPath: parts,
+    leafName,
+    leafLine
+  };
+}
+function getLineFromUri(uri) {
+  const fragment = getFragment(uri);
+  if (!fragment) return null;
+  const lineMatch = fragment.match(/^L(\d+)$/);
+  if (lineMatch) return parseInt(lineMatch[1], 10);
+  const parsed = parseFragment(fragment);
+  return parsed.leafLine;
+}
+function normalizePath(path13) {
+  return path13.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
 // src/rules/structural-rules.ts
 function detectLongFunctions(file) {
   const issues = [];
@@ -7441,7 +7506,7 @@ function detectLongFunctions(file) {
         severity: "high",
         category: "structural",
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
-        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name
       });
     } else if (func.loc > FUNCTION_LOC_WARNING) {
@@ -7450,7 +7515,7 @@ function detectLongFunctions(file) {
         severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
-        locations: [{ file: file.path, line: func.startLine, endLine: func.endLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name
       });
     }
@@ -7464,7 +7529,7 @@ function detectLongFile(file) {
       severity: "medium",
       category: "structural",
       message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
-      locations: [{ file: file.path }]
+      locations: [{ uri: file.uri, file: file.path }]
     };
   }
   return null;
@@ -7478,7 +7543,7 @@ function detectDeepNesting(file) {
         severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7494,7 +7559,7 @@ function detectSilentFailures(file, catchBlocks) {
         severity: "high",
         category: "structural",
         message: `Empty catch block - errors are silently ignored`,
-        locations: [{ file: file.path, line: catchBlock.line }]
+        locations: [{ uri: createUriFromPathAndLine(file.path, void 0, catchBlock.line), file: file.path, line: catchBlock.line }]
       });
     }
   }
@@ -7509,7 +7574,7 @@ function detectTooManyParameters(file) {
         severity: "medium",
         category: "structural",
         message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7528,7 +7593,7 @@ function detectGenericNames(file) {
         severity: "medium",
         category: "naming",
         message: `Function '${func.name}' uses a generic name - consider more descriptive naming`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7551,7 +7616,7 @@ function detectNonVerbFunctions(file) {
         severity: "low",
         category: "naming",
         message: `Function '${func.name}' should start with a verb (e.g., get${capitalize(func.name)})`,
-        locations: [{ file: file.path, line: func.startLine }],
+        locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name
       });
     }
@@ -7600,7 +7665,7 @@ function detectNonQuestionBooleans(file) {
           severity: "low",
           category: "naming",
           message: `'${func.name}' appears to be boolean - consider naming like 'is${capitalize(methodName)}'`,
-          locations: [{ file: file.path, line: func.startLine }],
+          locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
           symbol: func.name
         });
       }
@@ -7619,7 +7684,7 @@ function detectMagicNumbers(file, literals) {
       severity: "low",
       category: "naming",
       message: `Magic number ${literal.value} - consider using a named constant`,
-      locations: [{ file: file.path, line: literal.line }]
+      locations: [{ uri: createUriFromPathAndLine(file.path, void 0, literal.line), file: file.path, line: literal.line }]
     });
   }
   return issues;
@@ -7685,7 +7750,7 @@ function detectCommentedCode(file, comments) {
         severity: "low",
         category: "comment",
         message: `Possible commented-out code - consider removing`,
-        locations: [{ file: file.path, line: comment.line }]
+        locations: [{ uri: createUriFromPathAndLine(file.path, void 0, comment.line), file: file.path, line: comment.line }]
       });
     }
   }
@@ -7728,7 +7793,7 @@ function detectHighCommentDensity(file, comments) {
       severity: "low",
       category: "comment",
       message: `High comment density (${percentage}%) - may indicate unclear code or stale comments`,
-      locations: [{ file: file.path }]
+      locations: [{ uri: file.uri, file: file.path }]
     };
   }
   return null;
@@ -7755,7 +7820,7 @@ function detectMixedConcerns(file, content) {
       severity: "medium",
       category: "architecture",
       message: `File may have mixed concerns: ${concerns.join(" + ")}`,
-      locations: [{ file: file.path }]
+      locations: [{ uri: file.uri, file: file.path }]
     };
   }
   return null;
@@ -7844,11 +7909,16 @@ async function scanFile(uri, workspaceUri) {
     const relativePath = vscode2.workspace.asRelativePath(uri, false);
     const language = getLanguage(uri.fsPath);
     const astResult = parseAll(text, relativePath, language);
+    const functionsWithUri = astResult.functions.map((fn) => ({
+      ...fn,
+      uri: createSymbolUri(relativePath, fn.name)
+    }));
     const fileInfo = {
       path: relativePath,
+      uri: createFileUri(relativePath),
       language,
       loc,
-      functions: astResult.functions,
+      functions: functionsWithUri,
       imports: astResult.imports,
       parseStatus: astResult.status
     };
@@ -11986,24 +12056,24 @@ var TREEMAP_NAV_SCRIPT = `
 const nav = {
   _state: {
     view: 'files',        // 'files' | 'functions' | 'deps'
-    zoomedFile: null,     // null (L1) or filePath (L2)
-    prevZoomedFile: null, // For animation direction
+    zoomedUri: null,      // null (L1) or file URI (L2)
+    prevZoomedUri: null,  // For animation direction
     prevView: null        // For view transition detection
   },
 
   // Navigate to a target - handles view/zoom state and triggers render
-  // target: { view?, file? }
+  // target: { view?, uri? }
   goTo(target) {
     // Save previous state for animation detection
     this._state.prevView = this._state.view;
-    this._state.prevZoomedFile = this._state.zoomedFile;
+    this._state.prevZoomedUri = this._state.zoomedUri;
 
     // Update state
     if (target.view !== undefined) {
       this._state.view = target.view;
     }
-    if (target.file !== undefined) {
-      this._state.zoomedFile = target.file;
+    if (target.uri !== undefined) {
+      this._state.zoomedUri = target.uri;
     }
 
     // Sync to legacy globals for compatibility with renderers
@@ -12018,24 +12088,27 @@ const nav = {
 
   // Go back one level (L2 -> L1, or no-op at L1)
   back() {
-    if (this._state.zoomedFile) {
-      this.goTo({ file: null });
+    if (this._state.zoomedUri) {
+      this.goTo({ uri: null });
     }
   },
 
   // Get current state (read-only copy)
   getState() {
+    const zoomedPath = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
     return {
       view: this._state.view,
-      zoomedFile: this._state.zoomedFile
+      zoomedUri: this._state.zoomedUri,
+      zoomedFile: zoomedPath  // Legacy compatibility
     };
   },
 
   // Sync internal state to legacy globals (for renderer compatibility)
   _syncToGlobals() {
     currentView = this._state.view;
-    zoomedFile = this._state.zoomedFile;
-    prevZoomedFile = this._state.prevZoomedFile;
+    // Extract path from URI for legacy globals
+    zoomedFile = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
+    prevZoomedFile = this._state.prevZoomedUri ? getFilePath(this._state.prevZoomedUri) : null;
   },
 
   // Update DOM container visibility based on current view
@@ -12055,8 +12128,9 @@ const nav = {
     // Back header (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
     if (backHeader) {
-      if ((view === 'files' || view === 'functions') && this._state.zoomedFile) {
-        const folderPath = this._state.zoomedFile.split('/').slice(0, -1).join('/');
+      if ((view === 'files' || view === 'functions') && this._state.zoomedUri) {
+        const filePath = getFilePath(this._state.zoomedUri);
+        const folderPath = filePath.split('/').slice(0, -1).join('/');
         backHeader.classList.remove('hidden');
         backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
         backHeader.querySelector('.back-btn').addEventListener('click', () => nav.back());
@@ -12266,6 +12340,7 @@ function renderDepGraph() {
   group.append('path')
     .attr('class', 'chord-arc')
     .attr('data-path', d => topGroups[d.index].fullPath)
+    .attr('data-uri', d => createFileUri(topGroups[d.index].fullPath))
     .attr('d', arc).attr('fill', d => color(d.index)).style('cursor', 'pointer')
     .on('mouseover', (e, d) => {
       const g = topGroups[d.index];
@@ -12283,7 +12358,7 @@ function renderDepGraph() {
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + topGroups[d.index].fullPath }); });
+    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', uri: createFileUri(topGroups[d.index].fullPath) }); });
 
   group.append('text').attr('class', 'chord-label')
     .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
@@ -12299,6 +12374,8 @@ function renderDepGraph() {
     .attr('class', 'chord-ribbon')
     .attr('data-from', d => topGroups[d.source.index].fullPath)
     .attr('data-to', d => topGroups[d.target.index].fullPath)
+    .attr('data-source-uri', d => createFileUri(topGroups[d.source.index].fullPath))
+    .attr('data-target-uri', d => createFileUri(topGroups[d.target.index].fullPath))
     .attr('d', ribbon).attr('fill', d => color(d.source.index)).attr('fill-opacity', 0.6).style('cursor', 'pointer')
     .on('mouseover', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
@@ -12316,7 +12393,8 @@ function renderDepGraph() {
     .on('click', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
-      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath, line: edge ? edge.line : undefined });
+      const uri = edge && edge.line ? createUriFromPathAndLine(fromPath, null, edge.line) : createFileUri(fromPath);
+      vscode.postMessage({ command: 'openFile', uri: uri });
     });
 
   applyPersistentIssueHighlights();
@@ -12329,8 +12407,8 @@ function updateStatusButton() {
   updateStatus();
 }
 
-// Pure DOM operation - highlights nodes matching the given file paths
-function highlightNodes(files) {
+// Pure DOM operation - highlights nodes matching the given URIs or file paths
+function highlightNodes(urisOrPaths) {
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -12338,20 +12416,33 @@ function highlightNodes(files) {
     el.style.removeProperty('fill-opacity');
   });
 
-  if (files.length === 0) return;
+  if (urisOrPaths.length === 0) return;
 
-  // Highlight matching nodes
+  // Build a set of paths for matching (extract from URIs if needed)
+  const pathSet = new Set();
+  for (const item of urisOrPaths) {
+    if (item.startsWith('file://')) {
+      pathSet.add(getFilePath(item));
+    } else {
+      pathSet.add(item);
+    }
+  }
+
+  // Highlight matching nodes (check both data-uri and data-path for compatibility)
   document.querySelectorAll('.node').forEach(node => {
+    const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
-    if (files.includes(path)) {
+    if (uri && urisOrPaths.includes(uri)) {
+      node.classList.add('highlighted');
+    } else if (path && pathSet.has(path)) {
       node.classList.add('highlighted');
     }
   });
 
-  // Highlight chord arcs
+  // Highlight chord arcs (still using data-path for now)
   document.querySelectorAll('.chord-arc').forEach(arc => {
     const path = arc.getAttribute('data-path');
-    if (files.includes(path)) {
+    if (path && pathSet.has(path)) {
       arc.classList.add('highlighted');
     }
   });
@@ -12360,7 +12451,7 @@ function highlightNodes(files) {
   document.querySelectorAll('.chord-ribbon').forEach(ribbon => {
     const from = ribbon.getAttribute('data-from');
     const to = ribbon.getAttribute('data-to');
-    if (files.includes(from) || files.includes(to)) {
+    if ((from && pathSet.has(from)) || (to && pathSet.has(to))) {
       ribbon.classList.add('highlighted');
     }
   });
@@ -12723,7 +12814,7 @@ function restoreExpandedState(state) {
 function switchToView(ruleId) {
   const view = ISSUE_VIEW_MAP[ruleId] || 'files';
   const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
-  nav.goTo({ view: viewMap[view] || 'files', file: null });
+  nav.goTo({ view: viewMap[view] || 'files', uri: null });
 }
 
 function groupIssuesByRule(activeIssues) {
@@ -12875,12 +12966,13 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
-      // Select this rule and highlight specific files (does NOT attach to context)
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
       if (files.length > 0) {
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + files[0], line: line ? parseInt(line) : undefined });
+        const lineNum = line ? parseInt(line) : undefined;
+        const uri = createUriFromPathAndLine(files[0], null, lineNum);
+        vscode.postMessage({ command: 'openFile', uri: uri });
       }
     });
   });
@@ -13439,14 +13531,14 @@ function getDynamicFileColor(fileData) {
   return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
 }
 
-function zoomTo(filePath) {
+function zoomTo(uri) {
   // Preserve current highlights - don't override when zooming
-  nav.goTo({ file: filePath });
+  nav.goTo({ uri: uri });
 }
 
 function zoomOut() {
   // Just navigate - selection state is preserved
-  nav.goTo({ file: null });
+  nav.goTo({ uri: null });
 }
 
 function truncateLabel(name, maxWidth, charWidth) {
@@ -13462,6 +13554,7 @@ function buildFileData() {
       const fileData = {
         name: f.path.split('/').pop(),
         path: f.path,
+        uri: f.uri,  // Use pre-computed URI from data model
         value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
         functions: f.functions || [],
         hasFunctions: hasFunctions
@@ -13512,7 +13605,8 @@ function buildFunctionLeaves(width, height) {
     line: fn.startLine,
     depth: fn.maxNestingDepth,
     params: fn.parameterCount,
-    filePath: file.path
+    filePath: file.path,
+    uri: fn.uri  // Use pre-computed URI from data model
   }));
 
   const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
@@ -13614,10 +13708,11 @@ function renderDistributionChart() {
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {
-  layer.selectAll('rect.file-node').data(leaves, d => d.data.path)
+  layer.selectAll('rect.file-node').data(leaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'file-node node')
+        .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
         .attr('fill', d => d.data.color)
         .attr('x', d => (d.x0 - prev.x) * prev.kx)
@@ -13645,10 +13740,10 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('click', (e, d) => {
       if (zoomedFile) return;
       if (d.data.hasFunctions) {
-        zoomTo(d.data.path);
+        zoomTo(d.data.uri);
       } else {
         // Open file directly if no functions to zoom into
-        vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.path });
+        vscode.postMessage({ command: 'openFile', uri: d.data.uri });
       }
     })
     .transition(t)
@@ -13665,7 +13760,7 @@ function renderFileLabels(layer, leaves, prev, curr, t) {
     return w >= LABEL_MIN_WIDTH && h >= LABEL_MIN_HEIGHT;
   });
 
-  layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.path)
+  layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.uri)
     .join(
       enter => enter.append('text')
         .attr('class', 'file-label')
@@ -13726,12 +13821,12 @@ function renderFolderHeaders(layer, hierarchy, prev, curr, t) {
 }
 
 function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
-  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.name + d.data.line)
+  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'func-node node')
+        .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.filePath)
-        .attr('data-line', d => d.data.line)
         .attr('fill', d => getDynamicFunctionColor(d.data))
         .attr('x', d => prevBounds.x + (d.x0 / width) * prevBounds.w)
         .attr('y', d => prevBounds.y + (d.y0 / height) * prevBounds.h)
@@ -13754,7 +13849,7 @@ function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, heigh
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + d.data.filePath, line: d.data.line });
+      vscode.postMessage({ command: 'openFile', uri: d.data.uri });
     })
     .transition(t)
     .attr('x', d => d.x0)
@@ -13766,7 +13861,7 @@ function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, heigh
 function renderFuncLabels(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
   const labelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
 
-  layer.selectAll('text.func-label').data(labelsData, d => d.data.name + d.data.line)
+  layer.selectAll('text.func-label').data(labelsData, d => d.data.uri)
     .join(
       enter => enter.append('text')
         .attr('class', 'func-label')
@@ -14148,6 +14243,210 @@ const selection = {
 };
 `;
 
+// src/webview/uri.ts
+var URI_SCRIPT = `
+/**
+ * URI-based node addressing system
+ *
+ * Format: file:///{path}#{fragment}
+ *
+ * Examples:
+ *   file:///src/app.ts                           - File
+ *   file:///src/app.ts#processData               - Named function
+ *   file:///src/app.ts#UserService.fetchUser     - Class method
+ *   file:///src/app.ts#processData.if:10.for:11  - Nested block
+ */
+
+const URI_SCHEME = 'file://';
+
+// ============================================================================
+// Construction
+// ============================================================================
+
+function createFolderUri(path) {
+  return URI_SCHEME + '/' + normalizePath(path);
+}
+
+function createFileUri(path) {
+  return URI_SCHEME + '/' + normalizePath(path);
+}
+
+function createSymbolUri(path, symbolName) {
+  return URI_SCHEME + '/' + normalizePath(path) + '#' + symbolName;
+}
+
+function createNestedSymbolUri(path, parentSymbol, childSymbol) {
+  return URI_SCHEME + '/' + normalizePath(path) + '#' + parentSymbol + '.' + childSymbol;
+}
+
+function createBlockUri(path, parentFragment, blockType, line) {
+  const fragment = parentFragment ? parentFragment + '.' + blockType + ':' + line : blockType + ':' + line;
+  return URI_SCHEME + '/' + normalizePath(path) + '#' + fragment;
+}
+
+function createUriFromPathAndLine(path, symbolName, line) {
+  if (symbolName) {
+    return createSymbolUri(path, symbolName);
+  }
+  if (line !== undefined) {
+    return URI_SCHEME + '/' + normalizePath(path) + '#L' + line;
+  }
+  return createFileUri(path);
+}
+
+// ============================================================================
+// Parsing
+// ============================================================================
+
+function parseUri(uri) {
+  if (!uri.startsWith(URI_SCHEME)) {
+    throw new Error('Invalid URI scheme: ' + uri);
+  }
+
+  const withoutScheme = uri.slice(URI_SCHEME.length);
+  const hashIndex = withoutScheme.indexOf('#');
+
+  if (hashIndex === -1) {
+    return {
+      scheme: 'file',
+      path: withoutScheme.startsWith('/') ? withoutScheme.slice(1) : withoutScheme,
+      fragment: null
+    };
+  }
+
+  return {
+    scheme: 'file',
+    path: withoutScheme.slice(0, hashIndex).replace(/^\\//, ''),
+    fragment: withoutScheme.slice(hashIndex + 1) || null
+  };
+}
+
+function getFilePath(uri) {
+  return parseUri(uri).path;
+}
+
+function getFragment(uri) {
+  return parseUri(uri).fragment;
+}
+
+function parseFragment(fragment) {
+  const parts = fragment.split('.');
+  const leafName = parts[parts.length - 1];
+
+  const lineMatch = leafName.match(/^(\\w+):(\\d+)$/);
+  const leafLine = lineMatch ? parseInt(lineMatch[2], 10) : null;
+
+  return {
+    symbolPath: parts,
+    leafName: leafName,
+    leafLine: leafLine
+  };
+}
+
+function getLineFromUri(uri) {
+  const fragment = getFragment(uri);
+  if (!fragment) return null;
+
+  const lineMatch = fragment.match(/^L(\\d+)$/);
+  if (lineMatch) return parseInt(lineMatch[1], 10);
+
+  const parsed = parseFragment(fragment);
+  return parsed.leafLine;
+}
+
+// ============================================================================
+// Comparison
+// ============================================================================
+
+function uriEquals(a, b) {
+  return normalizeUri(a) === normalizeUri(b);
+}
+
+function uriStartsWith(uri, prefix) {
+  const normalizedUri = normalizeUri(uri);
+  const normalizedPrefix = normalizeUri(prefix);
+
+  const parsedUri = parseUri(normalizedUri);
+  const parsedPrefix = parseUri(normalizedPrefix);
+
+  if (!parsedUri.path.startsWith(parsedPrefix.path)) {
+    return false;
+  }
+
+  if (!parsedPrefix.fragment) {
+    return true;
+  }
+
+  if (!parsedUri.fragment) {
+    return false;
+  }
+
+  return parsedUri.fragment.startsWith(parsedPrefix.fragment);
+}
+
+function isDescendantOf(uri, ancestorUri) {
+  if (uriEquals(uri, ancestorUri)) return false;
+  return uriStartsWith(uri, ancestorUri);
+}
+
+function getParentUri(uri) {
+  const parsed = parseUri(uri);
+
+  if (parsed.fragment) {
+    const parts = parsed.fragment.split('.');
+    if (parts.length > 1) {
+      return createFileUri(parsed.path) + '#' + parts.slice(0, -1).join('.');
+    }
+    return createFileUri(parsed.path);
+  }
+
+  const pathParts = parsed.path.split('/');
+  if (pathParts.length <= 1) {
+    return null;
+  }
+  return createFolderUri(pathParts.slice(0, -1).join('/'));
+}
+
+// ============================================================================
+// Utilities
+// ============================================================================
+
+function normalizePath(path) {
+  return path
+    .replace(/\\\\/g, '/')
+    .replace(/^\\/+/, '')
+    .replace(/\\/+$/, '');
+}
+
+function normalizeUri(uri) {
+  const parsed = parseUri(uri);
+  const base = URI_SCHEME + '/' + parsed.path;
+  return parsed.fragment ? base + '#' + parsed.fragment : base;
+}
+
+function isValidUri(uri) {
+  try {
+    parseUri(uri);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function getDisplayName(uri) {
+  const parsed = parseUri(uri);
+
+  if (parsed.fragment) {
+    const parts = parsed.fragment.split('.');
+    const last = parts[parts.length - 1];
+    return last.replace(/:(\\d+)$/, '');
+  }
+
+  const pathParts = parsed.path.split('/');
+  return pathParts[pathParts.length - 1] || parsed.path;
+}
+`;
+
 // src/dashboard-html.ts
 function getLoadingContent() {
   return `<!DOCTYPE html>
@@ -14282,6 +14581,8 @@ for (const issue of issues) {
   }
 }
 
+${URI_SCRIPT}
+
 ${TOOLTIP_SCRIPT}
 
 ${TREEMAP_NAV_SCRIPT}
@@ -14332,16 +14633,26 @@ async function openDashboard(context) {
     async (message) => {
       if (message.command === "openFile") {
         try {
-          const uri = vscode5.Uri.file(message.path);
+          let filePath;
+          let line = null;
+          if (message.uri) {
+            const relativePath = getFilePath(message.uri);
+            filePath = path11.join(currentData?.root || "", relativePath);
+            line = getLineFromUri(message.uri);
+          } else {
+            filePath = message.path;
+            line = message.line || null;
+          }
+          const uri = vscode5.Uri.file(filePath);
           const options = {};
-          if (message.line && message.line > 0) {
-            const line = Math.max(0, message.line - 1);
-            options.selection = new vscode5.Range(line, 0, line, 0);
+          if (line && line > 0) {
+            const lineIndex = Math.max(0, line - 1);
+            options.selection = new vscode5.Range(lineIndex, 0, lineIndex, 0);
           }
           await vscode5.commands.executeCommand("vscode.open", uri, options);
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Unknown error";
-          vscode5.window.showErrorMessage(`Failed to open file: ${message.path} - ${msg}`);
+          vscode5.window.showErrorMessage(`Failed to open file: ${message.uri || message.path} - ${msg}`);
         }
       } else if (message.command === "abortQuery") {
         if (currentQueryController) {

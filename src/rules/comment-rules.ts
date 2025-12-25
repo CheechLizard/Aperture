@@ -1,5 +1,6 @@
 import { FileInfo, CommentInfo, Issue } from '../types';
 import { CODE_COMMENT_PATTERNS, HIGH_COMMENT_DENSITY_THRESHOLD } from './rule-constants';
+import { createUriFromPathAndLine } from '../uri';
 
 export function detectCommentedCode(
   file: FileInfo,
@@ -23,7 +24,7 @@ export function detectCommentedCode(
         severity: 'low',
         category: 'comment',
         message: `Possible commented-out code - consider removing`,
-        locations: [{ file: file.path, line: comment.line }],
+        locations: [{ uri: createUriFromPathAndLine(file.path, undefined, comment.line), file: file.path, line: comment.line }],
       });
     }
   }
@@ -90,7 +91,7 @@ export function detectHighCommentDensity(
       severity: 'low',
       category: 'comment',
       message: `High comment density (${percentage}%) - may indicate unclear code or stale comments`,
-      locations: [{ file: file.path }],
+      locations: [{ uri: file.uri, file: file.path }],
     };
   }
 

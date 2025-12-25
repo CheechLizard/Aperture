@@ -4,6 +4,7 @@ import { getLanguage } from './language-map';
 import { parseClaudeMd } from './rules-parser';
 import { parseAll } from './ast-parser';
 import { detectCodeIssues } from './file-issue-detector';
+import { createFileUri, createSymbolUri } from './uri';
 
 export async function scanWorkspace(): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -72,12 +73,19 @@ async function scanFile(
     // Full AST extraction
     const astResult = parseAll(text, relativePath, language);
 
+    // Add URIs to functions
+    const functionsWithUri = astResult.functions.map(fn => ({
+      ...fn,
+      uri: createSymbolUri(relativePath, fn.name),
+    }));
+
     // Create file info with functions populated
     const fileInfo: FileInfo = {
       path: relativePath,
+      uri: createFileUri(relativePath),
       language,
       loc,
-      functions: astResult.functions,
+      functions: functionsWithUri,
       imports: astResult.imports,
       parseStatus: astResult.status,
     };

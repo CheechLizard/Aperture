@@ -106,6 +106,7 @@ function renderDepGraph() {
   group.append('path')
     .attr('class', 'chord-arc')
     .attr('data-path', d => topGroups[d.index].fullPath)
+    .attr('data-uri', d => createFileUri(topGroups[d.index].fullPath))
     .attr('d', arc).attr('fill', d => color(d.index)).style('cursor', 'pointer')
     .on('mouseover', (e, d) => {
       const g = topGroups[d.index];
@@ -123,7 +124,7 @@ function renderDepGraph() {
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', path: rootPath + '/' + topGroups[d.index].fullPath }); });
+    .on('click', (e, d) => { vscode.postMessage({ command: 'openFile', uri: createFileUri(topGroups[d.index].fullPath) }); });
 
   group.append('text').attr('class', 'chord-label')
     .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
@@ -139,6 +140,8 @@ function renderDepGraph() {
     .attr('class', 'chord-ribbon')
     .attr('data-from', d => topGroups[d.source.index].fullPath)
     .attr('data-to', d => topGroups[d.target.index].fullPath)
+    .attr('data-source-uri', d => createFileUri(topGroups[d.source.index].fullPath))
+    .attr('data-target-uri', d => createFileUri(topGroups[d.target.index].fullPath))
     .attr('d', ribbon).attr('fill', d => color(d.source.index)).attr('fill-opacity', 0.6).style('cursor', 'pointer')
     .on('mouseover', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
@@ -156,7 +159,8 @@ function renderDepGraph() {
     .on('click', (e, d) => {
       const fromPath = topGroups[d.source.index].fullPath;
       const edge = edgeLookup.get(fromPath + '|' + topGroups[d.target.index].fullPath);
-      vscode.postMessage({ command: 'openFile', path: rootPath + '/' + fromPath, line: edge ? edge.line : undefined });
+      const uri = edge && edge.line ? createUriFromPathAndLine(fromPath, null, edge.line) : createFileUri(fromPath);
+      vscode.postMessage({ command: 'openFile', uri: uri });
     });
 
   applyPersistentIssueHighlights();

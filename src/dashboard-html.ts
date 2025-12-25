@@ -13,6 +13,7 @@ import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
 import { SELECTION_STATE_SCRIPT } from './webview/selection-state';
+import { URI_SCRIPT } from './webview/uri';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -151,6 +152,8 @@ for (const issue of issues) {
     }
   }
 }
+
+${URI_SCRIPT}
 
 ${TOOLTIP_SCRIPT}
 

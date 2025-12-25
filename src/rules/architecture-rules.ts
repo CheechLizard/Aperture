@@ -1,5 +1,6 @@
 import { FileInfo, Issue } from '../types';
 import { DATA_KEYWORDS, LOGIC_KEYWORDS, RENDER_KEYWORDS } from './rule-constants';
+import { createFileUri } from '../uri';
 
 const MIN_KEYWORD_MATCHES = 3;
 
@@ -32,7 +33,7 @@ export function detectMixedConcerns(
       severity: 'medium',
       category: 'architecture',
       message: `File may have mixed concerns: ${concerns.join(' + ')}`,
-      locations: [{ file: file.path }],
+      locations: [{ uri: file.uri, file: file.path }],
     };
   }
 

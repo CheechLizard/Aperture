@@ -3,24 +3,24 @@ export const TREEMAP_NAV_SCRIPT = `
 const nav = {
   _state: {
     view: 'files',        // 'files' | 'functions' | 'deps'
-    zoomedFile: null,     // null (L1) or filePath (L2)
-    prevZoomedFile: null, // For animation direction
+    zoomedUri: null,      // null (L1) or file URI (L2)
+    prevZoomedUri: null,  // For animation direction
     prevView: null        // For view transition detection
   },
 
   // Navigate to a target - handles view/zoom state and triggers render
-  // target: { view?, file? }
+  // target: { view?, uri? }
   goTo(target) {
     // Save previous state for animation detection
     this._state.prevView = this._state.view;
-    this._state.prevZoomedFile = this._state.zoomedFile;
+    this._state.prevZoomedUri = this._state.zoomedUri;
 
     // Update state
     if (target.view !== undefined) {
       this._state.view = target.view;
     }
-    if (target.file !== undefined) {
-      this._state.zoomedFile = target.file;
+    if (target.uri !== undefined) {
+      this._state.zoomedUri = target.uri;
     }
 
     // Sync to legacy globals for compatibility with renderers
@@ -35,24 +35,27 @@ const nav = {
 
   // Go back one level (L2 -> L1, or no-op at L1)
   back() {
-    if (this._state.zoomedFile) {
-      this.goTo({ file: null });
+    if (this._state.zoomedUri) {
+      this.goTo({ uri: null });
     }
   },
 
   // Get current state (read-only copy)
   getState() {
+    const zoomedPath = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
     return {
       view: this._state.view,
-      zoomedFile: this._state.zoomedFile
+      zoomedUri: this._state.zoomedUri,
+      zoomedFile: zoomedPath  // Legacy compatibility
     };
   },
 
   // Sync internal state to legacy globals (for renderer compatibility)
   _syncToGlobals() {
     currentView = this._state.view;
-    zoomedFile = this._state.zoomedFile;
-    prevZoomedFile = this._state.prevZoomedFile;
+    // Extract path from URI for legacy globals
+    zoomedFile = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
+    prevZoomedFile = this._state.prevZoomedUri ? getFilePath(this._state.prevZoomedUri) : null;
   },
 
   // Update DOM container visibility based on current view
@@ -72,8 +75,9 @@ const nav = {
     // Back header (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
     if (backHeader) {
-      if ((view === 'files' || view === 'functions') && this._state.zoomedFile) {
-        const folderPath = this._state.zoomedFile.split('/').slice(0, -1).join('/');
+      if ((view === 'files' || view === 'functions') && this._state.zoomedUri) {
+        const filePath = getFilePath(this._state.zoomedUri);
+        const folderPath = filePath.split('/').slice(0, -1).join('/');
         backHeader.classList.remove('hidden');
         backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
         backHeader.querySelector('.back-btn').addEventListener('click', () => nav.back());
