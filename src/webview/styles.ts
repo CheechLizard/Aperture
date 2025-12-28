@@ -82,11 +82,16 @@ export const DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    /* Back header in app header */
+    /* Breadcrumb navigation */
     .back-header.hidden { display: none; }
-    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.9em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+    .back-header { display: flex; align-items: center; gap: 4px; }
+    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1em; padding: 4px 8px; border-radius: 3px; margin-right: 8px; }
     .back-btn:hover { background: var(--vscode-list-hoverBackground); }
-    .back-path { font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .breadcrumb-separator { color: var(--vscode-descriptionForeground); font-size: 0.85em; margin: 0 2px; }
+    .breadcrumb-segment { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.85em; padding: 2px 4px; border-radius: 3px; }
+    .breadcrumb-segment:hover { background: var(--vscode-list-hoverBackground); text-decoration: underline; }
+    .breadcrumb-current { font-size: 0.85em; color: var(--vscode-foreground); font-weight: 600; padding: 2px 4px; }
+    .breadcrumb-ellipsis { color: var(--vscode-descriptionForeground); font-size: 0.85em; padding: 0 4px; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -203,6 +208,28 @@ export const DASHBOARD_STYLES = `
     /* SVG file header for L2 */
     .file-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .file-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Partition layout for file internals */
+    .partition-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
+    .partition-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+    .partition-node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
+    .partition-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .partition-label { pointer-events: none; }
+    /* Code preview for leaf nodes */
+    .code-preview-container { display: flex; flex-direction: column; height: 100%; padding: 16px; background: var(--vscode-editor-background); }
+    .code-preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .code-preview-name { font-weight: 600; font-size: 1.1em; }
+    .code-preview-loc { color: var(--vscode-descriptionForeground); font-size: 0.85em; }
+    .code-preview-loading { display: flex; align-items: center; gap: 10px; padding: 20px; color: var(--vscode-descriptionForeground); }
+    .code-preview-error { color: var(--vscode-errorForeground); }
+    .code-preview-code { flex: 1; overflow: auto; background: rgba(0,0,0,0.2); border: 1px solid var(--vscode-widget-border); border-radius: 4px; padding: 12px; margin: 0; font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.5; }
+    .code-line { display: block; }
+    .code-line-number { display: inline-block; width: 40px; color: var(--vscode-editorLineNumber-foreground); text-align: right; padding-right: 12px; user-select: none; }
+    .code-line-content { white-space: pre; }
+    .code-preview-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .code-action-btn { padding: 8px 16px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+    .code-action-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .code-action-prompt { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .code-action-prompt:hover { background: var(--vscode-button-hoverBackground); }
 
     /* Files flyout */
     .files-flyout { position: fixed; z-index: 1000; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); min-width: 200px; max-width: 320px; max-height: 300px; display: flex; flex-direction: column; }

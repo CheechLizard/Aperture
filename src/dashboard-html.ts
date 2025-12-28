@@ -10,10 +10,14 @@ import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
 import { FILE_ISSUES_PANEL_SCRIPT } from './webview/file-issues-panel';
 import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
+import { TREEMAP_LAYOUT_SCRIPT } from './webview/treemap-layout';
+import { PARTITION_LAYOUT_SCRIPT } from './webview/partition-layout';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
 import { SELECTION_STATE_SCRIPT } from './webview/selection-state';
 import { URI_SCRIPT } from './webview/uri';
+import { BREADCRUMB_SCRIPT } from './webview/breadcrumb';
+import { CODE_PREVIEW_SCRIPT } from './webview/code-preview';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -155,6 +159,8 @@ for (const issue of issues) {
 
 ${URI_SCRIPT}
 
+${BREADCRUMB_SCRIPT}
+
 ${TOOLTIP_SCRIPT}
 
 ${TREEMAP_NAV_SCRIPT}
@@ -175,7 +181,13 @@ ${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
 
+${TREEMAP_LAYOUT_SCRIPT}
+
+${PARTITION_LAYOUT_SCRIPT}
+
 ${DISTRIBUTION_CHART_SCRIPT}
+
+${CODE_PREVIEW_SCRIPT}
 
 ${COLOR_ANIMATION_SCRIPT}
 

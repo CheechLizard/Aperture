@@ -72,19 +72,13 @@ const nav = {
     // Legend (hidden for deps)
     document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
 
-    // Back header (shown when zoomed in files or functions view)
+    // Breadcrumb (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
-    if (backHeader) {
-      if ((view === 'files' || view === 'functions') && this._state.zoomedUri) {
-        const filePath = getFilePath(this._state.zoomedUri);
-        const folderPath = filePath.split('/').slice(0, -1).join('/');
-        backHeader.classList.remove('hidden');
-        backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
-        backHeader.querySelector('.back-btn').addEventListener('click', () => nav.back());
-      } else {
-        backHeader.classList.add('hidden');
-        backHeader.innerHTML = '';
-      }
+    if ((view === 'files' || view === 'functions')) {
+      renderBreadcrumb(backHeader, this._state.zoomedUri);
+    } else if (backHeader) {
+      backHeader.classList.add('hidden');
+      backHeader.innerHTML = '';
     }
   },
 

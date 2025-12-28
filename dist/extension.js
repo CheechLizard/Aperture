@@ -11842,11 +11842,16 @@ var DASHBOARD_STYLES = `
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
-    /* Back header in app header */
+    /* Breadcrumb navigation */
     .back-header.hidden { display: none; }
-    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.9em; padding: 4px 8px; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+    .back-header { display: flex; align-items: center; gap: 4px; }
+    .back-btn { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 1em; padding: 4px 8px; border-radius: 3px; margin-right: 8px; }
     .back-btn:hover { background: var(--vscode-list-hoverBackground); }
-    .back-path { font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .breadcrumb-separator { color: var(--vscode-descriptionForeground); font-size: 0.85em; margin: 0 2px; }
+    .breadcrumb-segment { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.85em; padding: 2px 4px; border-radius: 3px; }
+    .breadcrumb-segment:hover { background: var(--vscode-list-hoverBackground); text-decoration: underline; }
+    .breadcrumb-current { font-size: 0.85em; color: var(--vscode-foreground); font-weight: 600; padding: 2px 4px; }
+    .breadcrumb-ellipsis { color: var(--vscode-descriptionForeground); font-size: 0.85em; padding: 0 4px; }
     .analyze-btn { padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
     .analyze-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -11963,6 +11968,28 @@ var DASHBOARD_STYLES = `
     /* SVG file header for L2 */
     .file-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .file-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Partition layout for file internals */
+    .partition-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
+    .partition-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
+    .partition-node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
+    .partition-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .partition-label { pointer-events: none; }
+    /* Code preview for leaf nodes */
+    .code-preview-container { display: flex; flex-direction: column; height: 100%; padding: 16px; background: var(--vscode-editor-background); }
+    .code-preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .code-preview-name { font-weight: 600; font-size: 1.1em; }
+    .code-preview-loc { color: var(--vscode-descriptionForeground); font-size: 0.85em; }
+    .code-preview-loading { display: flex; align-items: center; gap: 10px; padding: 20px; color: var(--vscode-descriptionForeground); }
+    .code-preview-error { color: var(--vscode-errorForeground); }
+    .code-preview-code { flex: 1; overflow: auto; background: rgba(0,0,0,0.2); border: 1px solid var(--vscode-widget-border); border-radius: 4px; padding: 12px; margin: 0; font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.5; }
+    .code-line { display: block; }
+    .code-line-number { display: inline-block; width: 40px; color: var(--vscode-editorLineNumber-foreground); text-align: right; padding-right: 12px; user-select: none; }
+    .code-line-content { white-space: pre; }
+    .code-preview-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .code-action-btn { padding: 8px 16px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+    .code-action-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .code-action-prompt { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+    .code-action-prompt:hover { background: var(--vscode-button-hoverBackground); }
 
     /* Files flyout */
     .files-flyout { position: fixed; z-index: 1000; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); min-width: 200px; max-width: 320px; max-height: 300px; display: flex; flex-direction: column; }
@@ -12125,19 +12152,13 @@ const nav = {
     // Legend (hidden for deps)
     document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
 
-    // Back header (shown when zoomed in files or functions view)
+    // Breadcrumb (shown when zoomed in files or functions view)
     const backHeader = document.getElementById('back-header');
-    if (backHeader) {
-      if ((view === 'files' || view === 'functions') && this._state.zoomedUri) {
-        const filePath = getFilePath(this._state.zoomedUri);
-        const folderPath = filePath.split('/').slice(0, -1).join('/');
-        backHeader.classList.remove('hidden');
-        backHeader.innerHTML = '<button class="back-btn">\\u2190 Back</button><span class="back-path">' + folderPath + '</span>';
-        backHeader.querySelector('.back-btn').addEventListener('click', () => nav.back());
-      } else {
-        backHeader.classList.add('hidden');
-        backHeader.innerHTML = '';
-      }
+    if ((view === 'files' || view === 'functions')) {
+      renderBreadcrumb(backHeader, this._state.zoomedUri);
+    } else if (backHeader) {
+      backHeader.classList.add('hidden');
+      backHeader.innerHTML = '';
     }
   },
 
@@ -13514,55 +13535,13 @@ function renderFooterStats() {
 }
 `;
 
-// src/webview/distribution-chart.ts
-var DISTRIBUTION_CHART_SCRIPT = `
-const FUNC_NEUTRAL_COLOR = '#3a3a3a';
-const FILE_NO_FUNCTIONS_COLOR = '#2a2a2a';
-const ZOOM_DURATION = 500;
-const LABEL_MIN_WIDTH = 40;
-const LABEL_MIN_HEIGHT = 16;
+// src/webview/treemap-layout.ts
+var TREEMAP_LAYOUT_SCRIPT = `
+// Treemap layout for folder/file level visualization
+// Uses d3.treemap() for efficient space usage at folder level
 
-function getDynamicFunctionColor(func) {
-  return FUNC_NEUTRAL_COLOR;
-}
-
-function getDynamicFileColor(fileData) {
-  // Darker color for files without functions
-  return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
-}
-
-function zoomTo(uri) {
-  // Preserve current highlights - don't override when zooming
-  nav.goTo({ uri: uri });
-}
-
-function zoomOut() {
-  // Just navigate - selection state is preserved
-  nav.goTo({ uri: null });
-}
-
-function truncateLabel(name, maxWidth, charWidth) {
-  const maxChars = Math.floor(maxWidth / charWidth);
-  return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
-}
-
-function buildFileData() {
-  // Include all files in both views for consistency
-  return files
-    .map(f => {
-      const hasFunctions = f.functions && f.functions.length > 0;
-      const fileData = {
-        name: f.path.split('/').pop(),
-        path: f.path,
-        uri: f.uri,  // Use pre-computed URI from data model
-        value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
-        functions: f.functions || [],
-        hasFunctions: hasFunctions
-      };
-      fileData.color = getDynamicFileColor(fileData);
-      return fileData;
-    });
-}
+const TREEMAP_LABEL_MIN_WIDTH = 40;
+const TREEMAP_LABEL_MIN_HEIGHT = 16;
 
 function buildFileHierarchy(fileData) {
   const root = { name: 'root', children: [] };
@@ -13583,69 +13562,7 @@ function buildFileHierarchy(fileData) {
   return root;
 }
 
-function calculateZoomTransform(clickedLeaf, width, height) {
-  if (clickedLeaf) {
-    return {
-      x: clickedLeaf.x0,
-      y: clickedLeaf.y0,
-      kx: width / (clickedLeaf.x1 - clickedLeaf.x0),
-      ky: height / (clickedLeaf.y1 - clickedLeaf.y0)
-    };
-  }
-  return { x: 0, y: 0, kx: 1, ky: 1 };
-}
-
-function buildFunctionLeaves(width, height) {
-  const file = files.find(f => f.path === zoomedFile);
-  if (!file || !file.functions) return [];
-
-  const functionData = file.functions.map(fn => ({
-    name: fn.name,
-    value: fn.loc,
-    line: fn.startLine,
-    depth: fn.maxNestingDepth,
-    params: fn.parameterCount,
-    filePath: file.path,
-    uri: fn.uri  // Use pre-computed URI from data model
-  }));
-
-  const funcHierarchy = d3.hierarchy({ name: 'root', children: functionData })
-    .sum(d => d.value || 0)
-    .sort((a, b) => b.value - a.value);
-
-  d3.treemap()
-    .size([width, height])
-    .paddingTop(18)
-    .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(2)
-    (funcHierarchy);
-
-  return funcHierarchy.leaves();
-}
-
-function calculateExitBounds(leaf, transform) {
-  if (!leaf) return { x: 0, y: 0, w: 0, h: 0 };
-  return {
-    x: (leaf.x0 - transform.x) * transform.kx,
-    y: (leaf.y0 - transform.y) * transform.ky,
-    w: (leaf.x1 - leaf.x0) * transform.kx,
-    h: (leaf.y1 - leaf.y0) * transform.ky
-  };
-}
-
-function renderDistributionChart() {
-  const container = document.getElementById('functions-chart');
-  if (!container) return;
-
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 400;
-
-  const fileData = buildFileData();
-  if (fileData.length === 0) {
-    container.innerHTML = '<div class="functions-empty">No functions found.</div>';
-    renderFilesLegend([]);
-    return;
-  }
-
+function renderTreemapLayout(container, fileData, width, height, t) {
   const root = buildFileHierarchy(fileData);
   const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
   d3.treemap()
@@ -13655,6 +13572,11 @@ function renderDistributionChart() {
     (hierarchy);
 
   const leaves = hierarchy.leaves();
+  const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
+
+  const curr = calculateZoomTransform(clickedLeaf, width, height);
+  const prev = { ...prevZoomState };
+  prevZoomState = curr;
 
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
@@ -13667,13 +13589,6 @@ function renderDistributionChart() {
 
   const fileLayer = svg.select('g.file-layer');
   const funcLayer = svg.select('g.func-layer');
-  const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
-
-  const curr = calculateZoomTransform(clickedLeaf, width, height);
-  const prev = { ...prevZoomState };
-  prevZoomState = curr;
-
-  const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
 
   const isZoomingIn = zoomedFile && !prevZoomedFile;
   const isZoomingOut = !zoomedFile && prevZoomedFile;
@@ -13689,22 +13604,7 @@ function renderDistributionChart() {
   renderFileLabels(fileLayer, leaves, prev, curr, t);
   renderFolderHeaders(fileLayer, hierarchy, prev, curr, t);
 
-  const funcLeaves = clickedLeaf ? buildFunctionLeaves(width, height) : [];
-  const prevBounds = calculateExitBounds(clickedLeaf, prev);
-  const exitLeaf = prevZoomedFile ? leaves.find(l => l.data.path === prevZoomedFile) : clickedLeaf;
-  const exitBounds = calculateExitBounds(exitLeaf, curr);
-
-  renderFuncRects(funcLayer, funcLeaves, prevBounds, exitBounds, width, height, t);
-  renderFuncLabels(funcLayer, funcLeaves, prevBounds, exitBounds, width, height, t);
-  renderFileHeader(funcLayer, width, t);
-
-  if (zoomedFile) {
-    renderFunctionLegend(funcLeaves);
-  } else {
-    renderFilesLegend(fileData);
-  }
-
-  // Note: Highlights are applied by nav._render() via selection._applyHighlights()
+  return { leaves, clickedLeaf, prev, curr, funcLayer };
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {
@@ -13742,7 +13642,6 @@ function renderFileRects(layer, leaves, prev, curr, t) {
       if (d.data.hasFunctions) {
         zoomTo(d.data.uri);
       } else {
-        // Open file directly if no functions to zoom into
         vscode.postMessage({ command: 'openFile', uri: d.data.uri });
       }
     })
@@ -13757,7 +13656,7 @@ function renderFileLabels(layer, leaves, prev, curr, t) {
   const labelsData = leaves.filter(d => {
     const w = (d.x1 - d.x0) * curr.kx;
     const h = (d.y1 - d.y0) * curr.ky;
-    return w >= LABEL_MIN_WIDTH && h >= LABEL_MIN_HEIGHT;
+    return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
   });
 
   layer.selectAll('text.file-label').data(zoomedFile ? [] : labelsData, d => d.data.uri)
@@ -13819,78 +13718,95 @@ function renderFolderHeaders(layer, hierarchy, prev, curr, t) {
     .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
     .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
 }
+`;
 
-function renderFuncRects(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
-  layer.selectAll('rect.func-node').data(funcLeaves, d => d.data.uri)
-    .join(
-      enter => enter.append('rect')
-        .attr('class', 'func-node node')
-        .attr('data-uri', d => d.data.uri)
-        .attr('data-path', d => d.data.filePath)
-        .attr('fill', d => getDynamicFunctionColor(d.data))
-        .attr('x', d => prevBounds.x + (d.x0 / width) * prevBounds.w)
-        .attr('y', d => prevBounds.y + (d.y0 / height) * prevBounds.h)
-        .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * prevBounds.w))
-        .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * prevBounds.h)),
-      update => update,
-      exit => exit.transition(t)
-        .attr('x', d => exitBounds.x + (d.x0 / width) * exitBounds.w)
-        .attr('y', d => exitBounds.y + (d.y0 / height) * exitBounds.h)
-        .attr('width', d => Math.max(0, ((d.x1 - d.x0) / width) * exitBounds.w))
-        .attr('height', d => Math.max(0, ((d.y1 - d.y0) / height) * exitBounds.h))
-        .remove()
-    )
-    .on('mouseover', (e, d) => {
-      const html = '<div><strong>' + d.data.name + '</strong></div>' +
-        '<div>' + d.data.value + ' LOC' + (d.data.depth ? ' \\u00b7 depth ' + d.data.depth : '') + '</div>' +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to open file</div>';
-      showTooltip(html, e);
-    })
-    .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.data.uri });
-    })
-    .transition(t)
-    .attr('x', d => d.x0)
-    .attr('y', d => d.y0)
-    .attr('width', d => Math.max(0, d.x1 - d.x0))
-    .attr('height', d => Math.max(0, d.y1 - d.y0));
+// src/webview/partition-layout.ts
+var PARTITION_LAYOUT_SCRIPT = `
+// Partition layout for file internals (functions/blocks)
+// Uses horizontal stacking with height proportional to LOC
+// Preserves document order (sorted by startLine)
+
+const PARTITION_HEADER_HEIGHT = 24;
+const PARTITION_PADDING = 2;
+const PARTITION_MIN_HEIGHT = 20;
+const PARTITION_LABEL_MIN_HEIGHT = 18;
+
+function buildPartitionData(file, width, height) {
+  if (!file || !file.functions || file.functions.length === 0) {
+    return [];
+  }
+
+  // Sort by startLine to preserve document order
+  const sortedFunctions = file.functions
+    .slice()
+    .sort((a, b) => a.startLine - b.startLine);
+
+  // Calculate total LOC for proportional heights
+  const totalLoc = sortedFunctions.reduce((sum, fn) => sum + fn.loc, 0);
+  const availableHeight = height - PARTITION_HEADER_HEIGHT - (PARTITION_PADDING * 2);
+
+  // Build partition nodes with calculated positions
+  let currentY = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
+  const nodes = sortedFunctions.map(fn => {
+    const proportion = fn.loc / totalLoc;
+    const nodeHeight = Math.max(PARTITION_MIN_HEIGHT, proportion * availableHeight);
+
+    const node = {
+      name: fn.name,
+      value: fn.loc,
+      line: fn.startLine,
+      endLine: fn.endLine,
+      depth: fn.maxNestingDepth,
+      params: fn.parameterCount,
+      filePath: file.path,
+      uri: fn.uri,
+      x0: PARTITION_PADDING,
+      y0: currentY,
+      x1: width - PARTITION_PADDING,
+      y1: currentY + nodeHeight
+    };
+
+    currentY += nodeHeight + PARTITION_PADDING;
+    return node;
+  });
+
+  return nodes;
 }
 
-function renderFuncLabels(layer, funcLeaves, prevBounds, exitBounds, width, height, t) {
-  const labelsData = funcLeaves.filter(d => (d.x1 - d.x0) >= 30 && (d.y1 - d.y0) >= 14);
+function renderPartitionLayout(container, file, width, height, prevBounds, t) {
+  let svg = d3.select(container).select('svg');
+  if (svg.empty()) {
+    container.innerHTML = '';
+    svg = d3.select(container).append('svg');
+    svg.append('g').attr('class', 'file-layer');
+    svg.append('g').attr('class', 'partition-layer');
+  }
+  svg.attr('width', width).attr('height', height);
 
-  layer.selectAll('text.func-label').data(labelsData, d => d.data.uri)
-    .join(
-      enter => enter.append('text')
-        .attr('class', 'func-label')
-        .attr('fill', '#fff')
-        .attr('font-size', '9px')
-        .attr('pointer-events', 'none')
-        .attr('x', d => prevBounds.x + ((d.x0 + 3) / width) * prevBounds.w)
-        .attr('y', d => prevBounds.y + ((d.y0 + 11) / height) * prevBounds.h)
-        .text(d => truncateLabel(d.data.name, d.x1 - d.x0 - 6, 5)),
-      update => update,
-      exit => exit.transition(t)
-        .attr('x', d => exitBounds.x + ((d.x0 + 3) / width) * exitBounds.w)
-        .attr('y', d => exitBounds.y + ((d.y0 + 11) / height) * exitBounds.h)
-        .remove()
-    )
-    .transition(t)
-    .attr('x', d => d.x0 + 3)
-    .attr('y', d => d.y0 + 11);
+  const partitionLayer = svg.select('g.partition-layer');
+  const nodes = buildPartitionData(file, width, height);
+
+  // Render header
+  renderPartitionHeader(partitionLayer, file, width, t);
+
+  // Render function rectangles with animation from previous bounds
+  renderPartitionRects(partitionLayer, nodes, prevBounds, width, height, t);
+
+  // Render labels
+  renderPartitionLabels(partitionLayer, nodes, prevBounds, width, height, t);
+
+  return nodes;
 }
 
-function renderFileHeader(layer, width, t) {
-  const headerData = zoomedFile ? [{ path: zoomedFile, name: zoomedFile.split('/').pop() }] : [];
+function renderPartitionHeader(layer, file, width, t) {
+  const headerData = file ? [{ path: file.path, name: file.path.split('/').pop() }] : [];
 
-  layer.selectAll('rect.file-header').data(headerData, d => d.path)
+  layer.selectAll('rect.partition-header').data(headerData, d => d.path)
     .join(
       enter => enter.append('rect')
-        .attr('class', 'file-header')
+        .attr('class', 'partition-header')
         .attr('x', 0).attr('y', 0)
-        .attr('width', width).attr('height', 16)
+        .attr('width', width).attr('height', PARTITION_HEADER_HEIGHT)
         .attr('opacity', 0),
       update => update,
       exit => exit.transition(t).attr('opacity', 0).remove()
@@ -13899,32 +13815,214 @@ function renderFileHeader(layer, width, t) {
     .attr('width', width)
     .attr('opacity', 1);
 
-  layer.selectAll('text.file-header-label').data(headerData, d => d.path)
+  layer.selectAll('text.partition-header-label').data(headerData, d => d.path)
     .join(
       enter => enter.append('text')
-        .attr('class', 'file-header-label')
-        .attr('x', 4).attr('y', 12)
+        .attr('class', 'partition-header-label')
+        .attr('x', 8).attr('y', 16)
         .attr('opacity', 0),
       update => update,
       exit => exit.transition(t).attr('opacity', 0).remove()
     )
-    .text(d => truncateLabel(d.name, width - 8, 7))
+    .text(d => truncateLabel(d.name, width - 16, 7))
     .transition(t)
     .attr('opacity', 1);
 }
 
+function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
+  layer.selectAll('rect.partition-node').data(nodes, d => d.uri)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'partition-node node')
+        .attr('data-uri', d => d.uri)
+        .attr('data-path', d => d.filePath)
+        .attr('fill', FUNC_NEUTRAL_COLOR)
+        .attr('x', prevBounds.x)
+        .attr('y', prevBounds.y)
+        .attr('width', Math.max(0, prevBounds.w))
+        .attr('height', Math.max(0, prevBounds.h / nodes.length)),
+      update => update,
+      exit => exit.transition(t)
+        .attr('opacity', 0)
+        .remove()
+    )
+    .on('mouseover', (e, d) => {
+      const html = '<div><strong>' + d.name + '</strong></div>' +
+        '<div>Lines ' + d.line + '-' + d.endLine + ' \\u00b7 ' + d.value + ' LOC</div>' +
+        (d.depth ? '<div>Nesting depth: ' + d.depth + '</div>' : '') +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (e, d) => {
+      vscode.postMessage({ command: 'openFile', uri: d.uri });
+    })
+    .transition(t)
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0));
+}
+
+function renderPartitionLabels(layer, nodes, prevBounds, width, height, t) {
+  const labelsData = nodes.filter(d => (d.y1 - d.y0) >= PARTITION_LABEL_MIN_HEIGHT);
+
+  layer.selectAll('text.partition-label').data(labelsData, d => d.uri)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'partition-label')
+        .attr('fill', '#fff')
+        .attr('font-size', '11px')
+        .attr('pointer-events', 'none')
+        .attr('x', prevBounds.x + 8)
+        .attr('y', prevBounds.y + 14),
+      update => update,
+      exit => exit.transition(t).attr('opacity', 0).remove()
+    )
+    .text(d => {
+      const locText = ' (' + d.value + ')';
+      const maxWidth = (d.x1 - d.x0) - 16;
+      const availableForName = maxWidth - (locText.length * 6);
+      const name = truncateLabel(d.name, availableForName, 6);
+      return name + locText;
+    })
+    .transition(t)
+    .attr('x', d => d.x0 + 8)
+    .attr('y', d => d.y0 + ((d.y1 - d.y0) / 2) + 4);
+}
+
+function clearPartitionLayer(container) {
+  const svg = d3.select(container).select('svg');
+  if (!svg.empty()) {
+    const partitionLayer = svg.select('g.partition-layer');
+    partitionLayer.selectAll('*').remove();
+  }
+}
+`;
+
+// src/webview/distribution-chart.ts
+var DISTRIBUTION_CHART_SCRIPT = `
+const FUNC_NEUTRAL_COLOR = '#3a3a3a';
+const FILE_NO_FUNCTIONS_COLOR = '#2a2a2a';
+const ZOOM_DURATION = 500;
+
+function getDynamicFunctionColor(func) {
+  return FUNC_NEUTRAL_COLOR;
+}
+
+function getDynamicFileColor(fileData) {
+  return fileData.hasFunctions ? FUNC_NEUTRAL_COLOR : FILE_NO_FUNCTIONS_COLOR;
+}
+
+function zoomTo(uri) {
+  nav.goTo({ uri: uri });
+}
+
+function zoomOut() {
+  nav.goTo({ uri: null });
+}
+
+function truncateLabel(name, maxWidth, charWidth) {
+  const maxChars = Math.floor(maxWidth / charWidth);
+  return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;
+}
+
+function buildFileData() {
+  return files.map(f => {
+    const hasFunctions = f.functions && f.functions.length > 0;
+    const fileData = {
+      name: f.path.split('/').pop(),
+      path: f.path,
+      uri: f.uri,
+      value: hasFunctions ? f.functions.reduce((sum, fn) => sum + fn.loc, 0) : f.loc,
+      functions: f.functions || [],
+      hasFunctions: hasFunctions
+    };
+    fileData.color = getDynamicFileColor(fileData);
+    return fileData;
+  });
+}
+
+function calculateZoomTransform(clickedLeaf, width, height) {
+  if (clickedLeaf) {
+    return {
+      x: clickedLeaf.x0,
+      y: clickedLeaf.y0,
+      kx: width / (clickedLeaf.x1 - clickedLeaf.x0),
+      ky: height / (clickedLeaf.y1 - clickedLeaf.y0)
+    };
+  }
+  return { x: 0, y: 0, kx: 1, ky: 1 };
+}
+
+function calculateExitBounds(leaf, transform) {
+  if (!leaf) return { x: 0, y: 0, w: 0, h: 0 };
+  return {
+    x: (leaf.x0 - transform.x) * transform.kx,
+    y: (leaf.y0 - transform.y) * transform.ky,
+    w: (leaf.x1 - leaf.x0) * transform.kx,
+    h: (leaf.y1 - leaf.y0) * transform.ky
+  };
+}
+
+function renderDistributionChart() {
+  const container = document.getElementById('functions-chart');
+  if (!container) return;
+
+  const width = container.clientWidth || 600;
+  const height = container.clientHeight || 400;
+  const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
+
+  const fileData = buildFileData();
+  if (fileData.length === 0) {
+    container.innerHTML = '<div class="functions-empty">No functions found.</div>';
+    renderFilesLegend([]);
+    return;
+  }
+
+  // Render treemap layout for files (always, for animation continuity)
+  const treemapResult = renderTreemapLayout(container, fileData, width, height, t);
+  const { leaves, clickedLeaf, prev, curr } = treemapResult;
+
+  // Get partition layer
+  let svg = d3.select(container).select('svg');
+  let partitionLayer = svg.select('g.partition-layer');
+  if (partitionLayer.empty()) {
+    partitionLayer = svg.append('g').attr('class', 'partition-layer');
+  }
+
+  // When zoomed into a file, use partition layout
+  if (zoomedFile) {
+    const file = files.find(f => f.path === zoomedFile);
+    const prevBounds = calculateExitBounds(clickedLeaf, prev);
+
+    // Fade in partition layer
+    partitionLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
+
+    if (file) {
+      renderPartitionLayout(container, file, width, height, prevBounds, t);
+      renderFunctionLegend(file.functions ? file.functions.length : 0);
+    }
+  } else {
+    // Clear partition layer when zoomed out
+    clearPartitionLayer(container);
+    partitionLayer.transition(t).attr('opacity', 0);
+    renderFilesLegend(fileData);
+  }
+}
+
 function renderFilesLegend(fileData) {
-  // Stats now shown in status button via updateStatus()
   const legend = document.getElementById('legend');
   if (legend) legend.style.display = 'none';
 }
 
-function renderFunctionLegend(leaves) {
+function renderFunctionLegend(count) {
   const legend = document.getElementById('legend');
   if (!legend || currentView !== 'functions') return;
 
   legend.style.display = 'flex';
-  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + leaves.length + '</strong> functions</div>';
+  legend.innerHTML = '<div class="legend-item" style="margin-left:auto;"><strong>' + count + '</strong> functions</div>';
 }
 
 // Re-render on window resize
@@ -14447,6 +14545,229 @@ function getDisplayName(uri) {
 }
 `;
 
+// src/webview/breadcrumb.ts
+var BREADCRUMB_SCRIPT = `
+// Breadcrumb navigation for treemap
+// Shows clickable path segments: \u2190 Back  src / components / Header.tsx
+
+const BREADCRUMB_SEPARATOR = ' / ';
+const MAX_BREADCRUMB_SEGMENTS = 6;
+
+function buildBreadcrumbSegments(uri) {
+  if (!uri) return [];
+
+  const parsed = parseUri(uri);
+  const segments = [];
+
+  // Add path segments (folders and file)
+  const pathParts = parsed.path.split('/').filter(Boolean);
+  let currentPath = '';
+  for (const part of pathParts) {
+    currentPath = currentPath ? currentPath + '/' + part : part;
+    segments.push({
+      name: part,
+      uri: createFileUri(currentPath),
+      isFile: currentPath === parsed.path
+    });
+  }
+
+  // Add symbol segments if we have a fragment
+  if (parsed.fragment) {
+    const symbolParts = parsed.fragment.split('.');
+    let currentFragment = '';
+    for (const part of symbolParts) {
+      currentFragment = currentFragment ? currentFragment + '.' + part : part;
+      // Clean up block notation for display (e.g., "if:10" -> "if")
+      const displayName = part.replace(/:(\\d+)$/, '');
+      segments.push({
+        name: displayName,
+        uri: createFileUri(parsed.path) + '#' + currentFragment,
+        isSymbol: true
+      });
+    }
+  }
+
+  return segments;
+}
+
+function truncateBreadcrumb(segments) {
+  if (segments.length <= MAX_BREADCRUMB_SEGMENTS) {
+    return segments;
+  }
+
+  // Keep first 2 and last 3, add ellipsis in middle
+  const start = segments.slice(0, 2);
+  const end = segments.slice(-3);
+  return [...start, { name: '...', uri: null, isEllipsis: true }, ...end];
+}
+
+function renderBreadcrumb(container, zoomedUri) {
+  if (!container) return;
+
+  if (!zoomedUri) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  const segments = buildBreadcrumbSegments(zoomedUri);
+  const displaySegments = truncateBreadcrumb(segments);
+
+  container.classList.remove('hidden');
+
+  // Build HTML
+  let html = '<button class="back-btn" title="Go back (Escape)">\\u2190</button>';
+
+  displaySegments.forEach((seg, i) => {
+    if (i > 0) {
+      html += '<span class="breadcrumb-separator">/</span>';
+    }
+
+    if (seg.isEllipsis) {
+      html += '<span class="breadcrumb-ellipsis">...</span>';
+    } else if (i === displaySegments.length - 1) {
+      // Current location - not clickable
+      html += '<span class="breadcrumb-current">' + seg.name + '</span>';
+    } else {
+      // Clickable segment
+      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '">' + seg.name + '</button>';
+    }
+  });
+
+  container.innerHTML = html;
+
+  // Add event listeners
+  container.querySelector('.back-btn').addEventListener('click', () => nav.back());
+
+  container.querySelectorAll('.breadcrumb-segment').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const uri = e.target.dataset.uri;
+      if (uri) {
+        nav.goTo({ uri: uri });
+      }
+    });
+  });
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+  // Only handle when treemap is active
+  if (currentView !== 'files' && currentView !== 'functions') return;
+
+  // Don't intercept if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (e.key === 'Escape' || e.key === 'Backspace') {
+    e.preventDefault();
+    nav.back();
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    nav.goTo({ uri: null });
+  }
+});
+`;
+
+// src/webview/code-preview.ts
+var CODE_PREVIEW_SCRIPT = `
+// Code preview component for leaf nodes
+// Shows source code with line numbers and action buttons
+
+const CODE_PREVIEW_MAX_LINES = 50;
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderCodeWithLineNumbers(code, startLine) {
+  const lines = code.split('\\n');
+  return lines.map((line, i) => {
+    const lineNum = startLine + i;
+    const escapedLine = escapeHtml(line) || ' ';  // Preserve empty lines
+    return '<span class="code-line"><span class="code-line-number">' + lineNum + '</span><span class="code-line-content">' + escapedLine + '</span></span>';
+  }).join('\\n');
+}
+
+function showCodePreview(container, node) {
+  // Request code from extension host
+  vscode.postMessage({
+    command: 'getCodePreview',
+    uri: node.uri,
+    startLine: node.line,
+    endLine: node.endLine
+  });
+
+  // Show loading state in container
+  const previewHtml = '<div class="code-preview-container">' +
+    '<div class="code-preview-header">' +
+    '<span class="code-preview-name">' + node.name + '</span>' +
+    '<span class="code-preview-loc">Lines ' + node.line + '-' + node.endLine + '</span>' +
+    '</div>' +
+    '<div class="code-preview-loading">' +
+    '<div class="thinking-spinner"></div>' +
+    '<span>Loading code...</span>' +
+    '</div>' +
+    '<div class="code-preview-actions">' +
+    '<button class="code-action-btn code-action-prompt" data-uri="' + node.uri + '">Add to Prompt</button>' +
+    '<button class="code-action-btn code-action-open" data-uri="' + node.uri + '">Open in Editor</button>' +
+    '</div>' +
+    '</div>';
+
+  // Store current preview node for when code arrives
+  window._currentPreviewNode = node;
+
+  return previewHtml;
+}
+
+function handleCodePreviewResponse(data) {
+  const container = document.getElementById('functions-chart');
+  if (!container) return;
+
+  const previewLoading = container.querySelector('.code-preview-loading');
+  if (!previewLoading) return;
+
+  if (data.error) {
+    previewLoading.innerHTML = '<span class="code-preview-error">' + data.error + '</span>';
+    return;
+  }
+
+  const codeHtml = renderCodeWithLineNumbers(data.code, data.startLine);
+  previewLoading.outerHTML = '<pre class="code-preview-code">' + codeHtml + '</pre>';
+
+  // Add event listeners for action buttons
+  const promptBtn = container.querySelector('.code-action-prompt');
+  const openBtn = container.querySelector('.code-action-open');
+
+  if (promptBtn) {
+    promptBtn.addEventListener('click', (e) => {
+      const uri = e.target.dataset.uri;
+      // Add to selection for prompt context
+      selection.add(uri);
+      vscode.postMessage({
+        command: 'showMessage',
+        message: 'Added to prompt context'
+      });
+    });
+  }
+
+  if (openBtn) {
+    openBtn.addEventListener('click', (e) => {
+      const uri = e.target.dataset.uri;
+      vscode.postMessage({ command: 'openFile', uri: uri });
+    });
+  }
+}
+
+// Listen for code preview response from extension host
+window.addEventListener('message', (event) => {
+  const message = event.data;
+  if (message.type === 'codePreview') {
+    handleCodePreviewResponse(message);
+  }
+});
+`;
+
 // src/dashboard-html.ts
 function getLoadingContent() {
   return `<!DOCTYPE html>
@@ -14583,6 +14904,8 @@ for (const issue of issues) {
 
 ${URI_SCRIPT}
 
+${BREADCRUMB_SCRIPT}
+
 ${TOOLTIP_SCRIPT}
 
 ${TREEMAP_NAV_SCRIPT}
@@ -14603,7 +14926,13 @@ ${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
 
+${TREEMAP_LAYOUT_SCRIPT}
+
+${PARTITION_LAYOUT_SCRIPT}
+
 ${DISTRIBUTION_CHART_SCRIPT}
+
+${CODE_PREVIEW_SCRIPT}
 
 ${COLOR_ANIMATION_SCRIPT}
 
@@ -14719,6 +15048,28 @@ async function openDashboard(context) {
         await addAntiPatternRule(currentData?.root || "", message.patternType);
       } else if (message.command === "removeRule") {
         await removeAntiPatternRule(currentData?.root || "", message.patternType);
+      } else if (message.command === "getCodePreview" && currentData) {
+        try {
+          const relativePath = getFilePath(message.uri);
+          const filePath = path11.join(currentData.root, relativePath);
+          const startLine = message.startLine || 1;
+          const endLine = message.endLine || startLine + 50;
+          const content = fs5.readFileSync(filePath, "utf8");
+          const lines = content.split("\n").slice(startLine - 1, endLine);
+          panel.webview.postMessage({
+            type: "codePreview",
+            uri: message.uri,
+            code: lines.join("\n"),
+            startLine
+          });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Could not read file";
+          panel.webview.postMessage({
+            type: "codePreview",
+            uri: message.uri,
+            error: msg
+          });
+        }
       } else if (message.command === "countTokens" && currentData) {
         const fileContents = {};
         if (message.context?.files) {

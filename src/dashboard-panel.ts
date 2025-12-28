@@ -136,6 +136,30 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
         await addAntiPatternRule(currentData?.root || '', message.patternType);
       } else if (message.command === 'removeRule') {
         await removeAntiPatternRule(currentData?.root || '', message.patternType);
+      } else if (message.command === 'getCodePreview' && currentData) {
+        try {
+          const relativePath = getFilePath(message.uri);
+          const filePath = path.join(currentData.root, relativePath);
+          const startLine = message.startLine || 1;
+          const endLine = message.endLine || startLine + 50;
+
+          const content = fs.readFileSync(filePath, 'utf8');
+          const lines = content.split('\n').slice(startLine - 1, endLine);
+
+          panel.webview.postMessage({
+            type: 'codePreview',
+            uri: message.uri,
+            code: lines.join('\n'),
+            startLine: startLine
+          });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Could not read file';
+          panel.webview.postMessage({
+            type: 'codePreview',
+            uri: message.uri,
+            error: msg
+          });
+        }
       } else if (message.command === 'countTokens' && currentData) {
         // Estimate tokens for prompt cost estimation (synchronous, no API call)
         const fileContents: Record<string, string> = {};
