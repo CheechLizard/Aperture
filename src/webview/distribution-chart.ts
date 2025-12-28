@@ -128,11 +128,12 @@ function renderDistributionChart() {
       if (targetBounds) {
         zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
       } else {
-        // No bounds, just swap
-        oldLayer.remove();
+        // No bounds, crossfade as fallback
+        oldLayer.transition(t).style('opacity', 0).remove();
+        newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
 
-      // Remove old layer class
+      // Mark old layer to avoid selection conflicts
       oldLayer.attr('class', 'file-layer-old');
     }
 

@@ -13667,23 +13667,17 @@ function collapseSmallNodes(hierarchyNode) {
   }
 }
 
-// Get the immediate child folder of the current root that contains a path
-function getNextLevelFolder(targetPath) {
-  const rootPath = zoomedFolder || '';
-  const rootPrefix = rootPath ? rootPath + '/' : '';
-
-  // If target is not under root, something's wrong
-  if (rootPath && !targetPath.startsWith(rootPrefix)) return null;
-
-  // Get the relative path from root
-  const relativePath = rootPath ? targetPath.slice(rootPrefix.length) : targetPath;
-  const parts = relativePath.split('/');
-
-  // If only one part, it's a direct child (file or folder at this level)
-  if (parts.length <= 1) return null;
-
-  // Return the immediate child folder path
-  return rootPath ? rootPath + '/' + parts[0] : parts[0];
+// Helper to save clicked element bounds for animation
+function saveClickedBounds(e) {
+  const rect = e.target.getBoundingClientRect();
+  const container = document.getElementById('functions-chart');
+  const containerRect = container.getBoundingClientRect();
+  zoom.setClickedBounds({
+    x: rect.left - containerRect.left,
+    y: rect.top - containerRect.top,
+    w: rect.width,
+    h: rect.height
+  });
 }
 
 // Render treemap layout - LAYOUT ONLY, no animation
@@ -13766,21 +13760,9 @@ function renderFileRects(layer, leaves, width, height, t) {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       if (zoomedFile) return;
-      // Save clicked element bounds for animation
-      const rect = e.target.getBoundingClientRect();
-      const container = document.getElementById('functions-chart');
-      const containerRect = container.getBoundingClientRect();
-      zoom.setClickedBounds({
-        x: rect.left - containerRect.left,
-        y: rect.top - containerRect.top,
-        w: rect.width,
-        h: rect.height
-      });
-      // Progressive zoom: if item is nested, zoom to its parent folder first
-      const nextFolder = getNextLevelFolder(d.data.path);
-      if (nextFolder) {
-        nav.goTo({ uri: createFolderUri(nextFolder) });
-      } else if (d.data.hasFunctions) {
+      saveClickedBounds(e);
+      // Direct zoom: file with functions fills the view, otherwise open in editor
+      if (d.data.hasFunctions) {
         zoomTo(d.data.uri);
       } else {
         vscode.postMessage({ command: 'openFile', uri: d.data.uri });
@@ -13816,23 +13798,9 @@ function renderFileRects(layer, leaves, width, height, t) {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       if (zoomedFile) return;
-      // Save clicked element bounds for animation
-      const rect = e.target.getBoundingClientRect();
-      const container = document.getElementById('functions-chart');
-      const containerRect = container.getBoundingClientRect();
-      zoom.setClickedBounds({
-        x: rect.left - containerRect.left,
-        y: rect.top - containerRect.top,
-        w: rect.width,
-        h: rect.height
-      });
-      // Progressive zoom: if folder is nested, zoom to its parent folder first
-      const nextFolder = getNextLevelFolder(d.data.path);
-      if (nextFolder && nextFolder !== d.data.path) {
-        nav.goTo({ uri: createFolderUri(nextFolder) });
-      } else {
-        nav.goTo({ uri: d.data.uri });
-      }
+      saveClickedBounds(e);
+      // Direct zoom to folder
+      nav.goTo({ uri: d.data.uri });
     })
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)
@@ -13905,7 +13873,7 @@ function renderFileLabels(layer, leaves, width, height, t) {
 function renderFolderHeaders(layer, hierarchy, width, height, t) {
   const depth1 = zoomedFile ? [] : hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
 
-  layer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
+  layer.selectAll('rect.dir-header').data(depth1, d => d.data.path)
     .join(
       enter => enter.append('rect')
         .attr('class', 'dir-header')
@@ -13916,12 +13884,33 @@ function renderFolderHeaders(layer, hierarchy, width, height, t) {
       update => update,
       exit => exit.remove()
     )
+    .style('cursor', 'pointer')
+    .style('pointer-events', 'auto')
+    .on('mouseover', (e, d) => {
+      const html = '<div><strong>' + d.data.name + '/</strong></div>' +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to zoom into folder</div>';
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (e, d) => {
+      e.stopPropagation();
+      if (!d.data.uri) return;
+      // Use the full folder bounds (not just header) for smoother animation
+      zoom.setClickedBounds({
+        x: d.x0,
+        y: d.y0,
+        w: d.x1 - d.x0,
+        h: d.y1 - d.y0
+      });
+      nav.goTo({ uri: d.data.uri });
+    })
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)
     .attr('width', d => d.x1 - d.x0)
     .attr('height', 16);
 
-  layer.selectAll('text.dir-label').data(depth1, d => d.data.name)
+  layer.selectAll('text.dir-label').data(depth1, d => d.data.path)
     .join(
       enter => enter.append('text')
         .attr('class', 'dir-label')
@@ -13930,6 +13919,7 @@ function renderFolderHeaders(layer, hierarchy, width, height, t) {
       update => update,
       exit => exit.remove()
     )
+    .style('pointer-events', 'none')
     .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) - 8, 7))
     .attr('x', d => d.x0 + 4)
     .attr('y', d => d.y0 + 12);
@@ -14246,11 +14236,12 @@ function renderDistributionChart() {
       if (targetBounds) {
         zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
       } else {
-        // No bounds, just swap
-        oldLayer.remove();
+        // No bounds, crossfade as fallback
+        oldLayer.transition(t).style('opacity', 0).remove();
+        newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
 
-      // Remove old layer class
+      // Mark old layer to avoid selection conflicts
       oldLayer.attr('class', 'file-layer-old');
     }
 
