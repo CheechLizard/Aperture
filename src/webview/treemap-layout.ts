@@ -65,9 +65,6 @@ function aggregateSmallNodes(hierarchyNode) {
   // Recurse first (depth-first) so inner folders aggregate before outer ones
   hierarchyNode.children.forEach(c => aggregateSmallNodes(c));
 
-  // Never aggregate at root (depth 0) - always show top-level structure
-  if (hierarchyNode.depth === 0) return;
-
   const children = hierarchyNode.children;
   const smallChildren = children.filter(c => isSmall(c));
   if (smallChildren.length === 0) return;
