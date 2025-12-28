@@ -1,15 +1,29 @@
 export const BREADCRUMB_SCRIPT = `
 // Breadcrumb navigation for treemap
-// Shows clickable path segments: ← Back  src / components / Header.tsx
+// Shows clickable path segments: ProjectName / src / components / Header.tsx
 
-const BREADCRUMB_SEPARATOR = ' / ';
 const MAX_BREADCRUMB_SEGMENTS = 6;
 
+// Extract project name from root path
+function getProjectName() {
+  if (!rootPath) return 'Project';
+  const parts = rootPath.replace(/\\\\/g, '/').split('/').filter(Boolean);
+  return parts[parts.length - 1] || 'Project';
+}
+
 function buildBreadcrumbSegments(uri) {
-  if (!uri) return [];
+  const segments = [];
+
+  // Always add project root as first segment
+  segments.push({
+    name: getProjectName(),
+    uri: null,  // null URI means go to root
+    isRoot: true
+  });
+
+  if (!uri) return segments;
 
   const parsed = parseUri(uri);
-  const segments = [];
 
   // Add path segments (folders and file)
   const pathParts = parsed.path.split('/').filter(Boolean);
@@ -57,19 +71,14 @@ function truncateBreadcrumb(segments) {
 function renderBreadcrumb(container, zoomedUri) {
   if (!container) return;
 
-  if (!zoomedUri) {
-    container.classList.add('hidden');
-    container.innerHTML = '';
-    return;
-  }
-
   const segments = buildBreadcrumbSegments(zoomedUri);
   const displaySegments = truncateBreadcrumb(segments);
 
+  // Always show breadcrumb (at minimum shows project root)
   container.classList.remove('hidden');
 
-  // Build HTML
-  let html = '<button class="back-btn" title="Go back (Escape)">\\u2190</button>';
+  // Build HTML - no back button, just path segments
+  let html = '';
 
   displaySegments.forEach((seg, i) => {
     if (i > 0) {
@@ -82,23 +91,21 @@ function renderBreadcrumb(container, zoomedUri) {
       // Current location - not clickable
       html += '<span class="breadcrumb-current">' + seg.name + '</span>';
     } else {
-      // Clickable segment - include isFile flag for navigation
-      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '" data-is-file="' + (seg.isFile ? 'true' : 'false') + '">' + seg.name + '</button>';
+      // Clickable segment - use 'null' string for root
+      const uriAttr = seg.uri === null ? 'null' : seg.uri;
+      html += '<button class="breadcrumb-segment" data-uri="' + uriAttr + '">' + seg.name + '</button>';
     }
   });
 
   container.innerHTML = html;
 
-  // Add event listeners
-  container.querySelector('.back-btn').addEventListener('click', () => nav.back());
-
+  // Add event listeners for clickable segments
   container.querySelectorAll('.breadcrumb-segment').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const uri = e.target.dataset.uri;
-      if (uri) {
-        // Navigate to folder or file URI
-        nav.goTo({ uri: uri });
-      }
+      const uriStr = e.target.dataset.uri;
+      // Handle root navigation (null URI)
+      const uri = uriStr === 'null' ? null : uriStr;
+      nav.goTo({ uri: uri });
     });
   });
 }

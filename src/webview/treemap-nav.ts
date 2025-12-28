@@ -114,9 +114,9 @@ const nav = {
     // Legend (hidden for deps)
     document.getElementById('legend').style.display = view !== 'deps' ? 'flex' : 'none';
 
-    // Breadcrumb (shown when zoomed in files or functions view)
+    // Breadcrumb (always shown in files or functions view)
     const backHeader = document.getElementById('back-header');
-    if ((view === 'files' || view === 'functions')) {
+    if (view === 'files' || view === 'functions') {
       renderBreadcrumb(backHeader, this._state.zoomedUri);
     } else if (backHeader) {
       backHeader.classList.add('hidden');
