@@ -101,7 +101,9 @@ function getNextLevelFolder(targetPath) {
   return rootPath ? rootPath + '/' + parts[0] : parts[0];
 }
 
-function renderTreemapLayout(container, fileData, width, height, t) {
+// Render treemap layout - LAYOUT ONLY, no animation
+// Animation is handled by the orchestrator via zoom.animateLayers()
+function renderTreemapLayout(container, fileData, width, height, t, targetLayer) {
   // Build hierarchy, optionally filtered to a zoomed folder
   const root = buildFileHierarchy(fileData, zoomedFolder);
   const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
@@ -117,129 +119,37 @@ function renderTreemapLayout(container, fileData, width, height, t) {
   const leaves = hierarchy.leaves();
   const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
 
-  // Get clicked bounds for folder zoom animation
-  const clickedBounds = zoom.consumeClickedBounds();
-
-  // Use zoom module for transform calculation and state tracking
-  const { prev, curr } = zoom.update(clickedLeaf, width, height);
-
+  // Ensure SVG exists
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
-    svg.append('g').attr('class', 'file-layer');
-    svg.append('g').attr('class', 'func-layer');
   }
   svg.attr('width', width).attr('height', height);
 
-  // Two-group crossfade zoom (D3 zoomable treemap pattern)
-  let fileLayer;
-
-  // Detect zoom-out: navigating back without clicking (via breadcrumb/back button)
-  const isZoomingOutFolder = !clickedBounds && prevZoomedFolder;
-
-  if (clickedBounds) {
-    // ZOOM IN: old layer scales up, new layer expands from clicked element
-    const oldLayer = svg.select('g.file-layer').attr('pointer-events', 'none');
-    fileLayer = svg.insert('g', 'g.func-layer').attr('class', 'file-layer');
-
-    // Use uniform scale - min ensures we don't over-zoom past the frame
-    const scale = Math.min(width / clickedBounds.w, height / clickedBounds.h);
-    const clickedCenterX = clickedBounds.x + clickedBounds.w / 2;
-    const clickedCenterY = clickedBounds.y + clickedBounds.h / 2;
-
-    // Old layer: scale up toward clicked element center
-    const oldTranslateX = width / 2 - clickedCenterX * scale;
-    const oldTranslateY = height / 2 - clickedCenterY * scale;
-
-    oldLayer.selectAll('text').style('opacity', 0);
-    oldLayer
-      .transition(t)
-      .attr('transform', 'translate(' + oldTranslateX + ',' + oldTranslateY + ') scale(' + scale + ')')
-      .style('opacity', 0)
-      .remove();
-
-    // New layer: start small at clicked position, expand to fill
-    const invScale = 1 / scale;
-    const newStartX = clickedCenterX - (width / 2) * invScale;
-    const newStartY = clickedCenterY - (height / 2) * invScale;
-
-    fileLayer
-      .attr('transform', 'translate(' + newStartX + ',' + newStartY + ') scale(' + invScale + ')')
-      .style('opacity', 0)
-      .transition(t)
-      .attr('transform', 'translate(0,0) scale(1)')
-      .style('opacity', 1);
-
-  } else if (isZoomingOutFolder) {
-    // ZOOM OUT: reverse of zoom-in using stored bounds from stack
-    const targetBounds = zoom.popZoomStack();
-
-    if (targetBounds) {
-      // For zoom-out, new layer (parent) at back, old layer (child) on top
-      const oldLayer = svg.select('g.file-layer').attr('pointer-events', 'none');
-      fileLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
-
-      // Use same scale calculation as zoom-in for perfect symmetry
-      const scale = Math.min(width / targetBounds.w, height / targetBounds.h);
-      const targetCenterX = targetBounds.x + targetBounds.w / 2;
-      const targetCenterY = targetBounds.y + targetBounds.h / 2;
-
-      // Old layer: shrink down to target bounds (reverse of zoom-in's expand)
-      // Zoom-in new layer ENDED at identity, so zoom-out old layer STARTS at identity
-      // Zoom-in new layer STARTED at these values, so zoom-out old layer ENDS at these
-      const invScale = 1 / scale;
-      const shrinkX = targetCenterX - (width / 2) * invScale;
-      const shrinkY = targetCenterY - (height / 2) * invScale;
-
-      oldLayer.selectAll('text').style('opacity', 0);
-      oldLayer
-        .transition(t)
-        .attr('transform', 'translate(' + shrinkX + ',' + shrinkY + ') scale(' + invScale + ')')
-        .style('opacity', 0)
-        .remove();
-
-      // New layer: start scaled up, shrink to identity (reverse of zoom-in's old layer)
-      // Zoom-in old layer ENDED at these values, so zoom-out new layer STARTS here
-      const expandX = width / 2 - targetCenterX * scale;
-      const expandY = height / 2 - targetCenterY * scale;
-
-      fileLayer
-        .attr('transform', 'translate(' + expandX + ',' + expandY + ') scale(' + scale + ')')
-        .transition(t)
-        .attr('transform', 'translate(0,0) scale(1)');
-    } else {
-      fileLayer = svg.select('g.file-layer');
-    }
-  } else {
+  // Use provided layer or get/create default
+  let fileLayer = targetLayer;
+  if (!fileLayer) {
     fileLayer = svg.select('g.file-layer');
+    if (fileLayer.empty()) {
+      fileLayer = svg.append('g').attr('class', 'file-layer');
+    }
   }
 
-  const funcLayer = svg.select('g.func-layer');
+  // Render elements at final positions
+  renderFileRects(fileLayer, leaves, width, height, t);
+  renderFileLabels(fileLayer, leaves, width, height, t);
+  renderFolderHeaders(fileLayer, hierarchy, width, height, t);
 
-  const isZoomingIn = zoomedFile && !prevZoomedFile;
-  const isZoomingOut = !zoomedFile && prevZoomedFile;
-  if (isZoomingIn) {
-    fileLayer.attr('opacity', 1).transition(t).attr('opacity', 0);
-    funcLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
-  } else if (isZoomingOut) {
-    fileLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
-    funcLayer.attr('opacity', 1).transition(t).attr('opacity', 0);
-  }
-
-  renderFileRects(fileLayer, leaves, prev, curr, t);
-  renderFileLabels(fileLayer, leaves, prev, curr, t);
-  renderFolderHeaders(fileLayer, hierarchy, prev, curr, t);
-
-  return { leaves, clickedLeaf, prev, curr, funcLayer };
+  return { svg, fileLayer, leaves, clickedLeaf, hierarchy };
 }
 
-function renderFileRects(layer, leaves, prev, curr, t) {
+function renderFileRects(layer, leaves, width, height, t) {
   // Separate files and collapsed folders for different styling
   const fileLeaves = leaves.filter(d => !d.data._collapsed);
   const folderLeaves = leaves.filter(d => d.data._collapsed);
 
-  // Render file nodes
+  // Render file nodes at final positions
   layer.selectAll('rect.file-node').data(fileLeaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
@@ -247,12 +157,12 @@ function renderFileRects(layer, leaves, prev, curr, t) {
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
         .attr('fill', d => d.data.color)
-        .attr('x', d => (d.x0 - prev.x) * prev.kx)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky)
-        .attr('width', d => Math.max(0, (d.x1 - d.x0) * prev.kx))
-        .attr('height', d => Math.max(0, (d.y1 - d.y0) * prev.ky)),
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('width', d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0)),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.remove()
     )
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
@@ -291,25 +201,24 @@ function renderFileRects(layer, leaves, prev, curr, t) {
         vscode.postMessage({ command: 'openFile', uri: d.data.uri });
       }
     })
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky)
-    .attr('width', d => Math.max(0, (d.x1 - d.x0) * curr.kx))
-    .attr('height', d => Math.max(0, (d.y1 - d.y0) * curr.ky));
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0));
 
-  // Render collapsed folder nodes
+  // Render collapsed folder nodes at final positions
   layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'folder-node node')
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
-        .attr('x', d => (d.x0 - prev.x) * prev.kx)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky)
-        .attr('width', d => Math.max(0, (d.x1 - d.x0) * prev.kx))
-        .attr('height', d => Math.max(0, (d.y1 - d.y0) * prev.ky)),
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('width', d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0)),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.remove()
     )
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
@@ -340,16 +249,15 @@ function renderFileRects(layer, leaves, prev, curr, t) {
         nav.goTo({ uri: d.data.uri });
       }
     })
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky)
-    .attr('width', d => Math.max(0, (d.x1 - d.x0) * curr.kx))
-    .attr('height', d => Math.max(0, (d.y1 - d.y0) * curr.ky));
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0));
 
-  // Render folder labels
+  // Render folder labels at final positions
   const folderLabelsData = folderLeaves.filter(d => {
-    const w = (d.x1 - d.x0) * curr.kx;
-    const h = (d.y1 - d.y0) * curr.ky;
+    const w = d.x1 - d.x0;
+    const h = d.y1 - d.y0;
     return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
   });
 
@@ -358,39 +266,37 @@ function renderFileRects(layer, leaves, prev, curr, t) {
       enter => enter.append('text')
         .attr('class', 'folder-label')
         .attr('pointer-events', 'none')
-        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12),
+        .attr('x', d => d.x0 + 4)
+        .attr('y', d => d.y0 + 12),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.remove()
     )
-    .text(d => truncateLabel(d.data.name + '/', (d.x1 - d.x0) * curr.kx - 8, 5))
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+    .text(d => truncateLabel(d.data.name + '/', (d.x1 - d.x0) - 8, 5))
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 12);
 
-  // Render folder item counts
+  // Render folder item counts at final positions
   layer.selectAll('text.folder-count').data(zoomedFile ? [] : folderLabelsData, d => d.data.uri)
     .join(
       enter => enter.append('text')
         .attr('class', 'folder-count')
         .attr('pointer-events', 'none')
-        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky + 22),
+        .attr('x', d => d.x0 + 4)
+        .attr('y', d => d.y0 + 22),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.remove()
     )
     .text(d => d.data._childCount + ' items')
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky + 22);
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 22);
 }
 
-function renderFileLabels(layer, leaves, prev, curr, t) {
+function renderFileLabels(layer, leaves, width, height, t) {
   // Only label files (not collapsed folders - they have their own labels)
   const labelsData = leaves.filter(d => {
     if (d.data._collapsed) return false;  // Skip collapsed folders
-    const w = (d.x1 - d.x0) * curr.kx;
-    const h = (d.y1 - d.y0) * curr.ky;
+    const w = d.x1 - d.x0;
+    const h = d.y1 - d.y0;
     return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
   });
 
@@ -401,56 +307,46 @@ function renderFileLabels(layer, leaves, prev, curr, t) {
         .attr('fill', '#fff')
         .attr('font-size', '9px')
         .attr('pointer-events', 'none')
-        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12)
-        .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) * curr.kx - 8, 5)),
+        .attr('x', d => d.x0 + 4)
+        .attr('y', d => d.y0 + 12)
+        .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) - 8, 5)),
       update => update,
-      exit => exit.transition(t).remove()
+      exit => exit.remove()
     )
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 12);
 }
 
-function renderFolderHeaders(layer, hierarchy, prev, curr, t) {
+function renderFolderHeaders(layer, hierarchy, width, height, t) {
   const depth1 = zoomedFile ? [] : hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
 
   layer.selectAll('rect.dir-header').data(depth1, d => d.data.name)
     .join(
       enter => enter.append('rect')
         .attr('class', 'dir-header')
-        .attr('x', d => (d.x0 - prev.x) * prev.kx)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky)
-        .attr('width', d => (d.x1 - d.x0) * prev.kx)
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('width', d => d.x1 - d.x0)
         .attr('height', 16),
       update => update,
-      exit => exit.transition(t)
-        .attr('x', d => (d.x0 - curr.x) * curr.kx)
-        .attr('y', d => (d.y0 - curr.y) * curr.ky)
-        .attr('width', d => (d.x1 - d.x0) * curr.kx)
-        .remove()
+      exit => exit.remove()
     )
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky)
-    .attr('width', d => (d.x1 - d.x0) * curr.kx)
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
     .attr('height', 16);
 
   layer.selectAll('text.dir-label').data(depth1, d => d.data.name)
     .join(
       enter => enter.append('text')
         .attr('class', 'dir-label')
-        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
-        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12),
+        .attr('x', d => d.x0 + 4)
+        .attr('y', d => d.y0 + 12),
       update => update,
-      exit => exit.transition(t)
-        .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
-        .attr('y', d => (d.y0 - curr.y) * curr.ky + 12)
-        .remove()
+      exit => exit.remove()
     )
-    .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) * curr.kx - 8, 7))
-    .transition(t)
-    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
-    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+    .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) - 8, 7))
+    .attr('x', d => d.x0 + 4)
+    .attr('y', d => d.y0 + 12);
 }
 `;

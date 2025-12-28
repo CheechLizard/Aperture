@@ -35,6 +35,7 @@ function buildFileData() {
   });
 }
 
+// Main orchestrator - handles all zoom transitions uniformly
 function renderDistributionChart() {
   const container = document.getElementById('functions-chart');
   if (!container) return;
@@ -50,34 +51,118 @@ function renderDistributionChart() {
     return;
   }
 
-  // Render treemap layout for files (always, for animation continuity)
-  const treemapResult = renderTreemapLayout(container, fileData, width, height, t);
-  const { leaves, clickedLeaf, prev, curr } = treemapResult;
+  // Detect transition type
+  const clickedBounds = zoom.consumeClickedBounds();
+  const isZoomingIn = !!clickedBounds;
+  const isZoomingOut = !clickedBounds && (prevZoomedFolder || prevZoomedFile);
 
-  // Get partition layer
+  // Determine what to render: files/folders (treemap) or functions (partition)
+  const showingFunctions = !!zoomedFile;
+  const wasShowingFunctions = !!prevZoomedFile;
+
+  // Ensure SVG exists
   let svg = d3.select(container).select('svg');
-  let partitionLayer = svg.select('g.partition-layer');
-  if (partitionLayer.empty()) {
-    partitionLayer = svg.append('g').attr('class', 'partition-layer');
+  if (svg.empty()) {
+    container.innerHTML = '';
+    svg = d3.select(container).append('svg');
   }
+  svg.attr('width', width).attr('height', height);
 
-  // When zoomed into a file, use partition layout
-  if (zoomedFile) {
-    const file = files.find(f => f.path === zoomedFile);
-    const prevBounds = zoom.exitBounds(clickedLeaf, prev);
+  if (isZoomingIn) {
+    // ZOOM IN: create new layer, render into it, animate old → new
+    if (showingFunctions && !wasShowingFunctions) {
+      // File → Functions: new partition layer expands from file
+      const oldLayer = svg.select('g.file-layer');
+      const newLayer = svg.append('g').attr('class', 'partition-layer');
 
-    // Fade in partition layer
-    partitionLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
+      const file = files.find(f => f.path === zoomedFile);
+      if (file) {
+        renderPartitionLayout(container, file, width, height, t, newLayer);
+        renderFunctionLegend(file.functions ? file.functions.length : 0);
+      }
 
-    if (file) {
-      renderPartitionLayout(container, file, width, height, prevBounds, t);
-      renderFunctionLegend(file.functions ? file.functions.length : 0);
+      zoom.animateLayers(oldLayer, newLayer, clickedBounds, width, height, t, 'in');
+
+    } else {
+      // Folder → Folder (or Folder → File preview): new file layer expands
+      const oldLayer = svg.select('g.file-layer');
+      // For zoom-in, new layer goes on TOP (append) - it expands from clicked element
+      const newLayer = svg.append('g').attr('class', 'file-layer');
+
+      renderTreemapLayout(container, fileData, width, height, t, newLayer);
+
+      zoom.animateLayers(oldLayer, newLayer, clickedBounds, width, height, t, 'in');
+
+      // Remove old layer class to avoid conflicts
+      oldLayer.attr('class', 'file-layer-old');
     }
+
+  } else if (isZoomingOut) {
+    // ZOOM OUT: create new layer at back, render into it, animate old → new
+    const targetBounds = zoom.popZoomStack();
+
+    if (wasShowingFunctions && !showingFunctions) {
+      // Functions → File: partition shrinks to file, file layer appears
+      const oldLayer = svg.select('g.partition-layer');
+      const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
+
+      renderTreemapLayout(container, fileData, width, height, t, newLayer);
+      renderFilesLegend(fileData);
+
+      if (targetBounds) {
+        zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
+      } else {
+        // No bounds, just fade
+        oldLayer.transition(t).style('opacity', 0).remove();
+        newLayer.style('opacity', 0).transition(t).style('opacity', 1);
+      }
+
+    } else {
+      // Folder → Parent Folder: file layer shrinks to folder
+      const oldLayer = svg.select('g.file-layer');
+      const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
+
+      renderTreemapLayout(container, fileData, width, height, t, newLayer);
+      renderFilesLegend(fileData);
+
+      if (targetBounds) {
+        zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
+      } else {
+        // No bounds, just swap
+        oldLayer.remove();
+      }
+
+      // Remove old layer class
+      oldLayer.attr('class', 'file-layer-old');
+    }
+
   } else {
-    // Clear partition layer when zoomed out
-    clearPartitionLayer(container);
-    partitionLayer.transition(t).attr('opacity', 0);
-    renderFilesLegend(fileData);
+    // No animation - initial render or resize
+    if (showingFunctions) {
+      // Clear any stale file layer content, render partition
+      let partitionLayer = svg.select('g.partition-layer');
+      if (partitionLayer.empty()) {
+        partitionLayer = svg.append('g').attr('class', 'partition-layer');
+      }
+
+      const file = files.find(f => f.path === zoomedFile);
+      if (file) {
+        renderPartitionLayout(container, file, width, height, t, partitionLayer);
+        renderFunctionLegend(file.functions ? file.functions.length : 0);
+      }
+    } else {
+      // Render treemap
+      let fileLayer = svg.select('g.file-layer');
+      if (fileLayer.empty()) {
+        fileLayer = svg.append('g').attr('class', 'file-layer');
+      }
+
+      // Clear any stale partition layer
+      clearPartitionLayer(container);
+
+      renderTreemapLayout(container, fileData, width, height, t, fileLayer);
+      renderFilesLegend(fileData);
+    }
   }
 }
 

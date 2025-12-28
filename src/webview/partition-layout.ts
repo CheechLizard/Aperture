@@ -50,32 +50,40 @@ function buildPartitionData(file, width, height) {
   return nodes;
 }
 
-function renderPartitionLayout(container, file, width, height, prevBounds, t) {
+// Render partition layout - LAYOUT ONLY, no animation
+// Animation is handled by the orchestrator via zoom.animateLayers()
+function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
-    svg.append('g').attr('class', 'file-layer');
-    svg.append('g').attr('class', 'partition-layer');
   }
   svg.attr('width', width).attr('height', height);
 
-  const partitionLayer = svg.select('g.partition-layer');
+  // Use provided layer or get/create default
+  let partitionLayer = targetLayer;
+  if (!partitionLayer) {
+    partitionLayer = svg.select('g.partition-layer');
+    if (partitionLayer.empty()) {
+      partitionLayer = svg.append('g').attr('class', 'partition-layer');
+    }
+  }
+
   const nodes = buildPartitionData(file, width, height);
 
-  // Render header
-  renderPartitionHeader(partitionLayer, file, width, t);
+  // Render header at final positions
+  renderPartitionHeader(partitionLayer, file, width);
 
-  // Render function rectangles with animation from previous bounds
-  renderPartitionRects(partitionLayer, nodes, prevBounds, width, height, t);
+  // Render function rectangles at final positions
+  renderPartitionRects(partitionLayer, nodes, width, height);
 
-  // Render labels
-  renderPartitionLabels(partitionLayer, nodes, prevBounds, width, height, t);
+  // Render labels at final positions
+  renderPartitionLabels(partitionLayer, nodes, width, height);
 
-  return nodes;
+  return { svg, partitionLayer, nodes };
 }
 
-function renderPartitionHeader(layer, file, width, t) {
+function renderPartitionHeader(layer, file, width) {
   const headerData = file ? [{ path: file.path, name: file.path.split('/').pop() }] : [];
 
   layer.selectAll('rect.partition-header').data(headerData, d => d.path)
@@ -83,30 +91,24 @@ function renderPartitionHeader(layer, file, width, t) {
       enter => enter.append('rect')
         .attr('class', 'partition-header')
         .attr('x', 0).attr('y', 0)
-        .attr('width', width).attr('height', PARTITION_HEADER_HEIGHT)
-        .attr('opacity', 0),
+        .attr('width', width).attr('height', PARTITION_HEADER_HEIGHT),
       update => update,
-      exit => exit.transition(t).attr('opacity', 0).remove()
+      exit => exit.remove()
     )
-    .transition(t)
-    .attr('width', width)
-    .attr('opacity', 1);
+    .attr('width', width);
 
   layer.selectAll('text.partition-header-label').data(headerData, d => d.path)
     .join(
       enter => enter.append('text')
         .attr('class', 'partition-header-label')
-        .attr('x', 8).attr('y', 16)
-        .attr('opacity', 0),
+        .attr('x', 8).attr('y', 16),
       update => update,
-      exit => exit.transition(t).attr('opacity', 0).remove()
+      exit => exit.remove()
     )
-    .text(d => truncateLabel(d.name, width - 16, 7))
-    .transition(t)
-    .attr('opacity', 1);
+    .text(d => truncateLabel(d.name, width - 16, 7));
 }
 
-function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
+function renderPartitionRects(layer, nodes, width, height) {
   layer.selectAll('rect.partition-node').data(nodes, d => d.uri)
     .join(
       enter => enter.append('rect')
@@ -114,14 +116,12 @@ function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
         .attr('data-uri', d => d.uri)
         .attr('data-path', d => d.filePath)
         .attr('fill', FUNC_NEUTRAL_COLOR)
-        .attr('x', prevBounds.x)
-        .attr('y', prevBounds.y)
-        .attr('width', Math.max(0, prevBounds.w))
-        .attr('height', Math.max(0, prevBounds.h / nodes.length)),
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('width', d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0)),
       update => update,
-      exit => exit.transition(t)
-        .attr('opacity', 0)
-        .remove()
+      exit => exit.remove()
     )
     .on('mouseover', (e, d) => {
       const html = '<div><strong>' + d.name + '</strong></div>' +
@@ -135,14 +135,13 @@ function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
     .on('click', (e, d) => {
       vscode.postMessage({ command: 'openFile', uri: d.uri, line: d.line });
     })
-    .transition(t)
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
 }
 
-function renderPartitionLabels(layer, nodes, prevBounds, width, height, t) {
+function renderPartitionLabels(layer, nodes, width, height) {
   const labelsData = nodes.filter(d => (d.y1 - d.y0) >= PARTITION_LABEL_MIN_HEIGHT);
 
   layer.selectAll('text.partition-label').data(labelsData, d => d.uri)
@@ -152,10 +151,10 @@ function renderPartitionLabels(layer, nodes, prevBounds, width, height, t) {
         .attr('fill', '#fff')
         .attr('font-size', '11px')
         .attr('pointer-events', 'none')
-        .attr('x', prevBounds.x + 8)
-        .attr('y', prevBounds.y + 14),
+        .attr('x', d => d.x0 + 8)
+        .attr('y', d => d.y0 + ((d.y1 - d.y0) / 2) + 4),
       update => update,
-      exit => exit.transition(t).attr('opacity', 0).remove()
+      exit => exit.remove()
     )
     .text(d => {
       const locText = ' (' + d.value + ')';
@@ -164,7 +163,6 @@ function renderPartitionLabels(layer, nodes, prevBounds, width, height, t) {
       const name = truncateLabel(d.name, availableForName, 6);
       return name + locText;
     })
-    .transition(t)
     .attr('x', d => d.x0 + 8)
     .attr('y', d => d.y0 + ((d.y1 - d.y0) / 2) + 4);
 }
