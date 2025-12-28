@@ -62,10 +62,12 @@ function countDescendantFiles(node) {
 function aggregateSmallNodes(hierarchyNode) {
   if (!hierarchyNode.children) return;
 
-  // Recurse first (depth-first) so inner folders aggregate before outer ones
+  // Recurse into children first
   hierarchyNode.children.forEach(c => aggregateSmallNodes(c));
 
   const children = hierarchyNode.children;
+
+  // Find children that are too small to show labels
   const smallChildren = children.filter(c => isSmall(c));
   if (smallChildren.length === 0) return;
 
