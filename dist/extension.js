@@ -13637,34 +13637,118 @@ function countDescendantFiles(node) {
   return node.children.reduce((sum, c) => sum + countDescendantFiles(c), 0);
 }
 
-function collapseSmallNodes(hierarchyNode) {
+function aggregateSmallNodes(hierarchyNode) {
   if (!hierarchyNode.children) return;
 
-  // Recurse first (depth-first) so inner folders collapse before outer ones
-  hierarchyNode.children.forEach(c => collapseSmallNodes(c));
+  // Recurse first (depth-first) so inner folders aggregate before outer ones
+  hierarchyNode.children.forEach(c => aggregateSmallNodes(c));
 
-  // Never collapse root (depth 0) - always show top-level structure
+  // Never aggregate at root (depth 0) - always show top-level structure
   if (hierarchyNode.depth === 0) return;
 
-  // Large folders should always expand to show structure (either dimension >= 100)
-  const nodeW = hierarchyNode.x1 - hierarchyNode.x0;
-  const nodeH = hierarchyNode.y1 - hierarchyNode.y0;
-  if (nodeW >= MIN_EXPAND_SIZE || nodeH >= MIN_EXPAND_SIZE) return;
-
-  // For smaller folders, check if children would be too small to interact with
-  const hasSmallChild = hierarchyNode.children.some(c => {
+  // Children are sorted by value (largest first), so small files are at the end
+  // Find indices of small children
+  const children = hierarchyNode.children;
+  const smallIndices = [];
+  children.forEach((c, i) => {
     const w = c.x1 - c.x0;
     const h = c.y1 - c.y0;
-    return w < MIN_NODE_SIZE || h < MIN_NODE_SIZE;
+    if (w < TREEMAP_LABEL_MIN_WIDTH || h < TREEMAP_LABEL_MIN_HEIGHT) {
+      smallIndices.push(i);
+    }
   });
 
-  if (hasSmallChild && hierarchyNode.data.children) {
-    // Mark as collapsed and count descendants
+  // If no small children, nothing to do
+  if (smallIndices.length === 0) return;
+
+  // Determine where to start collapsing
+  // Collapse from the first small index to the end, but ensure at least 2 files
+  let collapseFrom = Math.min(...smallIndices);
+
+  // If only collapsing 1 file, include the previous sibling to make a pair
+  const collapseCount = children.length - collapseFrom;
+  if (collapseCount < 2 && collapseFrom > 0) {
+    collapseFrom--;
+  }
+
+  // Need at least 2 files to collapse (and must leave at least 1 visible)
+  const toCollapse = children.slice(collapseFrom);
+  const toKeep = children.slice(0, collapseFrom);
+
+  if (toCollapse.length < 2) return;
+
+  // If ALL children would be collapsed, collapse entire folder instead
+  if (toKeep.length === 0) {
     hierarchyNode.data._collapsed = true;
     hierarchyNode.data._childCount = countDescendantFiles(hierarchyNode.data);
-    // Remove children from D3 hierarchy (will render as leaf)
     hierarchyNode.children = null;
+    return;
   }
+
+  // Create synthetic "other" node for collapsed children
+  const otherValue = toCollapse.reduce((sum, c) => sum + (c.value || 0), 0);
+  const otherCount = toCollapse.reduce((sum, c) => sum + countDescendantFiles(c.data), 0);
+  const otherNode = {
+    name: otherCount + ' small item' + (otherCount !== 1 ? 's' : ''),
+    path: hierarchyNode.data.path + '/_other',
+    uri: hierarchyNode.data.uri,
+    value: otherValue,
+    _isOther: true,
+    _otherCount: otherCount,
+    _collapsed: true
+  };
+
+  // Rebuild data children with kept + other
+  hierarchyNode.data.children = toKeep.map(c => c.data).concat([otherNode]);
+  hierarchyNode.data._needsRelayout = true;
+}
+
+function relayoutModifiedNodes(hierarchy, width, height) {
+  // Find nodes that need re-layout (bottom-up order so children are processed first)
+  const nodesToRelayout = hierarchy.descendants()
+    .filter(d => d.data._needsRelayout)
+    .sort((a, b) => b.depth - a.depth);  // Process deepest first
+
+  nodesToRelayout.forEach(node => {
+    // Rebuild hierarchy for this subtree from modified data
+    const subHierarchy = d3.hierarchy(node.data)
+      .sum(d => d.value || 0)
+      .sort((a, b) => b.value - a.value);
+
+    // Run treemap layout on this subtree
+    // Use same padding as original, accounting for actual depth in hierarchy
+    const nodeWidth = node.x1 - node.x0;
+    const nodeHeight = node.y1 - node.y0;
+    d3.treemap()
+      .size([nodeWidth, nodeHeight])
+      .paddingTop(d => {
+        // Map sub-hierarchy depth to actual depth in original hierarchy
+        const actualDepth = d.depth + node.depth;
+        return actualDepth === 1 ? 16 : 2;
+      })
+      .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(1)
+      (subHierarchy);
+
+    // Update the original hierarchy node's children with new positions
+    node.children = subHierarchy.children;
+    if (node.children) {
+      // Offset positions and fix depths for ALL descendants (not just direct children)
+      subHierarchy.descendants().forEach(c => {
+        if (c.depth === 0) return;  // Skip sub-root (represents node itself)
+        c.x0 += node.x0;
+        c.x1 += node.x0;
+        c.y0 += node.y0;
+        c.y1 += node.y0;
+        c.depth += node.depth;  // Map sub-depth to actual depth
+      });
+      // Fix parent pointers for direct children to point to original node
+      node.children.forEach(c => {
+        c.parent = node;
+      });
+    }
+
+    delete node.data._needsRelayout;
+  });
 }
 
 // Helper to save clicked element bounds for zoom-in animation
@@ -13692,8 +13776,11 @@ function renderTreemapLayout(container, fileData, width, height, t, targetLayer)
     .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(1)
     (hierarchy);
 
-  // Apply adaptive collapse - folders with children too small become leaves
-  collapseSmallNodes(hierarchy);
+  // Apply adaptive aggregation - small children become "X small items" node
+  aggregateSmallNodes(hierarchy);
+
+  // Re-layout folders that were modified by aggregation
+  relayoutModifiedNodes(hierarchy, width, height);
 
   const leaves = hierarchy.leaves();
   const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
@@ -13773,8 +13860,8 @@ function renderFileRects(layer, leaves, width, height, t) {
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
 
-  // Render collapsed folder nodes at final positions
-  layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.uri)
+  // Render collapsed folder nodes at final positions (use path as key since "other" nodes share parent URI)
+  layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.path)
     .join(
       enter => enter.append('rect')
         .attr('class', 'folder-node node')
@@ -13789,9 +13876,18 @@ function renderFileRects(layer, leaves, width, height, t) {
     )
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
-      const html = '<div><strong>' + d.data.name + '/</strong></div>' +
-        '<div>' + d.data._childCount + ' item' + (d.data._childCount !== 1 ? 's' : '') + '</div>' +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to expand</div>';
+      let html;
+      if (d.data._isOther) {
+        // "X small items" node
+        html = '<div><strong>' + d.data.name + '</strong></div>' +
+          '<div style="color:var(--vscode-descriptionForeground)">Click to expand folder</div>';
+      } else {
+        // Regular collapsed folder
+        const count = d.data._childCount;
+        html = '<div><strong>' + d.data.name + '/</strong></div>' +
+          '<div>' + count + ' item' + (count !== 1 ? 's' : '') + '</div>' +
+          '<div style="color:var(--vscode-descriptionForeground)">Click to expand</div>';
+      }
       showTooltip(html, e);
     })
     .on('mousemove', e => positionTooltip(e))
@@ -13814,7 +13910,7 @@ function renderFileRects(layer, leaves, width, height, t) {
     return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
   });
 
-  layer.selectAll('text.folder-label').data(zoomedFile ? [] : folderLabelsData, d => d.data.uri)
+  layer.selectAll('text.folder-label').data(zoomedFile ? [] : folderLabelsData, d => d.data.path)
     .join(
       enter => enter.append('text')
         .attr('class', 'folder-label')
@@ -13824,12 +13920,17 @@ function renderFileRects(layer, leaves, width, height, t) {
       update => update,
       exit => exit.remove()
     )
-    .text(d => truncateLabel(d.data.name + '/', (d.x1 - d.x0) - 8, 5))
+    .text(d => {
+      // "Other" nodes already have descriptive name, folders get trailing "/"
+      const label = d.data._isOther ? d.data.name : d.data.name + '/';
+      return truncateLabel(label, (d.x1 - d.x0) - 8, 5);
+    })
     .attr('x', d => d.x0 + 4)
     .attr('y', d => d.y0 + 12);
 
-  // Render folder item counts at final positions
-  layer.selectAll('text.folder-count').data(zoomedFile ? [] : folderLabelsData, d => d.data.uri)
+  // Render folder item counts at final positions (only for regular folders, not "other" nodes)
+  const folderCountData = folderLabelsData.filter(d => !d.data._isOther);
+  layer.selectAll('text.folder-count').data(zoomedFile ? [] : folderCountData, d => d.data.path)
     .join(
       enter => enter.append('text')
         .attr('class', 'folder-count')
