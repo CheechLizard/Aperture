@@ -13667,7 +13667,7 @@ function collapseSmallNodes(hierarchyNode) {
   }
 }
 
-// Helper to save clicked element bounds for animation
+// Helper to save clicked element bounds for zoom-in animation
 function saveClickedBounds(e) {
   const rect = e.target.getBoundingClientRect();
   const container = document.getElementById('functions-chart');
@@ -14143,6 +14143,22 @@ function buildFileData() {
   });
 }
 
+// Helper to find bounds of a URI in a hierarchy
+function findBoundsInHierarchy(hierarchy, targetUri) {
+  if (!hierarchy || !targetUri) return null;
+  const targetPath = getFilePath(targetUri);
+  const node = hierarchy.descendants().find(d => d.data.path === targetPath);
+  if (node) {
+    return {
+      x: node.x0,
+      y: node.y0,
+      w: node.x1 - node.x0,
+      h: node.y1 - node.y0
+    };
+  }
+  return null;
+}
+
 // Main orchestrator - handles all zoom transitions uniformly
 function renderDistributionChart() {
   const container = document.getElementById('functions-chart');
@@ -14206,21 +14222,25 @@ function renderDistributionChart() {
     }
 
   } else if (isZoomingOut) {
-    // ZOOM OUT: create new layer at back, render into it, animate old \u2192 new
-    const targetBounds = zoom.popZoomStack();
+    // ZOOM OUT: use previous URI to find bounds in new layout
+    // The previous location is a descendant of current, so it's in the new hierarchy
+    const prevPath = prevZoomedFile || prevZoomedFolder;
+    const sourceUri = prevPath ? createFileUri(prevPath) : null;
 
     if (wasShowingFunctions && !showingFunctions) {
       // Functions \u2192 File: partition shrinks to file, file layer appears
       const oldLayer = svg.select('g.partition-layer');
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
-      renderTreemapLayout(container, fileData, width, height, t, newLayer);
+      const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      if (targetBounds) {
-        zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
+      // Look up the source file in the new layout
+      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
+      if (bounds) {
+        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
       } else {
-        // No bounds, just fade
+        // Source not visible in new layout, crossfade
         oldLayer.transition(t).style('opacity', 0).remove();
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
@@ -14230,13 +14250,15 @@ function renderDistributionChart() {
       const oldLayer = svg.select('g.file-layer');
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
-      renderTreemapLayout(container, fileData, width, height, t, newLayer);
+      const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      if (targetBounds) {
-        zoom.animateLayers(oldLayer, newLayer, targetBounds, width, height, t, 'out');
+      // Look up the source folder in the new layout
+      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
+      if (bounds) {
+        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
       } else {
-        // No bounds, crossfade as fallback
+        // Source not visible in new layout, crossfade
         oldLayer.transition(t).style('opacity', 0).remove();
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
@@ -15044,8 +15066,7 @@ const ZOOM_EASE = d3.easeCubicOut;
 const zoom = {
   _prev: { x: 0, y: 0, kx: 1, ky: 1 },
   _curr: { x: 0, y: 0, kx: 1, ky: 1 },
-  _clickedBounds: null,  // Bounds of clicked element for enter animations
-  _zoomStack: [],        // Stack of bounds for zoom-out animations
+  _clickedBounds: null,  // Bounds of clicked element for zoom-in animation
 
   // Calculate zoom transform for a target node
   calculateTransform(targetNode, width, height) {
@@ -15091,25 +15112,16 @@ const zoom = {
     this._curr = { x: 0, y: 0, kx: 1, ky: 1 };
   },
 
-  // Set clicked bounds for enter animations (call before navigation)
+  // Set clicked bounds for zoom-in animation (call before navigation)
   setClickedBounds(bounds) {
     this._clickedBounds = bounds;
   },
 
-  // Get and clear clicked bounds (call during render)
+  // Get and clear clicked bounds for zoom-in animation
   consumeClickedBounds() {
     const bounds = this._clickedBounds;
     this._clickedBounds = null;
-    // Push to stack for zoom-out
-    if (bounds) {
-      this._zoomStack.push(bounds);
-    }
     return bounds;
-  },
-
-  // Pop bounds from stack for zoom-out animation
-  popZoomStack() {
-    return this._zoomStack.pop() || null;
   },
 
   // Generalized two-layer crossfade animation

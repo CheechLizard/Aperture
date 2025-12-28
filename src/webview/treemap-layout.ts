@@ -82,7 +82,7 @@ function collapseSmallNodes(hierarchyNode) {
   }
 }
 
-// Helper to save clicked element bounds for animation
+// Helper to save clicked element bounds for zoom-in animation
 function saveClickedBounds(e) {
   const rect = e.target.getBoundingClientRect();
   const container = document.getElementById('functions-chart');

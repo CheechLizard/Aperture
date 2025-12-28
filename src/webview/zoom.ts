@@ -8,8 +8,7 @@ const ZOOM_EASE = d3.easeCubicOut;
 const zoom = {
   _prev: { x: 0, y: 0, kx: 1, ky: 1 },
   _curr: { x: 0, y: 0, kx: 1, ky: 1 },
-  _clickedBounds: null,  // Bounds of clicked element for enter animations
-  _zoomStack: [],        // Stack of bounds for zoom-out animations
+  _clickedBounds: null,  // Bounds of clicked element for zoom-in animation
 
   // Calculate zoom transform for a target node
   calculateTransform(targetNode, width, height) {
@@ -55,25 +54,16 @@ const zoom = {
     this._curr = { x: 0, y: 0, kx: 1, ky: 1 };
   },
 
-  // Set clicked bounds for enter animations (call before navigation)
+  // Set clicked bounds for zoom-in animation (call before navigation)
   setClickedBounds(bounds) {
     this._clickedBounds = bounds;
   },
 
-  // Get and clear clicked bounds (call during render)
+  // Get and clear clicked bounds for zoom-in animation
   consumeClickedBounds() {
     const bounds = this._clickedBounds;
     this._clickedBounds = null;
-    // Push to stack for zoom-out
-    if (bounds) {
-      this._zoomStack.push(bounds);
-    }
     return bounds;
-  },
-
-  // Pop bounds from stack for zoom-out animation
-  popZoomStack() {
-    return this._zoomStack.pop() || null;
   },
 
   // Generalized two-layer crossfade animation
