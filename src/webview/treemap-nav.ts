@@ -63,6 +63,8 @@ const nav = {
     const uri = this._state.zoomedUri;
     const prevUri = this._state.prevZoomedUri;
 
+    const prevFolder = zoomedFolder;  // Track previous folder for animation reset
+
     if (!uri) {
       zoomedFile = null;
       zoomedFolder = null;
@@ -80,9 +82,21 @@ const nav = {
     // Handle previous state for animations
     if (!prevUri) {
       prevZoomedFile = null;
+      prevZoomedFolder = null;
     } else {
       const prevPath = getFilePath(prevUri);
-      prevZoomedFile = this._isFilePath(prevPath) ? prevPath : null;
+      if (this._isFilePath(prevPath)) {
+        prevZoomedFile = prevPath;
+        prevZoomedFolder = null;
+      } else {
+        prevZoomedFile = null;
+        prevZoomedFolder = prevPath;
+      }
+    }
+
+    // Reset zoom transforms when folder changes (layout will be completely different)
+    if (zoomedFolder !== prevFolder) {
+      zoom.reset();
     }
   },
 

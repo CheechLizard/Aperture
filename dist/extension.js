@@ -12148,6 +12148,8 @@ const nav = {
     const uri = this._state.zoomedUri;
     const prevUri = this._state.prevZoomedUri;
 
+    const prevFolder = zoomedFolder;  // Track previous folder for animation reset
+
     if (!uri) {
       zoomedFile = null;
       zoomedFolder = null;
@@ -12165,9 +12167,21 @@ const nav = {
     // Handle previous state for animations
     if (!prevUri) {
       prevZoomedFile = null;
+      prevZoomedFolder = null;
     } else {
       const prevPath = getFilePath(prevUri);
-      prevZoomedFile = this._isFilePath(prevPath) ? prevPath : null;
+      if (this._isFilePath(prevPath)) {
+        prevZoomedFile = prevPath;
+        prevZoomedFolder = null;
+      } else {
+        prevZoomedFile = null;
+        prevZoomedFolder = prevPath;
+      }
+    }
+
+    // Reset zoom transforms when folder changes (layout will be completely different)
+    if (zoomedFolder !== prevFolder) {
+      zoom.reset();
     }
   },
 
@@ -13632,10 +13646,10 @@ function collapseSmallNodes(hierarchyNode) {
   // Never collapse root (depth 0) - always show top-level structure
   if (hierarchyNode.depth === 0) return;
 
-  // Large folders should always expand to show structure
+  // Large folders should always expand to show structure (either dimension >= 100)
   const nodeW = hierarchyNode.x1 - hierarchyNode.x0;
   const nodeH = hierarchyNode.y1 - hierarchyNode.y0;
-  if (nodeW >= MIN_EXPAND_SIZE && nodeH >= MIN_EXPAND_SIZE) return;
+  if (nodeW >= MIN_EXPAND_SIZE || nodeH >= MIN_EXPAND_SIZE) return;
 
   // For smaller folders, check if children would be too small to interact with
   const hasSmallChild = hierarchyNode.children.some(c => {
@@ -13651,6 +13665,25 @@ function collapseSmallNodes(hierarchyNode) {
     // Remove children from D3 hierarchy (will render as leaf)
     hierarchyNode.children = null;
   }
+}
+
+// Get the immediate child folder of the current root that contains a path
+function getNextLevelFolder(targetPath) {
+  const rootPath = zoomedFolder || '';
+  const rootPrefix = rootPath ? rootPath + '/' : '';
+
+  // If target is not under root, something's wrong
+  if (rootPath && !targetPath.startsWith(rootPrefix)) return null;
+
+  // Get the relative path from root
+  const relativePath = rootPath ? targetPath.slice(rootPrefix.length) : targetPath;
+  const parts = relativePath.split('/');
+
+  // If only one part, it's a direct child (file or folder at this level)
+  if (parts.length <= 1) return null;
+
+  // Return the immediate child folder path
+  return rootPath ? rootPath + '/' + parts[0] : parts[0];
 }
 
 function renderTreemapLayout(container, fileData, width, height, t) {
@@ -13669,6 +13702,9 @@ function renderTreemapLayout(container, fileData, width, height, t) {
   const leaves = hierarchy.leaves();
   const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
 
+  // Get clicked bounds for folder zoom animation
+  const clickedBounds = zoom.consumeClickedBounds();
+
   // Use zoom module for transform calculation and state tracking
   const { prev, curr } = zoom.update(clickedLeaf, width, height);
 
@@ -13681,7 +13717,89 @@ function renderTreemapLayout(container, fileData, width, height, t) {
   }
   svg.attr('width', width).attr('height', height);
 
-  const fileLayer = svg.select('g.file-layer');
+  // Two-group crossfade zoom (D3 zoomable treemap pattern)
+  let fileLayer;
+
+  // Detect zoom-out: navigating back without clicking (via breadcrumb/back button)
+  const isZoomingOutFolder = !clickedBounds && prevZoomedFolder;
+
+  if (clickedBounds) {
+    // ZOOM IN: old layer scales up, new layer expands from clicked element
+    const oldLayer = svg.select('g.file-layer').attr('pointer-events', 'none');
+    fileLayer = svg.insert('g', 'g.func-layer').attr('class', 'file-layer');
+
+    // Use uniform scale - min ensures we don't over-zoom past the frame
+    const scale = Math.min(width / clickedBounds.w, height / clickedBounds.h);
+    const clickedCenterX = clickedBounds.x + clickedBounds.w / 2;
+    const clickedCenterY = clickedBounds.y + clickedBounds.h / 2;
+
+    // Old layer: scale up toward clicked element center
+    const oldTranslateX = width / 2 - clickedCenterX * scale;
+    const oldTranslateY = height / 2 - clickedCenterY * scale;
+
+    oldLayer.selectAll('text').style('opacity', 0);
+    oldLayer
+      .transition(t)
+      .attr('transform', 'translate(' + oldTranslateX + ',' + oldTranslateY + ') scale(' + scale + ')')
+      .style('opacity', 0)
+      .remove();
+
+    // New layer: start small at clicked position, expand to fill
+    const invScale = 1 / scale;
+    const newStartX = clickedCenterX - (width / 2) * invScale;
+    const newStartY = clickedCenterY - (height / 2) * invScale;
+
+    fileLayer
+      .attr('transform', 'translate(' + newStartX + ',' + newStartY + ') scale(' + invScale + ')')
+      .style('opacity', 0)
+      .transition(t)
+      .attr('transform', 'translate(0,0) scale(1)')
+      .style('opacity', 1);
+
+  } else if (isZoomingOutFolder) {
+    // ZOOM OUT: reverse of zoom-in using stored bounds from stack
+    const targetBounds = zoom.popZoomStack();
+
+    if (targetBounds) {
+      // For zoom-out, new layer (parent) at back, old layer (child) on top
+      const oldLayer = svg.select('g.file-layer').attr('pointer-events', 'none');
+      fileLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
+
+      // Use same scale calculation as zoom-in for perfect symmetry
+      const scale = Math.min(width / targetBounds.w, height / targetBounds.h);
+      const targetCenterX = targetBounds.x + targetBounds.w / 2;
+      const targetCenterY = targetBounds.y + targetBounds.h / 2;
+
+      // Old layer: shrink down to target bounds (reverse of zoom-in's expand)
+      // Zoom-in new layer ENDED at identity, so zoom-out old layer STARTS at identity
+      // Zoom-in new layer STARTED at these values, so zoom-out old layer ENDS at these
+      const invScale = 1 / scale;
+      const shrinkX = targetCenterX - (width / 2) * invScale;
+      const shrinkY = targetCenterY - (height / 2) * invScale;
+
+      oldLayer.selectAll('text').style('opacity', 0);
+      oldLayer
+        .transition(t)
+        .attr('transform', 'translate(' + shrinkX + ',' + shrinkY + ') scale(' + invScale + ')')
+        .style('opacity', 0)
+        .remove();
+
+      // New layer: start scaled up, shrink to identity (reverse of zoom-in's old layer)
+      // Zoom-in old layer ENDED at these values, so zoom-out new layer STARTS here
+      const expandX = width / 2 - targetCenterX * scale;
+      const expandY = height / 2 - targetCenterY * scale;
+
+      fileLayer
+        .attr('transform', 'translate(' + expandX + ',' + expandY + ') scale(' + scale + ')')
+        .transition(t)
+        .attr('transform', 'translate(0,0) scale(1)');
+    } else {
+      fileLayer = svg.select('g.file-layer');
+    }
+  } else {
+    fileLayer = svg.select('g.file-layer');
+  }
+
   const funcLayer = svg.select('g.func-layer');
 
   const isZoomingIn = zoomedFile && !prevZoomedFile;
@@ -13738,7 +13856,21 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       if (zoomedFile) return;
-      if (d.data.hasFunctions) {
+      // Save clicked element bounds for animation
+      const rect = e.target.getBoundingClientRect();
+      const container = document.getElementById('functions-chart');
+      const containerRect = container.getBoundingClientRect();
+      zoom.setClickedBounds({
+        x: rect.left - containerRect.left,
+        y: rect.top - containerRect.top,
+        w: rect.width,
+        h: rect.height
+      });
+      // Progressive zoom: if item is nested, zoom to its parent folder first
+      const nextFolder = getNextLevelFolder(d.data.path);
+      if (nextFolder) {
+        nav.goTo({ uri: createFolderUri(nextFolder) });
+      } else if (d.data.hasFunctions) {
         zoomTo(d.data.uri);
       } else {
         vscode.postMessage({ command: 'openFile', uri: d.data.uri });
@@ -13775,8 +13907,23 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       if (zoomedFile) return;
-      // Zoom into collapsed folder
-      nav.goTo({ uri: d.data.uri });
+      // Save clicked element bounds for animation
+      const rect = e.target.getBoundingClientRect();
+      const container = document.getElementById('functions-chart');
+      const containerRect = container.getBoundingClientRect();
+      zoom.setClickedBounds({
+        x: rect.left - containerRect.left,
+        y: rect.top - containerRect.top,
+        w: rect.width,
+        h: rect.height
+      });
+      // Progressive zoom: if folder is nested, zoom to its parent folder first
+      const nextFolder = getNextLevelFolder(d.data.path);
+      if (nextFolder && nextFolder !== d.data.path) {
+        nav.goTo({ uri: createFolderUri(nextFolder) });
+      } else {
+        nav.goTo({ uri: d.data.uri });
+      }
     })
     .transition(t)
     .attr('x', d => (d.x0 - curr.x) * curr.kx)
@@ -14931,6 +15078,8 @@ const ZOOM_EASE = d3.easeCubicOut;
 const zoom = {
   _prev: { x: 0, y: 0, kx: 1, ky: 1 },
   _curr: { x: 0, y: 0, kx: 1, ky: 1 },
+  _clickedBounds: null,  // Bounds of clicked element for enter animations
+  _zoomStack: [],        // Stack of bounds for zoom-out animations
 
   // Calculate zoom transform for a target node
   calculateTransform(targetNode, width, height) {
@@ -14986,9 +15135,36 @@ const zoom = {
     this._curr = { x: 0, y: 0, kx: 1, ky: 1 };
   },
 
+  // Set clicked bounds for enter animations (call before navigation)
+  setClickedBounds(bounds) {
+    this._clickedBounds = bounds;
+  },
+
+  // Get and clear clicked bounds (call during render)
+  consumeClickedBounds() {
+    const bounds = this._clickedBounds;
+    this._clickedBounds = null;
+    // Push to stack for zoom-out
+    if (bounds) {
+      this._zoomStack.push(bounds);
+    }
+    return bounds;
+  },
+
+  // Pop bounds from stack for zoom-out animation
+  popZoomStack() {
+    return this._zoomStack.pop() || null;
+  },
+
+  // Clear zoom stack (for navigation reset)
+  clearZoomStack() {
+    this._zoomStack = [];
+  },
+
   // Getters for current state
   get prev() { return this._prev; },
   get curr() { return this._curr; },
+  get clickedBounds() { return this._clickedBounds; },
   get duration() { return ZOOM_DURATION; }
 };
 `;
@@ -15114,6 +15290,7 @@ let activeRules = new Set();  // Set of pattern types added as rules
 let zoomedFile = null;
 let zoomedFolder = null;
 let prevZoomedFile = null;
+let prevZoomedFolder = null;
 
 // Build issue file map from all issues
 const issueFileMap = new Map();

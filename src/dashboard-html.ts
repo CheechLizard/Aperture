@@ -145,6 +145,7 @@ let activeRules = new Set();  // Set of pattern types added as rules
 let zoomedFile = null;
 let zoomedFolder = null;
 let prevZoomedFile = null;
+let prevZoomedFolder = null;
 
 // Build issue file map from all issues
 const issueFileMap = new Map();
