@@ -15,6 +15,17 @@ function isSmall(node) {
   return w < TREEMAP_LABEL_MIN_WIDTH || h < TREEMAP_LABEL_MIN_HEIGHT;
 }
 
+// State for viewing a subset of items (when expanding collapsed "other" nodes)
+let zoomedOtherInfo = null;  // { folderPath, paths, count, total }
+
+function setZoomedOther(info) {
+  zoomedOtherInfo = info;
+}
+
+function getZoomedOther() {
+  return zoomedOtherInfo;
+}
+
 function buildFileHierarchy(fileData, zoomedFolderPath) {
   // Build full hierarchy with folder URIs
   const root = { name: 'root', path: '', uri: null, children: [] };
@@ -38,7 +49,14 @@ function buildFileHierarchy(fileData, zoomedFolderPath) {
   // If zoomed into a folder, return that subtree
   if (zoomedFolderPath) {
     const subtree = findNodeByPath(root, zoomedFolderPath);
-    if (subtree) return subtree;
+    if (subtree) {
+      // If viewing partial (collapsed items), filter children to only those paths
+      if (zoomedOtherInfo && zoomedOtherInfo.folderPath === zoomedFolderPath) {
+        const allowedPaths = new Set(zoomedOtherInfo.paths);
+        subtree.children = subtree.children.filter(c => allowedPaths.has(c.path));
+      }
+      return subtree;
+    }
   }
 
   return root;
@@ -138,9 +156,11 @@ function aggregateSmallNodes(hierarchyNode) {
   if (bbox.x1 - bbox.x0 < TREEMAP_LABEL_MIN_WIDTH ||
       bbox.y1 - bbox.y0 < TREEMAP_LABEL_MIN_HEIGHT) return;
 
-  // Count files in collapsed nodes
+  // Count files in collapsed nodes and collect their paths
   const otherCount = toCollapse.reduce((sum, c) =>
     sum + countDescendantFiles(c.data), 0);
+  const collapsedPaths = toCollapse.map(c => c.data.path);
+  const totalSiblings = hierarchyNode.children.length;
 
   // Create synthetic node with exact bounding box (no relayout needed)
   const otherData = {
@@ -149,6 +169,8 @@ function aggregateSmallNodes(hierarchyNode) {
     uri: hierarchyNode.data.uri,
     _isOther: true,
     _otherCount: otherCount,
+    _collapsedPaths: collapsedPaths,
+    _totalSiblings: totalSiblings,
     _collapsed: true
   };
 
@@ -221,12 +243,14 @@ function saveClickedBounds(e) {
   const rect = e.target.getBoundingClientRect();
   const container = document.getElementById('functions-chart');
   const containerRect = container.getBoundingClientRect();
-  zoom.setClickedBounds({
+  const bounds = {
     x: rect.left - containerRect.left,
     y: rect.top - containerRect.top,
     w: rect.width,
     h: rect.height
-  });
+  };
+  zoom.setClickedBounds(bounds);
+  return bounds;
 }
 
 // Render treemap layout - LAYOUT ONLY, no animation
@@ -235,9 +259,17 @@ function renderTreemapLayout(container, fileData, width, height, t, targetLayer)
   // Build hierarchy, optionally filtered to a zoomed folder
   const root = buildFileHierarchy(fileData, zoomedFolder);
   const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
+
+  // Add extra top padding when viewing partial items (for the header)
+  const partialViewPadding = zoomedOtherInfo ? 16 : 0;
+
   d3.treemap()
     .size([width, height])
-    .paddingTop(d => d.depth === 1 ? 16 : 2)
+    .paddingTop(d => {
+      if (d.depth === 0) return partialViewPadding + 2;  // Root: add partial header space
+      if (d.depth === 1) return 16;  // Depth-1 folders get header space
+      return 2;
+    })
     .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(1)
     (hierarchy);
 
@@ -269,6 +301,7 @@ function renderTreemapLayout(container, fileData, width, height, t, targetLayer)
   renderFileRects(fileLayer, leaves, width, height, t);
   renderFileLabels(fileLayer, leaves, width, height, t);
   renderFolderHeaders(fileLayer, hierarchy, width, height, t);
+  renderPartialViewHeader(fileLayer, width);
 
   return { svg, fileLayer, leaves, clickedLeaf, hierarchy };
 }
@@ -311,6 +344,8 @@ function renderFileRects(layer, leaves, width, height, t) {
     .on('click', (e, d) => {
       if (zoomedFile) return;
       saveClickedBounds(e);
+      // Clear partial view when navigating
+      setZoomedOther(null);
       // Direct zoom: file with functions fills the view, otherwise open in editor
       if (d.data.hasFunctions) {
         zoomTo(d.data.uri);
@@ -357,9 +392,25 @@ function renderFileRects(layer, leaves, width, height, t) {
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
       if (zoomedFile) return;
-      saveClickedBounds(e);
-      // Direct zoom to folder
-      nav.goTo({ uri: d.data.uri });
+      const bounds = saveClickedBounds(e);
+      if (d.data._isOther) {
+        // Save entry bounds for zoom-out animation when leaving partial view
+        zoom.setPartialEntryBounds(bounds);
+        // Expand collapsed items: zoom to parent folder showing only these items
+        const parentPath = d.data.path.replace(/\\/_other$/, '');
+        setZoomedOther({
+          folderPath: parentPath,
+          paths: d.data._collapsedPaths,
+          count: d.data._otherCount,
+          total: d.data._totalSiblings
+        });
+        // Add #partial fragment so nav sees this as a different URI and animates
+        nav.goTo({ uri: d.data.uri + '#partial' });
+      } else {
+        // Regular collapsed folder - clear partial view and zoom
+        setZoomedOther(null);
+        nav.goTo({ uri: d.data.uri });
+      }
     })
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)
@@ -460,6 +511,8 @@ function renderFolderHeaders(layer, hierarchy, width, height, t) {
     .on('click', (e, d) => {
       e.stopPropagation();
       if (!d.data.uri) return;
+      // Clear partial view when navigating to a folder
+      setZoomedOther(null);
       // Use the full folder bounds (not just header) for smoother animation
       zoom.setClickedBounds({
         x: d.x0,
@@ -487,5 +540,35 @@ function renderFolderHeaders(layer, hierarchy, width, height, t) {
     .text(d => truncateLabel(d.data.name, (d.x1 - d.x0) - 8, 7))
     .attr('x', d => d.x0 + 4)
     .attr('y', d => d.y0 + 12);
+}
+
+function renderPartialViewHeader(layer, width) {
+  // Show header when viewing a partial set of items (expanded "other" node)
+  const otherInfo = zoomedOtherInfo;
+  const headerData = otherInfo ? [otherInfo] : [];
+
+  layer.selectAll('rect.partial-header').data(headerData)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'partial-header dir-header')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', 16),
+      update => update.attr('width', width),
+      exit => exit.remove()
+    );
+
+  layer.selectAll('text.partial-label').data(headerData)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'partial-label dir-label')
+        .attr('x', 4)
+        .attr('y', 12),
+      update => update,
+      exit => exit.remove()
+    )
+    .style('pointer-events', 'none')
+    .text(d => d.count + ' of ' + d.total + ' items');
 }
 `;

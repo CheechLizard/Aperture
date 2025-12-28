@@ -69,7 +69,9 @@ const nav = {
       zoomedFile = null;
       zoomedFolder = null;
     } else {
-      const path = getFilePath(uri);
+      // Strip #partial fragment if present (used for partial view animation)
+      const baseUri = uri.replace(/#partial$/, '');
+      const path = getFilePath(baseUri);
       if (this._isFilePath(path)) {
         zoomedFile = path;
         zoomedFolder = null;

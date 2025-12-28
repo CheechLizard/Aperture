@@ -66,6 +66,17 @@ const zoom = {
     return bounds;
   },
 
+  // Track entry bounds for partial view (used for zoom-out animation)
+  _partialEntryBounds: null,
+  setPartialEntryBounds(bounds) {
+    this._partialEntryBounds = bounds;
+  },
+  consumePartialEntryBounds() {
+    const bounds = this._partialEntryBounds;
+    this._partialEntryBounds = null;
+    return bounds;
+  },
+
   // Generalized two-layer crossfade animation
   // Works for any transition: folder→folder, file→function, etc.
   // direction: 'in' (zoom into clicked element) or 'out' (zoom back to parent)

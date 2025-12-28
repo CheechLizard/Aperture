@@ -77,6 +77,9 @@ function renderBreadcrumb(container, zoomedUri) {
   // Always show breadcrumb (at minimum shows project root)
   container.classList.remove('hidden');
 
+  // Check if viewing a partial set of items (expanded "other" node)
+  const otherInfo = typeof getZoomedOther === 'function' ? getZoomedOther() : null;
+
   // Build HTML - no back button, just path segments
   let html = '';
 
@@ -88,8 +91,14 @@ function renderBreadcrumb(container, zoomedUri) {
     if (seg.isEllipsis) {
       html += '<span class="breadcrumb-ellipsis">...</span>';
     } else if (i === displaySegments.length - 1) {
-      // Current location - not clickable
-      html += '<span class="breadcrumb-current">' + seg.name + '</span>';
+      // Current location
+      // When viewing partial folder contents, make it clickable to show all items
+      if (otherInfo && !seg.isSymbol) {
+        const uriAttr = seg.uri === null ? 'null' : seg.uri;
+        html += '<button class="breadcrumb-segment breadcrumb-partial" data-uri="' + uriAttr + '">' + seg.name + '</button>';
+      } else {
+        html += '<span class="breadcrumb-current">' + seg.name + '</span>';
+      }
     } else {
       // Clickable segment - use 'null' string for root
       const uriAttr = seg.uri === null ? 'null' : seg.uri;
@@ -105,6 +114,9 @@ function renderBreadcrumb(container, zoomedUri) {
       const uriStr = e.target.dataset.uri;
       // Handle root navigation (null URI)
       const uri = uriStr === 'null' ? null : uriStr;
+
+      // Clear partial view when navigating via breadcrumb
+      if (typeof setZoomedOther === 'function') setZoomedOther(null);
       nav.goTo({ uri: uri });
     });
   });
@@ -120,9 +132,13 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'Escape' || e.key === 'Backspace') {
     e.preventDefault();
+    // Clear partial view when navigating back
+    if (typeof setZoomedOther === 'function') setZoomedOther(null);
     nav.back();
   } else if (e.key === 'Home') {
     e.preventDefault();
+    // Clear partial view when going home
+    if (typeof setZoomedOther === 'function') setZoomedOther(null);
     nav.goTo({ uri: null });
   }
 });

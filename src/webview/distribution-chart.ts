@@ -35,11 +35,12 @@ function buildFileData() {
   });
 }
 
-// Helper to find bounds of a URI in a hierarchy
+// Helper to find bounds of a URI in a hierarchy (skips root - we want descendants only)
 function findBoundsInHierarchy(hierarchy, targetUri) {
   if (!hierarchy || !targetUri) return null;
   const targetPath = getFilePath(targetUri);
-  const node = hierarchy.descendants().find(d => d.data.path === targetPath);
+  // Skip depth 0 (root) - zooming to root bounds is meaningless
+  const node = hierarchy.descendants().find(d => d.depth > 0 && d.data.path === targetPath);
   if (node) {
     return {
       x: node.x0,
@@ -138,7 +139,7 @@ function renderDistributionChart() {
       }
 
     } else {
-      // Folder → Parent Folder: file layer shrinks to folder
+      // Folder → Parent Folder (or partial → full): file layer shrinks to folder
       const oldLayer = svg.select('g.file-layer');
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
@@ -146,7 +147,13 @@ function renderDistributionChart() {
       renderFilesLegend(fileData);
 
       // Look up the source folder in the new layout
-      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
+      let bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
+
+      // If source not found (e.g., partial→full where we're in same folder), use saved entry bounds
+      if (!bounds) {
+        bounds = zoom.consumePartialEntryBounds();
+      }
+
       if (bounds) {
         zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
       } else {
