@@ -72,32 +72,29 @@ const zoom = {
   animateLayers(oldLayer, newLayer, bounds, width, height, t, direction) {
     if (!bounds || !oldLayer || !newLayer) return;
 
-    const scale = Math.min(width / bounds.w, height / bounds.h);
-    const centerX = bounds.x + bounds.w / 2;
-    const centerY = bounds.y + bounds.h / 2;
+    // Use non-uniform scaling so both dimensions animate (avoids no-zoom when one dimension matches)
+    const scaleX = width / bounds.w;
+    const scaleY = height / bounds.h;
+    const invScaleX = bounds.w / width;
+    const invScaleY = bounds.h / height;
 
     // Hide text on old layer before scaling (prevents giant text)
     oldLayer.selectAll('text').style('opacity', 0);
     oldLayer.attr('pointer-events', 'none');
 
     if (direction === 'in') {
-      // ZOOM IN: Old scales up toward bounds center, new expands from bounds
+      // ZOOM IN: Old scales up toward bounds, new expands from bounds
 
-      // Old layer: scale up toward clicked element
-      const oldTranslateX = width / 2 - centerX * scale;
-      const oldTranslateY = height / 2 - centerY * scale;
+      // Old layer: scale up so bounds fills screen
       oldLayer
         .transition(t)
-        .attr('transform', 'translate(' + oldTranslateX + ',' + oldTranslateY + ') scale(' + scale + ')')
+        .attr('transform', 'translate(' + (-bounds.x * scaleX) + ',' + (-bounds.y * scaleY) + ') scale(' + scaleX + ',' + scaleY + ')')
         .style('opacity', 0)
         .remove();
 
-      // New layer: start small at clicked position, expand to fill
-      const invScale = 1 / scale;
-      const newStartX = centerX - (width / 2) * invScale;
-      const newStartY = centerY - (height / 2) * invScale;
+      // New layer: start small at bounds position, expand to fill
       newLayer
-        .attr('transform', 'translate(' + newStartX + ',' + newStartY + ') scale(' + invScale + ')')
+        .attr('transform', 'translate(' + bounds.x + ',' + bounds.y + ') scale(' + invScaleX + ',' + invScaleY + ')')
         .style('opacity', 0)
         .transition(t)
         .attr('transform', 'translate(0,0) scale(1)')
@@ -105,22 +102,18 @@ const zoom = {
 
     } else {
       // ZOOM OUT: Old shrinks to bounds, new scales down from enlarged state
+      // Use top-left alignment: old view showed content at (0,0), so bounds should start there
 
-      // Old layer: shrink down to target bounds
-      const invScale = 1 / scale;
-      const shrinkX = centerX - (width / 2) * invScale;
-      const shrinkY = centerY - (height / 2) * invScale;
+      // Old layer: shrink so content at (0,0) ends up at bounds position
       oldLayer
         .transition(t)
-        .attr('transform', 'translate(' + shrinkX + ',' + shrinkY + ') scale(' + invScale + ')')
+        .attr('transform', 'translate(' + bounds.x + ',' + bounds.y + ') scale(' + invScaleX + ',' + invScaleY + ')')
         .style('opacity', 0)
         .remove();
 
-      // New layer: start scaled up, shrink to identity
-      const expandX = width / 2 - centerX * scale;
-      const expandY = height / 2 - centerY * scale;
+      // New layer: start with bounds filling screen, animate to identity
       newLayer
-        .attr('transform', 'translate(' + expandX + ',' + expandY + ') scale(' + scale + ')')
+        .attr('transform', 'translate(' + (-bounds.x * scaleX) + ',' + (-bounds.y * scaleY) + ') scale(' + scaleX + ',' + scaleY + ')')
         .transition(t)
         .attr('transform', 'translate(0,0) scale(1)');
     }
