@@ -14,10 +14,6 @@ function zoomTo(uri) {
   nav.goTo({ uri: uri });
 }
 
-function zoomOut() {
-  nav.goTo({ uri: null });
-}
-
 function truncateLabel(name, maxWidth, charWidth) {
   const maxChars = Math.floor(maxWidth / charWidth);
   return name.length > maxChars ? name.slice(0, maxChars - 1) + '\\u2026' : name;

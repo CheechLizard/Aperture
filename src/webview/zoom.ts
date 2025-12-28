@@ -49,16 +49,6 @@ const zoom = {
     };
   },
 
-  // Transform a node's position from base coordinates to screen coordinates
-  toScreen(node, transform) {
-    return {
-      x: (node.x0 - transform.x) * transform.kx,
-      y: (node.y0 - transform.y) * transform.ky,
-      w: (node.x1 - node.x0) * transform.kx,
-      h: (node.y1 - node.y0) * transform.ky
-    };
-  },
-
   // Reset zoom state (for view changes)
   reset() {
     this._prev = { x: 0, y: 0, kx: 1, ky: 1 };
@@ -84,11 +74,6 @@ const zoom = {
   // Pop bounds from stack for zoom-out animation
   popZoomStack() {
     return this._zoomStack.pop() || null;
-  },
-
-  // Clear zoom stack (for navigation reset)
-  clearZoomStack() {
-    this._zoomStack = [];
   },
 
   // Getters for current state
