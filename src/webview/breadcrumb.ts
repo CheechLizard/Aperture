@@ -16,10 +16,11 @@ function buildBreadcrumbSegments(uri) {
   let currentPath = '';
   for (const part of pathParts) {
     currentPath = currentPath ? currentPath + '/' + part : part;
+    const isFile = currentPath === parsed.path && !parsed.fragment;
     segments.push({
       name: part,
-      uri: createFileUri(currentPath),
-      isFile: currentPath === parsed.path
+      uri: isFile ? createFileUri(currentPath) : createFolderUri(currentPath),
+      isFile: isFile
     });
   }
 
@@ -81,8 +82,8 @@ function renderBreadcrumb(container, zoomedUri) {
       // Current location - not clickable
       html += '<span class="breadcrumb-current">' + seg.name + '</span>';
     } else {
-      // Clickable segment
-      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '">' + seg.name + '</button>';
+      // Clickable segment - include isFile flag for navigation
+      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '" data-is-file="' + (seg.isFile ? 'true' : 'false') + '">' + seg.name + '</button>';
     }
   });
 
@@ -95,6 +96,7 @@ function renderBreadcrumb(container, zoomedUri) {
     btn.addEventListener('click', (e) => {
       const uri = e.target.dataset.uri;
       if (uri) {
+        // Navigate to folder or file URI
         nav.goTo({ uri: uri });
       }
     });

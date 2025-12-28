@@ -79,6 +79,11 @@ export const DASHBOARD_STYLES = `
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
+    /* Collapsed folder nodes - render as clickable leaves */
+    .folder-node { fill: #2d2d2d; stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
+    .folder-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .folder-label { font-size: 9px; fill: #fff; pointer-events: none; }
+    .folder-count { font-size: 8px; fill: #888; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }

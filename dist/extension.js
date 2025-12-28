@@ -11839,6 +11839,11 @@ var DASHBOARD_STYLES = `
     .dir-header { fill: rgba(30,30,30,0.95); pointer-events: none; }
     .dir-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .dir-label-sub { font-size: 9px; fill: #aaa; pointer-events: none; text-transform: uppercase; }
+    /* Collapsed folder nodes - render as clickable leaves */
+    .folder-node { fill: #2d2d2d; stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
+    .folder-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .folder-label { font-size: 9px; fill: #fff; pointer-events: none; }
+    .folder-count { font-size: 8px; fill: #888; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8em; color: var(--vscode-foreground); }
     .legend-swatch { width: 12px; height: 12px; }
@@ -12113,10 +12118,11 @@ const nav = {
     this._render();
   },
 
-  // Go back one level (L2 -> L1, or no-op at L1)
+  // Go back one level - uses getParentUri for proper hierarchy traversal
   back() {
     if (this._state.zoomedUri) {
-      this.goTo({ uri: null });
+      const parentUri = getParentUri(this._state.zoomedUri);
+      this.goTo({ uri: parentUri });
     }
   },
 
@@ -12130,12 +12136,39 @@ const nav = {
     };
   },
 
+  // Check if a path is a file (exists in files array) or folder
+  _isFilePath(path) {
+    if (!path) return false;
+    return files.some(f => f.path === path);
+  },
+
   // Sync internal state to legacy globals (for renderer compatibility)
   _syncToGlobals() {
     currentView = this._state.view;
-    // Extract path from URI for legacy globals
-    zoomedFile = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
-    prevZoomedFile = this._state.prevZoomedUri ? getFilePath(this._state.prevZoomedUri) : null;
+    const uri = this._state.zoomedUri;
+    const prevUri = this._state.prevZoomedUri;
+
+    if (!uri) {
+      zoomedFile = null;
+      zoomedFolder = null;
+    } else {
+      const path = getFilePath(uri);
+      if (this._isFilePath(path)) {
+        zoomedFile = path;
+        zoomedFolder = null;
+      } else {
+        zoomedFile = null;
+        zoomedFolder = path;
+      }
+    }
+
+    // Handle previous state for animations
+    if (!prevUri) {
+      prevZoomedFile = null;
+    } else {
+      const prevPath = getFilePath(prevUri);
+      prevZoomedFile = this._isFilePath(prevPath) ? prevPath : null;
+    }
   },
 
   // Update DOM container visibility based on current view
@@ -13539,31 +13572,90 @@ function renderFooterStats() {
 var TREEMAP_LAYOUT_SCRIPT = `
 // Treemap layout for folder/file level visualization
 // Uses d3.treemap() for efficient space usage at folder level
+// Supports adaptive depth - collapses folders when children would be too small
 
 const TREEMAP_LABEL_MIN_WIDTH = 40;
 const TREEMAP_LABEL_MIN_HEIGHT = 16;
+const MIN_NODE_SIZE = 30;  // Minimum px for a clickable node
+const MIN_EXPAND_SIZE = 100;  // Folders larger than this should always expand
 
-function buildFileHierarchy(fileData) {
-  const root = { name: 'root', children: [] };
+function buildFileHierarchy(fileData, zoomedFolderPath) {
+  // Build full hierarchy with folder URIs
+  const root = { name: 'root', path: '', uri: null, children: [] };
   for (const file of fileData) {
     const parts = file.path.split('/');
     let current = root;
+    let currentPath = '';
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
+      currentPath = currentPath ? currentPath + '/' + part : part;
       let child = current.children.find(c => c.name === part && c.children);
       if (!child) {
-        child = { name: part, children: [] };
+        child = { name: part, path: currentPath, uri: createFolderUri(currentPath), children: [] };
         current.children.push(child);
       }
       current = child;
     }
     current.children.push(file);
   }
+
+  // If zoomed into a folder, return that subtree
+  if (zoomedFolderPath) {
+    const subtree = findNodeByPath(root, zoomedFolderPath);
+    if (subtree) return subtree;
+  }
+
   return root;
 }
 
+function findNodeByPath(node, targetPath) {
+  if (node.path === targetPath) return node;
+  if (!node.children) return null;
+  for (const child of node.children) {
+    const found = findNodeByPath(child, targetPath);
+    if (found) return found;
+  }
+  return null;
+}
+
+function countDescendantFiles(node) {
+  if (!node.children) return 1;  // It's a file
+  return node.children.reduce((sum, c) => sum + countDescendantFiles(c), 0);
+}
+
+function collapseSmallNodes(hierarchyNode) {
+  if (!hierarchyNode.children) return;
+
+  // Recurse first (depth-first) so inner folders collapse before outer ones
+  hierarchyNode.children.forEach(c => collapseSmallNodes(c));
+
+  // Never collapse root (depth 0) - always show top-level structure
+  if (hierarchyNode.depth === 0) return;
+
+  // Large folders should always expand to show structure
+  const nodeW = hierarchyNode.x1 - hierarchyNode.x0;
+  const nodeH = hierarchyNode.y1 - hierarchyNode.y0;
+  if (nodeW >= MIN_EXPAND_SIZE && nodeH >= MIN_EXPAND_SIZE) return;
+
+  // For smaller folders, check if children would be too small to interact with
+  const hasSmallChild = hierarchyNode.children.some(c => {
+    const w = c.x1 - c.x0;
+    const h = c.y1 - c.y0;
+    return w < MIN_NODE_SIZE || h < MIN_NODE_SIZE;
+  });
+
+  if (hasSmallChild && hierarchyNode.data.children) {
+    // Mark as collapsed and count descendants
+    hierarchyNode.data._collapsed = true;
+    hierarchyNode.data._childCount = countDescendantFiles(hierarchyNode.data);
+    // Remove children from D3 hierarchy (will render as leaf)
+    hierarchyNode.children = null;
+  }
+}
+
 function renderTreemapLayout(container, fileData, width, height, t) {
-  const root = buildFileHierarchy(fileData);
+  // Build hierarchy, optionally filtered to a zoomed folder
+  const root = buildFileHierarchy(fileData, zoomedFolder);
   const hierarchy = d3.hierarchy(root).sum(d => d.value || 0).sort((a, b) => b.value - a.value);
   d3.treemap()
     .size([width, height])
@@ -13571,12 +13663,14 @@ function renderTreemapLayout(container, fileData, width, height, t) {
     .paddingRight(2).paddingBottom(2).paddingLeft(2).paddingInner(1)
     (hierarchy);
 
+  // Apply adaptive collapse - folders with children too small become leaves
+  collapseSmallNodes(hierarchy);
+
   const leaves = hierarchy.leaves();
   const clickedLeaf = zoomedFile ? leaves.find(l => l.data.path === zoomedFile) : null;
 
-  const curr = calculateZoomTransform(clickedLeaf, width, height);
-  const prev = { ...prevZoomState };
-  prevZoomState = curr;
+  // Use zoom module for transform calculation and state tracking
+  const { prev, curr } = zoom.update(clickedLeaf, width, height);
 
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
@@ -13608,7 +13702,12 @@ function renderTreemapLayout(container, fileData, width, height, t) {
 }
 
 function renderFileRects(layer, leaves, prev, curr, t) {
-  layer.selectAll('rect.file-node').data(leaves, d => d.data.uri)
+  // Separate files and collapsed folders for different styling
+  const fileLeaves = leaves.filter(d => !d.data._collapsed);
+  const folderLeaves = leaves.filter(d => d.data._collapsed);
+
+  // Render file nodes
+  layer.selectAll('rect.file-node').data(fileLeaves, d => d.data.uri)
     .join(
       enter => enter.append('rect')
         .attr('class', 'file-node node')
@@ -13624,9 +13723,9 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     )
     .on('mouseover', (e, d) => {
       if (zoomedFile) return;
-      const fnCount = d.data.functions.length;
       let html = '<div><strong>' + d.data.name + '</strong></div>';
       if (d.data.hasFunctions) {
+        const fnCount = d.data.functions.length;
         html += '<div>' + fnCount + ' function' + (fnCount !== 1 ? 's' : '') + ' \\u00b7 ' + d.data.value + ' LOC</div>';
         html += '<div style="color:var(--vscode-descriptionForeground)">Click to view functions</div>';
       } else {
@@ -13650,10 +13749,84 @@ function renderFileRects(layer, leaves, prev, curr, t) {
     .attr('y', d => (d.y0 - curr.y) * curr.ky)
     .attr('width', d => Math.max(0, (d.x1 - d.x0) * curr.kx))
     .attr('height', d => Math.max(0, (d.y1 - d.y0) * curr.ky));
+
+  // Render collapsed folder nodes
+  layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.uri)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'folder-node node')
+        .attr('data-uri', d => d.data.uri)
+        .attr('data-path', d => d.data.path)
+        .attr('x', d => (d.x0 - prev.x) * prev.kx)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky)
+        .attr('width', d => Math.max(0, (d.x1 - d.x0) * prev.kx))
+        .attr('height', d => Math.max(0, (d.y1 - d.y0) * prev.ky)),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
+    .on('mouseover', (e, d) => {
+      if (zoomedFile) return;
+      const html = '<div><strong>' + d.data.name + '/</strong></div>' +
+        '<div>' + d.data._childCount + ' item' + (d.data._childCount !== 1 ? 's' : '') + '</div>' +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to expand</div>';
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (e, d) => {
+      if (zoomedFile) return;
+      // Zoom into collapsed folder
+      nav.goTo({ uri: d.data.uri });
+    })
+    .transition(t)
+    .attr('x', d => (d.x0 - curr.x) * curr.kx)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky)
+    .attr('width', d => Math.max(0, (d.x1 - d.x0) * curr.kx))
+    .attr('height', d => Math.max(0, (d.y1 - d.y0) * curr.ky));
+
+  // Render folder labels
+  const folderLabelsData = folderLeaves.filter(d => {
+    const w = (d.x1 - d.x0) * curr.kx;
+    const h = (d.y1 - d.y0) * curr.ky;
+    return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
+  });
+
+  layer.selectAll('text.folder-label').data(zoomedFile ? [] : folderLabelsData, d => d.data.uri)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'folder-label')
+        .attr('pointer-events', 'none')
+        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky + 12),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
+    .text(d => truncateLabel(d.data.name + '/', (d.x1 - d.x0) * curr.kx - 8, 5))
+    .transition(t)
+    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky + 12);
+
+  // Render folder item counts
+  layer.selectAll('text.folder-count').data(zoomedFile ? [] : folderLabelsData, d => d.data.uri)
+    .join(
+      enter => enter.append('text')
+        .attr('class', 'folder-count')
+        .attr('pointer-events', 'none')
+        .attr('x', d => (d.x0 - prev.x) * prev.kx + 4)
+        .attr('y', d => (d.y0 - prev.y) * prev.ky + 22),
+      update => update,
+      exit => exit.transition(t).remove()
+    )
+    .text(d => d.data._childCount + ' items')
+    .transition(t)
+    .attr('x', d => (d.x0 - curr.x) * curr.kx + 4)
+    .attr('y', d => (d.y0 - curr.y) * curr.ky + 22);
 }
 
 function renderFileLabels(layer, leaves, prev, curr, t) {
+  // Only label files (not collapsed folders - they have their own labels)
   const labelsData = leaves.filter(d => {
+    if (d.data._collapsed) return false;  // Skip collapsed folders
     const w = (d.x1 - d.x0) * curr.kx;
     const h = (d.y1 - d.y0) * curr.ky;
     return w >= TREEMAP_LABEL_MIN_WIDTH && h >= TREEMAP_LABEL_MIN_HEIGHT;
@@ -13856,7 +14029,7 @@ function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.uri });
+      vscode.postMessage({ command: 'openFile', uri: d.uri, line: d.line });
     })
     .transition(t)
     .attr('x', d => d.x0)
@@ -13905,7 +14078,6 @@ function clearPartitionLayer(container) {
 var DISTRIBUTION_CHART_SCRIPT = `
 const FUNC_NEUTRAL_COLOR = '#3a3a3a';
 const FILE_NO_FUNCTIONS_COLOR = '#2a2a2a';
-const ZOOM_DURATION = 500;
 
 function getDynamicFunctionColor(func) {
   return FUNC_NEUTRAL_COLOR;
@@ -13944,35 +14116,13 @@ function buildFileData() {
   });
 }
 
-function calculateZoomTransform(clickedLeaf, width, height) {
-  if (clickedLeaf) {
-    return {
-      x: clickedLeaf.x0,
-      y: clickedLeaf.y0,
-      kx: width / (clickedLeaf.x1 - clickedLeaf.x0),
-      ky: height / (clickedLeaf.y1 - clickedLeaf.y0)
-    };
-  }
-  return { x: 0, y: 0, kx: 1, ky: 1 };
-}
-
-function calculateExitBounds(leaf, transform) {
-  if (!leaf) return { x: 0, y: 0, w: 0, h: 0 };
-  return {
-    x: (leaf.x0 - transform.x) * transform.kx,
-    y: (leaf.y0 - transform.y) * transform.ky,
-    w: (leaf.x1 - leaf.x0) * transform.kx,
-    h: (leaf.y1 - leaf.y0) * transform.ky
-  };
-}
-
 function renderDistributionChart() {
   const container = document.getElementById('functions-chart');
   if (!container) return;
 
   const width = container.clientWidth || 600;
   const height = container.clientHeight || 400;
-  const t = d3.transition('zoom').duration(ZOOM_DURATION).ease(d3.easeCubicOut);
+  const t = zoom.transition('main');
 
   const fileData = buildFileData();
   if (fileData.length === 0) {
@@ -13995,7 +14145,7 @@ function renderDistributionChart() {
   // When zoomed into a file, use partition layout
   if (zoomedFile) {
     const file = files.find(f => f.path === zoomedFile);
-    const prevBounds = calculateExitBounds(clickedLeaf, prev);
+    const prevBounds = zoom.exitBounds(clickedLeaf, prev);
 
     // Fade in partition layer
     partitionLayer.attr('opacity', 0).transition(t).attr('opacity', 1);
@@ -14564,10 +14714,11 @@ function buildBreadcrumbSegments(uri) {
   let currentPath = '';
   for (const part of pathParts) {
     currentPath = currentPath ? currentPath + '/' + part : part;
+    const isFile = currentPath === parsed.path && !parsed.fragment;
     segments.push({
       name: part,
-      uri: createFileUri(currentPath),
-      isFile: currentPath === parsed.path
+      uri: isFile ? createFileUri(currentPath) : createFolderUri(currentPath),
+      isFile: isFile
     });
   }
 
@@ -14629,8 +14780,8 @@ function renderBreadcrumb(container, zoomedUri) {
       // Current location - not clickable
       html += '<span class="breadcrumb-current">' + seg.name + '</span>';
     } else {
-      // Clickable segment
-      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '">' + seg.name + '</button>';
+      // Clickable segment - include isFile flag for navigation
+      html += '<button class="breadcrumb-segment" data-uri="' + seg.uri + '" data-is-file="' + (seg.isFile ? 'true' : 'false') + '">' + seg.name + '</button>';
     }
   });
 
@@ -14643,6 +14794,7 @@ function renderBreadcrumb(container, zoomedUri) {
     btn.addEventListener('click', (e) => {
       const uri = e.target.dataset.uri;
       if (uri) {
+        // Navigate to folder or file URI
         nav.goTo({ uri: uri });
       }
     });
@@ -14768,6 +14920,79 @@ window.addEventListener('message', (event) => {
 });
 `;
 
+// src/webview/zoom.ts
+var ZOOM_SCRIPT = `
+// Reusable zoom transition module
+// Handles transform calculation and animation state for all zoom operations
+
+const ZOOM_DURATION = 500;
+const ZOOM_EASE = d3.easeCubicOut;
+
+const zoom = {
+  _prev: { x: 0, y: 0, kx: 1, ky: 1 },
+  _curr: { x: 0, y: 0, kx: 1, ky: 1 },
+
+  // Calculate zoom transform for a target node
+  calculateTransform(targetNode, width, height) {
+    if (targetNode) {
+      return {
+        x: targetNode.x0,
+        y: targetNode.y0,
+        kx: width / (targetNode.x1 - targetNode.x0),
+        ky: height / (targetNode.y1 - targetNode.y0)
+      };
+    }
+    return { x: 0, y: 0, kx: 1, ky: 1 };
+  },
+
+  // Update zoom state and return prev/curr for animation
+  update(targetNode, width, height) {
+    this._prev = { ...this._curr };
+    this._curr = this.calculateTransform(targetNode, width, height);
+    return { prev: this._prev, curr: this._curr };
+  },
+
+  // Get a D3 transition configured for zoom animations
+  transition(name) {
+    return d3.transition(name || 'zoom')
+      .duration(ZOOM_DURATION)
+      .ease(ZOOM_EASE);
+  },
+
+  // Calculate bounds for exit animations (where element was in prev transform)
+  exitBounds(node, transform) {
+    if (!node) return { x: 0, y: 0, w: 0, h: 0 };
+    return {
+      x: (node.x0 - transform.x) * transform.kx,
+      y: (node.y0 - transform.y) * transform.ky,
+      w: (node.x1 - node.x0) * transform.kx,
+      h: (node.y1 - node.y0) * transform.ky
+    };
+  },
+
+  // Transform a node's position from base coordinates to screen coordinates
+  toScreen(node, transform) {
+    return {
+      x: (node.x0 - transform.x) * transform.kx,
+      y: (node.y0 - transform.y) * transform.ky,
+      w: (node.x1 - node.x0) * transform.kx,
+      h: (node.y1 - node.y0) * transform.ky
+    };
+  },
+
+  // Reset zoom state (for view changes)
+  reset() {
+    this._prev = { x: 0, y: 0, kx: 1, ky: 1 };
+    this._curr = { x: 0, y: 0, kx: 1, ky: 1 };
+  },
+
+  // Getters for current state
+  get prev() { return this._prev; },
+  get curr() { return this._curr; },
+  get duration() { return ZOOM_DURATION; }
+};
+`;
+
 // src/dashboard-html.ts
 function getLoadingContent() {
   return `<!DOCTYPE html>
@@ -14887,8 +15112,8 @@ let activeRules = new Set();  // Set of pattern types added as rules
 
 // Navigation state - managed by nav module but exposed as globals for renderer compatibility
 let zoomedFile = null;
+let zoomedFolder = null;
 let prevZoomedFile = null;
-let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
 
 // Build issue file map from all issues
 const issueFileMap = new Map();
@@ -14903,6 +15128,8 @@ for (const issue of issues) {
 }
 
 ${URI_SCRIPT}
+
+${ZOOM_SCRIPT}
 
 ${BREADCRUMB_SCRIPT}
 
@@ -14967,7 +15194,7 @@ async function openDashboard(context) {
           if (message.uri) {
             const relativePath = getFilePath(message.uri);
             filePath = path11.join(currentData?.root || "", relativePath);
-            line = getLineFromUri(message.uri);
+            line = getLineFromUri(message.uri) || message.line || null;
           } else {
             filePath = message.path;
             line = message.line || null;

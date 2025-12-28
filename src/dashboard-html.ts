@@ -18,6 +18,7 @@ import { SELECTION_STATE_SCRIPT } from './webview/selection-state';
 import { URI_SCRIPT } from './webview/uri';
 import { BREADCRUMB_SCRIPT } from './webview/breadcrumb';
 import { CODE_PREVIEW_SCRIPT } from './webview/code-preview';
+import { ZOOM_SCRIPT } from './webview/zoom';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -142,8 +143,8 @@ let activeRules = new Set();  // Set of pattern types added as rules
 
 // Navigation state - managed by nav module but exposed as globals for renderer compatibility
 let zoomedFile = null;
+let zoomedFolder = null;
 let prevZoomedFile = null;
-let prevZoomState = { x: 0, y: 0, kx: 1, ky: 1 };
 
 // Build issue file map from all issues
 const issueFileMap = new Map();
@@ -158,6 +159,8 @@ for (const issue of issues) {
 }
 
 ${URI_SCRIPT}
+
+${ZOOM_SCRIPT}
 
 ${BREADCRUMB_SCRIPT}
 

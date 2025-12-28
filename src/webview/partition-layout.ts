@@ -133,7 +133,7 @@ function renderPartitionRects(layer, nodes, prevBounds, width, height, t) {
     .on('mousemove', e => positionTooltip(e))
     .on('mouseout', () => hideTooltip())
     .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.uri });
+      vscode.postMessage({ command: 'openFile', uri: d.uri, line: d.line });
     })
     .transition(t)
     .attr('x', d => d.x0)

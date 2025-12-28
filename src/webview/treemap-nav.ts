@@ -33,10 +33,11 @@ const nav = {
     this._render();
   },
 
-  // Go back one level (L2 -> L1, or no-op at L1)
+  // Go back one level - uses getParentUri for proper hierarchy traversal
   back() {
     if (this._state.zoomedUri) {
-      this.goTo({ uri: null });
+      const parentUri = getParentUri(this._state.zoomedUri);
+      this.goTo({ uri: parentUri });
     }
   },
 
@@ -50,12 +51,39 @@ const nav = {
     };
   },
 
+  // Check if a path is a file (exists in files array) or folder
+  _isFilePath(path) {
+    if (!path) return false;
+    return files.some(f => f.path === path);
+  },
+
   // Sync internal state to legacy globals (for renderer compatibility)
   _syncToGlobals() {
     currentView = this._state.view;
-    // Extract path from URI for legacy globals
-    zoomedFile = this._state.zoomedUri ? getFilePath(this._state.zoomedUri) : null;
-    prevZoomedFile = this._state.prevZoomedUri ? getFilePath(this._state.prevZoomedUri) : null;
+    const uri = this._state.zoomedUri;
+    const prevUri = this._state.prevZoomedUri;
+
+    if (!uri) {
+      zoomedFile = null;
+      zoomedFolder = null;
+    } else {
+      const path = getFilePath(uri);
+      if (this._isFilePath(path)) {
+        zoomedFile = path;
+        zoomedFolder = null;
+      } else {
+        zoomedFile = null;
+        zoomedFolder = path;
+      }
+    }
+
+    // Handle previous state for animations
+    if (!prevUri) {
+      prevZoomedFile = null;
+    } else {
+      const prevPath = getFilePath(prevUri);
+      prevZoomedFile = this._isFilePath(prevPath) ? prevPath : null;
+    }
   },
 
   // Update DOM container visibility based on current view
