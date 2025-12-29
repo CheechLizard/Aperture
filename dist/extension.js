@@ -13869,6 +13869,17 @@ function aggregateSmallNodes(hierarchyNode) {
   // Store debug partitions
   hierarchyNode._debugPartitions = collectLeafPartitions([...children]);
 
+  // If ALL children collapsed into a single "other" group,
+  // show this as a collapsed folder instead (e.g. "camera/" not "4 small items")
+  if (resultItems.length === 1 &&
+      resultItems[0]._isCollapsedGroup &&
+      resultItems[0]._collapsedItems.length === children.length) {
+    hierarchyNode.data._collapsed = true;
+    hierarchyNode.data._childCount = countDescendantFiles(hierarchyNode.data);
+    hierarchyNode.children = null;
+    return;
+  }
+
   // Update children with processed items
   hierarchyNode.children = resultItems;
 }
@@ -14085,7 +14096,7 @@ function renderFileRects(layer, leaves, width, height, t) {
         // Save entry bounds for zoom-out animation when leaving partial view
         zoom.setPartialEntryBounds(bounds);
         // Expand collapsed items: zoom to parent folder showing only these items
-        const parentPath = d.data.path.replace(/\\/_other$/, '');
+        const parentPath = d.data.path.replace(/\\/_other_[a-z0-9]+$/, '');
         setZoomedOther({
           folderPath: parentPath,
           paths: d.data._collapsedPaths,
