@@ -151,3 +151,40 @@ export interface ASTExtractionResult {
   status: ParseStatus;
 }
 
+// Rule Management Types
+export type RuleStatus = 'active' | 'new' | 'unsupported';
+
+export interface RuleThreshold {
+  value: number;
+  unit: string;
+  severity?: 'warning' | 'error';
+}
+
+export interface ParsedRule {
+  id: string;
+  rawText: string;
+  status: RuleStatus;
+  ruleId?: string;
+  threshold?: RuleThreshold;
+  thresholds?: RuleThreshold[];  // For rules with multiple thresholds (warning + error)
+  blocklist?: string[];
+  pattern?: string;
+}
+
+export interface RuleParseResult {
+  rules: ParsedRule[];
+  activeCount: number;
+  newCount: number;
+  unsupportedCount: number;
+}
+
+// Extracted thresholds for detectors
+export interface RuleThresholds {
+  functionLocWarning: number;
+  functionLocError: number;
+  fileLocWarning: number;
+  maxNestingDepth: number;
+  maxParameterCount: number;
+  genericNames?: string[];
+}
+

@@ -48,6 +48,7 @@ nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
 renderIssues();
 renderFooterStats();
+updateStatus();
 
 // Trigger dependency analysis to detect architecture issues
 vscode.postMessage({ command: 'getDependencies' });
@@ -83,13 +84,70 @@ document.getElementById('status').addEventListener('click', () => {
 
 function updateStatus() {
   const statusBtn = document.getElementById('status');
-  const issueFiles = getAllIssueFiles();
 
-  if (issueFiles.length > 0) {
-    statusBtn.innerHTML = '<strong>' + issueFiles.length + ' files with issues</strong>';
-  } else {
-    statusBtn.innerHTML = '<span style="opacity:0.7">No issues detected</span>';
+  if (!codingStandardsExists) {
+    statusBtn.innerHTML = '<span class="rule-status-missing">No coding-standards.md</span> ' +
+      '<button class="rule-status-btn" onclick="createCodingStandards()">Create</button>';
+    return;
   }
+
+  let html = '<strong>' + ruleResult.activeCount + ' rules</strong>';
+
+  if (ruleResult.newCount > 0) {
+    html += ' · <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
+  }
+
+  if (ruleResult.unsupportedCount > 0) {
+    html += ' · <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
+  }
+
+  html += ' <button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
+  html += ' <button class="rule-status-btn" onclick="refreshData()" title="Refresh">↻</button>';
+
+  statusBtn.innerHTML = html;
+}
+
+function editCodingStandards() {
+  vscode.postMessage({ command: 'editCodingStandards' });
+}
+
+function refreshData() {
+  vscode.postMessage({ command: 'refresh' });
+}
+
+function createCodingStandards() {
+  vscode.postMessage({ command: 'createCodingStandards' });
+}
+
+function showNewRulesModal() {
+  const newRules = ruleResult.rules.filter(r => r.status === 'new');
+  if (newRules.length === 0) return;
+
+  let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
+    '<div class="modal-content" onclick="event.stopPropagation()">' +
+    '<div class="modal-header"><h3>New Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">×</button></div>' +
+    '<div class="modal-body">' +
+    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them.</p>';
+
+  for (const rule of newRules) {
+    html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';
+  }
+
+  html += '</div></div></div>';
+
+  let modal = document.getElementById('new-rules-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'new-rules-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = html;
+}
+
+function closeNewRulesModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('new-rules-modal');
+  if (modal) modal.innerHTML = '';
 }
 
 function renderFooterStats() {

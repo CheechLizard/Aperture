@@ -1,4 +1,4 @@
-import { FileInfo, ASTExtractionResult, Issue } from './types';
+import { FileInfo, ASTExtractionResult, Issue, RuleThresholds } from './types';
 import {
   detectLongFunctions,
   detectLongFile,
@@ -18,20 +18,21 @@ import { detectMixedConcerns } from './rules/architecture-rules';
 export function detectCodeIssues(
   file: FileInfo,
   astResult: ASTExtractionResult,
-  content: string
+  content: string,
+  thresholds?: RuleThresholds
 ): Issue[] {
   const issues: Issue[] = [];
 
-  // Structural rules
-  issues.push(...detectLongFunctions(file));
-  const longFile = detectLongFile(file);
+  // Structural rules (pass thresholds)
+  issues.push(...detectLongFunctions(file, thresholds));
+  const longFile = detectLongFile(file, thresholds);
   if (longFile) issues.push(longFile);
-  issues.push(...detectDeepNesting(file));
+  issues.push(...detectDeepNesting(file, thresholds));
   issues.push(...detectSilentFailures(file, astResult.catchBlocks));
-  issues.push(...detectTooManyParameters(file));
+  issues.push(...detectTooManyParameters(file, thresholds));
 
   // Naming rules
-  issues.push(...detectGenericNames(file));
+  issues.push(...detectGenericNames(file, thresholds?.genericNames));
   issues.push(...detectNonVerbFunctions(file));
   issues.push(...detectNonQuestionBooleans(file));
   issues.push(...detectMagicNumbers(file, astResult.literals));

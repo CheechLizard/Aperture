@@ -167,6 +167,37 @@ window.addEventListener('message', event => {
   } else if (msg.type === 'tokenCount') {
     // Handle token count response for prompt costing
     handleTokenCount(msg.promptId, msg.tokens, msg.limit);
+  } else if (msg.type === 'rulesUpdated') {
+    // Handle rule changes from file watcher
+    ruleResult = msg.ruleResult;
+    codingStandardsExists = msg.fileExists;
+    updateStatus();
+  } else if (msg.type === 'dataUpdated') {
+    // Handle full data update (after creating coding-standards.md or refresh)
+    files = msg.files;
+    issues = msg.issues;
+    ruleResult = msg.ruleResult;
+    codingStandardsExists = msg.fileExists;
+
+    // Rebuild issueFileMap from new issues
+    issueFileMap.clear();
+    for (const issue of issues) {
+      for (const loc of issue.locations) {
+        const existing = issueFileMap.get(loc.file);
+        if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+          issueFileMap.set(loc.file, issue.severity);
+        }
+      }
+    }
+
+    renderIssues();
+    updateStatus();
+    // Re-render current view with new data
+    if (currentView === 'files') {
+      renderTreemap();
+    } else if (currentView === 'functions') {
+      renderFunctionTreemap();
+    }
   }
 });
 `;

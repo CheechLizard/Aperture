@@ -98,7 +98,6 @@ function renderItemHtml(item) {
 }
 
 function renderGroupHtml(group, gIdx) {
-  const isRuleActive = activeRules.has(group.ruleId);
   const allFiles = group.items.flatMap(item => item.locations.map(loc => loc.file));
   const itemsHtml = group.items.map(renderItemHtml).join('');
 
@@ -106,8 +105,8 @@ function renderGroupHtml(group, gIdx) {
     '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-type="' + group.ruleId + '">' +
     '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
     '<span class="pattern-title">' + formatRuleId(group.ruleId) + '</span>' +
-    '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
-    '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
+    '<span class="pattern-count">' + group.items.length + '</span>' +
+    '</div>' +
     '<div class="pattern-items">' + itemsHtml + '</div></div>';
 }
 
@@ -138,7 +137,11 @@ function renderIssues() {
   const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
 
   if (activeIssues.length === 0 && ignoredIssues.length === 0) {
-    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
+    // If no coding-standards.md, show nothing (Create button is in status bar)
+    // If file exists but no issues, show "No issues detected"
+    list.innerHTML = codingStandardsExists
+      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>'
+      : '';
     return;
   }
 
@@ -156,7 +159,6 @@ function renderIssues() {
   setupCategoryHandlers(list);
   setupChevronHandlers(list);
   setupHeaderHandlers(list);
-  setupRulesToggleHandlers(list);
   setupItemHandlers(list);
   setupIgnoreHandlers(list);
   setupIgnoredSectionHandlers(list);

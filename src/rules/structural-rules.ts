@@ -1,4 +1,4 @@
-import { FileInfo, CatchBlockInfo, Issue, Severity } from '../types';
+import { FileInfo, CatchBlockInfo, Issue, Severity, RuleThresholds } from '../types';
 import {
   FUNCTION_LOC_WARNING,
   FUNCTION_LOC_ERROR,
@@ -8,25 +8,27 @@ import {
 } from './rule-constants';
 import { createUriFromPathAndLine } from '../uri';
 
-export function detectLongFunctions(file: FileInfo): Issue[] {
+export function detectLongFunctions(file: FileInfo, thresholds?: RuleThresholds): Issue[] {
+  const warnLimit = thresholds?.functionLocWarning ?? FUNCTION_LOC_WARNING;
+  const errorLimit = thresholds?.functionLocError ?? FUNCTION_LOC_ERROR;
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
-    if (func.loc > FUNCTION_LOC_ERROR) {
+    if (func.loc > errorLimit) {
       issues.push({
         ruleId: 'long-function',
         severity: 'high',
         category: 'structural',
-        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
+        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${errorLimit} line limit)`,
         locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name,
       });
-    } else if (func.loc > FUNCTION_LOC_WARNING) {
+    } else if (func.loc > warnLimit) {
       issues.push({
         ruleId: 'long-function',
         severity: 'medium',
         category: 'structural',
-        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
+        message: `Function '${func.name}' has ${func.loc} lines (exceeds ${warnLimit} line recommendation)`,
         locations: [{ uri: func.uri, file: file.path, line: func.startLine, endLine: func.endLine }],
         symbol: func.name,
       });
@@ -36,29 +38,31 @@ export function detectLongFunctions(file: FileInfo): Issue[] {
   return issues;
 }
 
-export function detectLongFile(file: FileInfo): Issue | null {
-  if (file.loc > FILE_LOC_WARNING) {
+export function detectLongFile(file: FileInfo, thresholds?: RuleThresholds): Issue | null {
+  const limit = thresholds?.fileLocWarning ?? FILE_LOC_WARNING;
+  if (file.loc > limit) {
     return {
       ruleId: 'long-file',
       severity: 'medium',
       category: 'structural',
-      message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
+      message: `File has ${file.loc} lines (exceeds ${limit} line recommendation)`,
       locations: [{ uri: file.uri, file: file.path }],
     };
   }
   return null;
 }
 
-export function detectDeepNesting(file: FileInfo): Issue[] {
+export function detectDeepNesting(file: FileInfo, thresholds?: RuleThresholds): Issue[] {
+  const limit = thresholds?.maxNestingDepth ?? MAX_NESTING_DEPTH;
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
-    if (func.maxNestingDepth > MAX_NESTING_DEPTH) {
+    if (func.maxNestingDepth > limit) {
       issues.push({
         ruleId: 'deep-nesting',
         severity: 'medium',
         category: 'structural',
-        message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
+        message: `Function '${func.name}' has nesting depth ${func.maxNestingDepth} (exceeds ${limit})`,
         locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });
@@ -89,16 +93,17 @@ export function detectSilentFailures(
   return issues;
 }
 
-export function detectTooManyParameters(file: FileInfo): Issue[] {
+export function detectTooManyParameters(file: FileInfo, thresholds?: RuleThresholds): Issue[] {
+  const limit = thresholds?.maxParameterCount ?? MAX_PARAMETER_COUNT;
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
-    if (func.parameterCount > MAX_PARAMETER_COUNT) {
+    if (func.parameterCount > limit) {
       issues.push({
         ruleId: 'too-many-parameters',
         severity: 'medium',
         category: 'structural',
-        message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
+        message: `Function '${func.name}' has ${func.parameterCount} parameters (exceeds ${limit})`,
         locations: [{ uri: func.uri, file: file.path, line: func.startLine }],
         symbol: func.name,
       });

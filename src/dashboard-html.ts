@@ -1,4 +1,5 @@
-import { ProjectData, Issue } from './types';
+import { ProjectData, Issue, RuleParseResult } from './types';
+import { getEmptyParseResult } from './coding-standards-parser';
 import { DASHBOARD_STYLES } from './webview/styles';
 import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_NAV_SCRIPT } from './webview/treemap-nav';
@@ -51,7 +52,12 @@ export function getErrorContent(message: string): string {
 </html>`;
 }
 
-export function getDashboardContent(data: ProjectData, architectureIssues: Issue[]): string {
+export function getDashboardContent(
+  data: ProjectData,
+  architectureIssues: Issue[],
+  ruleResult: RuleParseResult | null = null,
+  codingStandardsExists: boolean = false
+): string {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
@@ -61,6 +67,10 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
   const codeIssues: Issue[] = data.files.flatMap(f => f.issues || []);
   const allIssues: Issue[] = [...architectureIssues, ...codeIssues];
   const issuesJson = JSON.stringify(allIssues);
+
+  // Rule management data
+  const effectiveRuleResult = ruleResult || getEmptyParseResult();
+  const ruleResultJson = JSON.stringify(effectiveRuleResult);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -135,10 +145,12 @@ export function getDashboardContent(data: ProjectData, architectureIssues: Issue
 
 <script>
 const vscode = acquireVsCodeApi();
-const files = ${filesJson};
+let files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
-const issues = ${issuesJson};
+let issues = ${issuesJson};
+let ruleResult = ${ruleResultJson};
+let codingStandardsExists = ${codingStandardsExists};
 
 let currentView = 'treemap';
 let depGraph = null;

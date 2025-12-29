@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
-import { ProjectData, FileInfo, LanguageSummary, LanguageSupport } from './types';
+import { ProjectData, FileInfo, LanguageSummary, LanguageSupport, RuleThresholds } from './types';
 import { getLanguage } from './language-map';
 import { parseClaudeMd } from './rules-parser';
 import { parseAll } from './ast-parser';
 import { detectCodeIssues } from './file-issue-detector';
 import { createFileUri, createSymbolUri } from './uri';
 
-export async function scanWorkspace(): Promise<ProjectData> {
+export async function scanWorkspace(
+  detectIssues: boolean = true,
+  thresholds?: RuleThresholds
+): Promise<ProjectData> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     throw new Error('No workspace folder open');
@@ -14,7 +17,7 @@ export async function scanWorkspace(): Promise<ProjectData> {
 
   const root = workspaceFolder.uri.fsPath;
   const [files, rules] = await Promise.all([
-    scanFiles(workspaceFolder.uri),
+    scanFiles(workspaceFolder.uri, detectIssues, thresholds),
     parseClaudeMd(root),
   ]);
   const languages = aggregateLanguages(files);
@@ -37,14 +40,18 @@ export async function scanWorkspace(): Promise<ProjectData> {
   };
 }
 
-async function scanFiles(workspaceUri: vscode.Uri): Promise<FileInfo[]> {
+async function scanFiles(
+  workspaceUri: vscode.Uri,
+  detectIssues: boolean,
+  thresholds?: RuleThresholds
+): Promise<FileInfo[]> {
   const excludePattern = '**/node_modules/**';
   const uris = await vscode.workspace.findFiles('**/*', excludePattern);
 
   const files: FileInfo[] = [];
 
   for (const uri of uris) {
-    const fileInfo = await scanFile(uri, workspaceUri);
+    const fileInfo = await scanFile(uri, workspaceUri, detectIssues, thresholds);
     if (fileInfo) {
       files.push(fileInfo);
     }
@@ -55,7 +62,9 @@ async function scanFiles(workspaceUri: vscode.Uri): Promise<FileInfo[]> {
 
 async function scanFile(
   uri: vscode.Uri,
-  workspaceUri: vscode.Uri
+  workspaceUri: vscode.Uri,
+  detectIssuesFlag: boolean,
+  thresholds?: RuleThresholds
 ): Promise<FileInfo | null> {
   try {
     const stat = await vscode.workspace.fs.stat(uri);
@@ -90,10 +99,12 @@ async function scanFile(
       parseStatus: astResult.status,
     };
 
-    // Detect issues for this file
-    const issues = detectCodeIssues(fileInfo, astResult, text);
-    if (issues.length > 0) {
-      fileInfo.issues = issues;
+    // Detect issues for this file (only if rules file exists)
+    if (detectIssuesFlag) {
+      const issues = detectCodeIssues(fileInfo, astResult, text, thresholds);
+      if (issues.length > 0) {
+        fileInfo.issues = issues;
+      }
     }
 
     return fileInfo;

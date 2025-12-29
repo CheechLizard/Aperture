@@ -9,12 +9,13 @@ import {
 } from './rule-constants';
 import { createUriFromPathAndLine } from '../uri';
 
-export function detectGenericNames(file: FileInfo): Issue[] {
+export function detectGenericNames(file: FileInfo, customBlocklist?: string[]): Issue[] {
+  const blocklist = customBlocklist ?? GENERIC_NAMES;
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
     const nameLower = func.name.toLowerCase();
-    if (GENERIC_NAMES.includes(nameLower)) {
+    if (blocklist.includes(nameLower)) {
       issues.push({
         ruleId: 'generic-name',
         severity: 'medium',

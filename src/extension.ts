@@ -4,10 +4,15 @@ import { languageRegistry } from './language-registry';
 import { initializeParser } from './ast-parser';
 import { TypeScriptHandler } from './language-handlers/typescript-handler';
 import { LuaHandler } from './language-handlers/lua-handler';
-import { openDashboard, setParserInitPromise } from './dashboard-panel';
+import { openDashboard, setParserInitPromise, setExtensionPath } from './dashboard-panel';
+import { setBundledDefaultsPath } from './coding-standards-watcher';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Aperture extension is now active');
+
+  // Set extension path for reading bundled defaults
+  setExtensionPath(context.extensionPath);
+  setBundledDefaultsPath(context.extensionPath);
 
   // Register language handlers
   languageRegistry.register(new TypeScriptHandler());

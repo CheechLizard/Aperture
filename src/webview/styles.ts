@@ -248,4 +248,24 @@ export const DASHBOARD_STYLES = `
     .files-flyout-remove { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0; }
     .files-flyout-item:hover .files-flyout-remove { opacity: 1; }
     .files-flyout-remove:hover { background: rgba(255,255,255,0.1); color: var(--vscode-errorForeground); }
+
+    /* Rule Status Header */
+    .rule-status-missing { color: var(--vscode-descriptionForeground); }
+    .rule-status-new { color: var(--vscode-notificationsInfoIcon-foreground, #3794ff); cursor: pointer; text-decoration: underline; }
+    .rule-status-new:hover { opacity: 0.8; }
+    .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
+    .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 3px 8px; margin-left: 8px; font-size: 0.85em; cursor: pointer; }
+    .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+
+    /* New Rules Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; width: 90%; max-width: 500px; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--vscode-widget-border); }
+    .modal-header h3 { margin: 0; font-size: 1em; }
+    .modal-close { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 3px; line-height: 1; }
+    .modal-close:hover { background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); }
+    .modal-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .modal-desc { margin: 0 0 16px 0; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, #3794ff); }
+    .new-rule-text { font-size: 0.9em; line-height: 1.4; }
 `;

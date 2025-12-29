@@ -778,14 +778,14 @@ var require_url_state_machine = __commonJS({
       return url.replace(/\u0009|\u000A|\u000D/g, "");
     }
     function shortenPath(url) {
-      const path13 = url.path;
-      if (path13.length === 0) {
+      const path14 = url.path;
+      if (path14.length === 0) {
         return;
       }
-      if (url.scheme === "file" && path13.length === 1 && isNormalizedWindowsDriveLetter(path13[0])) {
+      if (url.scheme === "file" && path14.length === 1 && isNormalizedWindowsDriveLetter(path14[0])) {
         return;
       }
-      path13.pop();
+      path14.pop();
     }
     function includesCredentials(url) {
       return url.username !== "" || url.password !== "";
@@ -6384,14 +6384,14 @@ __export(fileFromPath_exports, {
   fileFromPathSync: () => fileFromPathSync,
   isFile: () => isFile
 });
-function createFileFromPath(path13, { mtimeMs, size }, filenameOrOptions, options = {}) {
+function createFileFromPath(path14, { mtimeMs, size }, filenameOrOptions, options = {}) {
   let filename;
   if (isPlainObject_default2(filenameOrOptions)) {
     [options, filename] = [filenameOrOptions, void 0];
   } else {
     filename = filenameOrOptions;
   }
-  const file = new FileFromPath({ path: path13, size, lastModified: mtimeMs });
+  const file = new FileFromPath({ path: path14, size, lastModified: mtimeMs });
   if (!filename) {
     filename = file.name;
   }
@@ -6400,13 +6400,13 @@ function createFileFromPath(path13, { mtimeMs, size }, filenameOrOptions, option
     lastModified: file.lastModified
   });
 }
-function fileFromPathSync(path13, filenameOrOptions, options = {}) {
-  const stats = (0, import_fs.statSync)(path13);
-  return createFileFromPath(path13, stats, filenameOrOptions, options);
+function fileFromPathSync(path14, filenameOrOptions, options = {}) {
+  const stats = (0, import_fs.statSync)(path14);
+  return createFileFromPath(path14, stats, filenameOrOptions, options);
 }
-async function fileFromPath2(path13, filenameOrOptions, options) {
-  const stats = await import_fs.promises.stat(path13);
-  return createFileFromPath(path13, stats, filenameOrOptions, options);
+async function fileFromPath2(path14, filenameOrOptions, options) {
+  const stats = await import_fs.promises.stat(path14);
+  return createFileFromPath(path14, stats, filenameOrOptions, options);
 }
 var import_fs, import_path, import_node_domexception, __classPrivateFieldSet4, __classPrivateFieldGet5, _FileFromPath_path, _FileFromPath_start, MESSAGE, FileFromPath;
 var init_fileFromPath = __esm({
@@ -6475,8 +6475,8 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 init_esbuild_shim();
-var vscode6 = __toESM(require("vscode"));
-var path12 = __toESM(require("path"));
+var vscode7 = __toESM(require("vscode"));
+var path13 = __toESM(require("path"));
 
 // src/language-registry.ts
 init_esbuild_shim();
@@ -8044,11 +8044,11 @@ async function Module2(moduleArg = {}) {
   }, "quit_");
   var _scriptName = importMetaUrl;
   var scriptDirectory = "";
-  function locateFile(path13) {
+  function locateFile(path14) {
     if (Module["locateFile"]) {
-      return Module["locateFile"](path13, scriptDirectory);
+      return Module["locateFile"](path14, scriptDirectory);
     }
-    return scriptDirectory + path13;
+    return scriptDirectory + path14;
   }
   __name(locateFile, "locateFile");
   var readAsync, readBinary;
@@ -11107,9 +11107,9 @@ var LuaHandler = class extends BaseLanguageHandler {
 
 // src/dashboard-panel.ts
 init_esbuild_shim();
-var vscode5 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 var fs6 = __toESM(require("fs"));
-var path11 = __toESM(require("path"));
+var path12 = __toESM(require("path"));
 
 // src/scanner.ts
 init_esbuild_shim();
@@ -11469,23 +11469,23 @@ init_esbuild_shim();
 // src/uri-builders.ts
 init_esbuild_shim();
 var URI_SCHEME = "file://";
-function normalizePath(path13) {
-  return path13.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+function normalizePath(path14) {
+  return path14.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
-function createFileUri(path13) {
-  return `${URI_SCHEME}/${normalizePath(path13)}`;
+function createFileUri(path14) {
+  return `${URI_SCHEME}/${normalizePath(path14)}`;
 }
-function createSymbolUri(path13, symbolName) {
-  return `${URI_SCHEME}/${normalizePath(path13)}#${symbolName}`;
+function createSymbolUri(path14, symbolName) {
+  return `${URI_SCHEME}/${normalizePath(path14)}#${symbolName}`;
 }
-function createUriFromPathAndLine(path13, symbolName, line) {
+function createUriFromPathAndLine(path14, symbolName, line) {
   if (symbolName) {
-    return createSymbolUri(path13, symbolName);
+    return createSymbolUri(path14, symbolName);
   }
   if (line !== void 0) {
-    return `${URI_SCHEME}/${normalizePath(path13)}#L${line}`;
+    return `${URI_SCHEME}/${normalizePath(path14)}#L${line}`;
   }
-  return createFileUri(path13);
+  return createFileUri(path14);
 }
 
 // src/uri.ts
@@ -11536,24 +11536,26 @@ function getLineFromUri(uri) {
 }
 
 // src/rules/structural-rules.ts
-function detectLongFunctions(file) {
+function detectLongFunctions(file, thresholds) {
+  const warnLimit = thresholds?.functionLocWarning ?? FUNCTION_LOC_WARNING;
+  const errorLimit = thresholds?.functionLocError ?? FUNCTION_LOC_ERROR;
   const issues = [];
   for (const func2 of file.functions) {
-    if (func2.loc > FUNCTION_LOC_ERROR) {
+    if (func2.loc > errorLimit) {
       issues.push({
         ruleId: "long-function",
         severity: "high",
         category: "structural",
-        message: `Function '${func2.name}' has ${func2.loc} lines (exceeds ${FUNCTION_LOC_ERROR} line limit)`,
+        message: `Function '${func2.name}' has ${func2.loc} lines (exceeds ${errorLimit} line limit)`,
         locations: [{ uri: func2.uri, file: file.path, line: func2.startLine, endLine: func2.endLine }],
         symbol: func2.name
       });
-    } else if (func2.loc > FUNCTION_LOC_WARNING) {
+    } else if (func2.loc > warnLimit) {
       issues.push({
         ruleId: "long-function",
         severity: "medium",
         category: "structural",
-        message: `Function '${func2.name}' has ${func2.loc} lines (exceeds ${FUNCTION_LOC_WARNING} line recommendation)`,
+        message: `Function '${func2.name}' has ${func2.loc} lines (exceeds ${warnLimit} line recommendation)`,
         locations: [{ uri: func2.uri, file: file.path, line: func2.startLine, endLine: func2.endLine }],
         symbol: func2.name
       });
@@ -11561,27 +11563,29 @@ function detectLongFunctions(file) {
   }
   return issues;
 }
-function detectLongFile(file) {
-  if (file.loc > FILE_LOC_WARNING) {
+function detectLongFile(file, thresholds) {
+  const limit = thresholds?.fileLocWarning ?? FILE_LOC_WARNING;
+  if (file.loc > limit) {
     return {
       ruleId: "long-file",
       severity: "medium",
       category: "structural",
-      message: `File has ${file.loc} lines (exceeds ${FILE_LOC_WARNING} line recommendation)`,
+      message: `File has ${file.loc} lines (exceeds ${limit} line recommendation)`,
       locations: [{ uri: file.uri, file: file.path }]
     };
   }
   return null;
 }
-function detectDeepNesting(file) {
+function detectDeepNesting(file, thresholds) {
+  const limit = thresholds?.maxNestingDepth ?? MAX_NESTING_DEPTH;
   const issues = [];
   for (const func2 of file.functions) {
-    if (func2.maxNestingDepth > MAX_NESTING_DEPTH) {
+    if (func2.maxNestingDepth > limit) {
       issues.push({
         ruleId: "deep-nesting",
         severity: "medium",
         category: "structural",
-        message: `Function '${func2.name}' has nesting depth ${func2.maxNestingDepth} (exceeds ${MAX_NESTING_DEPTH})`,
+        message: `Function '${func2.name}' has nesting depth ${func2.maxNestingDepth} (exceeds ${limit})`,
         locations: [{ uri: func2.uri, file: file.path, line: func2.startLine }],
         symbol: func2.name
       });
@@ -11604,15 +11608,16 @@ function detectSilentFailures(file, catchBlocks) {
   }
   return issues;
 }
-function detectTooManyParameters(file) {
+function detectTooManyParameters(file, thresholds) {
+  const limit = thresholds?.maxParameterCount ?? MAX_PARAMETER_COUNT;
   const issues = [];
   for (const func2 of file.functions) {
-    if (func2.parameterCount > MAX_PARAMETER_COUNT) {
+    if (func2.parameterCount > limit) {
       issues.push({
         ruleId: "too-many-parameters",
         severity: "medium",
         category: "structural",
-        message: `Function '${func2.name}' has ${func2.parameterCount} parameters (exceeds ${MAX_PARAMETER_COUNT})`,
+        message: `Function '${func2.name}' has ${func2.parameterCount} parameters (exceeds ${limit})`,
         locations: [{ uri: func2.uri, file: file.path, line: func2.startLine }],
         symbol: func2.name
       });
@@ -11623,11 +11628,12 @@ function detectTooManyParameters(file) {
 
 // src/rules/naming-rules.ts
 init_esbuild_shim();
-function detectGenericNames(file) {
+function detectGenericNames(file, customBlocklist) {
+  const blocklist = customBlocklist ?? GENERIC_NAMES;
   const issues = [];
   for (const func2 of file.functions) {
     const nameLower = func2.name.toLowerCase();
-    if (GENERIC_NAMES.includes(nameLower)) {
+    if (blocklist.includes(nameLower)) {
       issues.push({
         ruleId: "generic-name",
         severity: "medium",
@@ -11878,15 +11884,15 @@ function countKeywordMatches(content, keywords) {
 }
 
 // src/file-issue-detector.ts
-function detectCodeIssues(file, astResult, content) {
+function detectCodeIssues(file, astResult, content, thresholds) {
   const issues = [];
-  issues.push(...detectLongFunctions(file));
-  const longFile = detectLongFile(file);
+  issues.push(...detectLongFunctions(file, thresholds));
+  const longFile = detectLongFile(file, thresholds);
   if (longFile) issues.push(longFile);
-  issues.push(...detectDeepNesting(file));
+  issues.push(...detectDeepNesting(file, thresholds));
   issues.push(...detectSilentFailures(file, astResult.catchBlocks));
-  issues.push(...detectTooManyParameters(file));
-  issues.push(...detectGenericNames(file));
+  issues.push(...detectTooManyParameters(file, thresholds));
+  issues.push(...detectGenericNames(file, thresholds?.genericNames));
   issues.push(...detectNonVerbFunctions(file));
   issues.push(...detectNonQuestionBooleans(file));
   issues.push(...detectMagicNumbers(file, astResult.literals));
@@ -11899,14 +11905,14 @@ function detectCodeIssues(file, astResult, content) {
 }
 
 // src/scanner.ts
-async function scanWorkspace() {
+async function scanWorkspace(detectIssues = true, thresholds) {
   const workspaceFolder = vscode2.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     throw new Error("No workspace folder open");
   }
   const root = workspaceFolder.uri.fsPath;
   const [files, rules] = await Promise.all([
-    scanFiles(workspaceFolder.uri),
+    scanFiles(workspaceFolder.uri, detectIssues, thresholds),
     parseClaudeMd(root)
   ]);
   const languages = aggregateLanguages(files);
@@ -11927,19 +11933,19 @@ async function scanWorkspace() {
     }
   };
 }
-async function scanFiles(workspaceUri) {
+async function scanFiles(workspaceUri, detectIssues, thresholds) {
   const excludePattern = "**/node_modules/**";
   const uris = await vscode2.workspace.findFiles("**/*", excludePattern);
   const files = [];
   for (const uri of uris) {
-    const fileInfo = await scanFile(uri, workspaceUri);
+    const fileInfo = await scanFile(uri, workspaceUri, detectIssues, thresholds);
     if (fileInfo) {
       files.push(fileInfo);
     }
   }
   return files.sort((a2, b2) => b2.loc - a2.loc);
 }
-async function scanFile(uri, workspaceUri) {
+async function scanFile(uri, workspaceUri, detectIssuesFlag, thresholds) {
   try {
     const stat = await vscode2.workspace.fs.stat(uri);
     if (stat.type !== vscode2.FileType.File) {
@@ -11964,9 +11970,11 @@ async function scanFile(uri, workspaceUri) {
       imports: astResult.imports,
       parseStatus: astResult.status
     };
-    const issues = detectCodeIssues(fileInfo, astResult, text);
-    if (issues.length > 0) {
-      fileInfo.issues = issues;
+    if (detectIssuesFlag) {
+      const issues = detectCodeIssues(fileInfo, astResult, text, thresholds);
+      if (issues.length > 0) {
+        fileInfo.issues = issues;
+      }
     }
     return fileInfo;
   } catch {
@@ -12437,13 +12445,13 @@ var MultipartBody = class {
 // node_modules/@anthropic-ai/sdk/_shims/node-runtime.mjs
 var import_web = require("node:stream/web");
 var fileFromPathWarned = false;
-async function fileFromPath3(path13, ...args2) {
+async function fileFromPath3(path14, ...args2) {
   const { fileFromPath: _fileFromPath } = await Promise.resolve().then(() => (init_fileFromPath(), fileFromPath_exports));
   if (!fileFromPathWarned) {
-    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path13)}) instead`);
+    console.warn(`fileFromPath is deprecated; use fs.createReadStream(${JSON.stringify(path14)}) instead`);
     fileFromPathWarned = true;
   }
-  return await _fileFromPath(path13, ...args2);
+  return await _fileFromPath(path14, ...args2);
 }
 var defaultHttpAgent = new import_agentkeepalive.default({ keepAlive: true, timeout: 5 * 60 * 1e3 });
 var defaultHttpsAgent = new import_agentkeepalive.default.HttpsAgent({ keepAlive: true, timeout: 5 * 60 * 1e3 });
@@ -13165,29 +13173,29 @@ var APIClient = class {
   defaultIdempotencyKey() {
     return `stainless-node-retry-${uuid4()}`;
   }
-  get(path13, opts) {
-    return this.methodRequest("get", path13, opts);
+  get(path14, opts) {
+    return this.methodRequest("get", path14, opts);
   }
-  post(path13, opts) {
-    return this.methodRequest("post", path13, opts);
+  post(path14, opts) {
+    return this.methodRequest("post", path14, opts);
   }
-  patch(path13, opts) {
-    return this.methodRequest("patch", path13, opts);
+  patch(path14, opts) {
+    return this.methodRequest("patch", path14, opts);
   }
-  put(path13, opts) {
-    return this.methodRequest("put", path13, opts);
+  put(path14, opts) {
+    return this.methodRequest("put", path14, opts);
   }
-  delete(path13, opts) {
-    return this.methodRequest("delete", path13, opts);
+  delete(path14, opts) {
+    return this.methodRequest("delete", path14, opts);
   }
-  methodRequest(method, path13, opts) {
+  methodRequest(method, path14, opts) {
     return this.request(Promise.resolve(opts).then(async (opts2) => {
       const body2 = opts2 && isBlobLike(opts2?.body) ? new DataView(await opts2.body.arrayBuffer()) : opts2?.body instanceof DataView ? opts2.body : opts2?.body instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2?.body) ? new DataView(opts2.body.buffer) : opts2?.body;
-      return { method, path: path13, ...opts2, body: body2 };
+      return { method, path: path14, ...opts2, body: body2 };
     }));
   }
-  getAPIList(path13, Page2, opts) {
-    return this.requestAPIList(Page2, { method: "get", path: path13, ...opts });
+  getAPIList(path14, Page2, opts) {
+    return this.requestAPIList(Page2, { method: "get", path: path14, ...opts });
   }
   calculateContentLength(body2) {
     if (typeof body2 === "string") {
@@ -13205,10 +13213,10 @@ var APIClient = class {
     return null;
   }
   buildRequest(options, { retryCount = 0 } = {}) {
-    const { method, path: path13, query, headers = {} } = options;
+    const { method, path: path14, query, headers = {} } = options;
     const body2 = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
     const contentLength = this.calculateContentLength(body2);
-    const url = this.buildURL(path13, query);
+    const url = this.buildURL(path14, query);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     const timeout = options.timeout ?? this.timeout;
@@ -13321,8 +13329,8 @@ var APIClient = class {
     const request = this.makeRequest(options, null);
     return new PagePromise(this, request, Page2);
   }
-  buildURL(path13, query) {
-    const url = isAbsoluteURL(path13) ? new URL(path13) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path13.startsWith("/") ? path13.slice(1) : path13));
+  buildURL(path14, query) {
+    const url = isAbsoluteURL(path14) ? new URL(path14) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path14.startsWith("/") ? path14.slice(1) : path14));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -15895,6 +15903,233 @@ async function removeAntiPatternRule(rootPath, patternType) {
 // src/dashboard-html.ts
 init_esbuild_shim();
 
+// src/coding-standards-parser.ts
+init_esbuild_shim();
+var RULE_MATCHERS = [
+  {
+    pattern: /functions?\s+should\s+not\s+exceed\s+(\d+)\s+lines?/i,
+    ruleId: "long-function",
+    extract: (match, text) => {
+      const dualThresholds = extractDualThresholds(text, "lines");
+      if (dualThresholds.length > 1) {
+        return { thresholds: dualThresholds };
+      }
+      return { threshold: extractThreshold(match[1], "lines", text) };
+    }
+  },
+  {
+    pattern: /files?\s+should\s+not\s+exceed\s+(\d+)\s+lines?/i,
+    ruleId: "long-file",
+    extract: (match, text) => ({
+      threshold: extractThreshold(match[1], "lines", text)
+    })
+  },
+  {
+    pattern: /nesting\s+(?:depth\s+)?(?:beyond|exceed(?:ing)?)\s+(\d+)\s+levels?/i,
+    ruleId: "deep-nesting",
+    extract: (match, text) => ({
+      threshold: extractThreshold(match[1], "levels", text)
+    })
+  },
+  {
+    pattern: /(?:more\s+than|exceed(?:ing)?)\s+(\d+)\s+parameters?/i,
+    ruleId: "too-many-parameters",
+    extract: (match, text) => ({
+      threshold: extractThreshold(match[1], "parameters", text)
+    })
+  },
+  {
+    pattern: /avoid\s+generic\s+names?[:\s]+(.+)/i,
+    ruleId: "generic-name",
+    extract: (match) => ({
+      blocklist: parseBlocklist(match[1])
+    })
+  },
+  {
+    pattern: /avoid\s+(?:generic\s+)?names?[:\s]*(data|result|temp)/i,
+    ruleId: "generic-name"
+  },
+  {
+    pattern: /boolean.*(?:should\s+be|named\s+as)\s+questions?/i,
+    ruleId: "non-question-boolean",
+    extract: (_2, text) => ({
+      pattern: extractBooleanPrefixes(text)
+    })
+  },
+  {
+    pattern: /(?:is|has|can|should|will)\*/i,
+    ruleId: "non-question-boolean"
+  },
+  {
+    pattern: /functions?\s+should\s+(?:start\s+with\s+)?(?:a\s+)?verb/i,
+    ruleId: "non-verb-function"
+  },
+  {
+    pattern: /(?:empty|silent)\s+(?:catch|except|failure)/i,
+    ruleId: "silent-failure"
+  },
+  {
+    pattern: /never\s+(?:use\s+)?empty\s+catch/i,
+    ruleId: "silent-failure"
+  },
+  {
+    pattern: /(?:remove|delete|avoid)\s+commented[\s-]?out\s+code/i,
+    ruleId: "commented-code"
+  },
+  {
+    pattern: /comments?\s+should\s+explain\s+why/i,
+    ruleId: "high-comment-density"
+  },
+  {
+    pattern: /circular\s+dependenc/i,
+    ruleId: "circular-dependency"
+  },
+  {
+    pattern: /orphan\s+files?|no\s+(?:imports?\s+or\s+)?dependents?/i,
+    ruleId: "orphan-file"
+  }
+];
+var SUPPORTED_DETECTORS = /* @__PURE__ */ new Set([
+  "long-function",
+  "long-file",
+  "deep-nesting",
+  "too-many-parameters",
+  "generic-name",
+  "non-question-boolean",
+  "non-verb-function",
+  "silent-failure",
+  "commented-code",
+  "high-comment-density",
+  "circular-dependency",
+  "hub-file",
+  "orphan-file",
+  "magic-number",
+  "mixed-concerns"
+]);
+function extractThreshold(value, unit, text) {
+  const severity = /\(error\)/i.test(text) ? "error" : /\(warning\)/i.test(text) ? "warning" : void 0;
+  return { value: parseInt(value, 10), unit, severity };
+}
+function extractDualThresholds(text, unit) {
+  const thresholds = [];
+  const pattern = /(\d+)\s*lines?\s*\((warning|error)\)/gi;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    thresholds.push({
+      value: parseInt(match[1], 10),
+      unit,
+      severity: match[2].toLowerCase()
+    });
+  }
+  return thresholds;
+}
+function parseBlocklist(text) {
+  return text.split(/[,;]/).map((s2) => s2.trim().toLowerCase()).filter((s2) => s2.length > 0 && !s2.includes(" "));
+}
+function extractBooleanPrefixes(text) {
+  const match = text.match(/(is|has|can|should|will)\*/gi);
+  return match ? match.join(", ") : "is*, has*, can*, should*, will*";
+}
+function extractBulletPoints(content) {
+  const lines = content.split("\n");
+  const bullets = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      bullets.push(trimmed.slice(2).trim());
+    }
+  }
+  return bullets;
+}
+function parseRule(rawText, index) {
+  const id = `rule-${index}`;
+  for (const matcher of RULE_MATCHERS) {
+    const match = rawText.match(matcher.pattern);
+    if (match) {
+      const extras = matcher.extract ? matcher.extract(match, rawText) : {};
+      const isSupported = SUPPORTED_DETECTORS.has(matcher.ruleId);
+      return {
+        id,
+        rawText,
+        status: isSupported ? "active" : "unsupported",
+        ruleId: matcher.ruleId,
+        ...extras
+      };
+    }
+  }
+  return {
+    id,
+    rawText,
+    status: "new"
+  };
+}
+function parseCodingStandards(content) {
+  const bullets = extractBulletPoints(content);
+  const rules = bullets.map((text, i3) => parseRule(text, i3));
+  return {
+    rules,
+    activeCount: rules.filter((r2) => r2.status === "active").length,
+    newCount: rules.filter((r2) => r2.status === "new").length,
+    unsupportedCount: rules.filter((r2) => r2.status === "unsupported").length
+  };
+}
+function getEmptyParseResult() {
+  return {
+    rules: [],
+    activeCount: 0,
+    newCount: 0,
+    unsupportedCount: 0
+  };
+}
+function extractThresholds(rules) {
+  const thresholds = {
+    functionLocWarning: FUNCTION_LOC_WARNING,
+    functionLocError: FUNCTION_LOC_ERROR,
+    fileLocWarning: FILE_LOC_WARNING,
+    maxNestingDepth: MAX_NESTING_DEPTH,
+    maxParameterCount: MAX_PARAMETER_COUNT,
+    genericNames: [...GENERIC_NAMES]
+  };
+  for (const rule of rules) {
+    if (!rule.ruleId) continue;
+    if (rule.thresholds && rule.thresholds.length > 0) {
+      for (const t2 of rule.thresholds) {
+        if (rule.ruleId === "long-function") {
+          if (t2.severity === "error") {
+            thresholds.functionLocError = t2.value;
+          } else if (t2.severity === "warning") {
+            thresholds.functionLocWarning = t2.value;
+          }
+        }
+      }
+      continue;
+    }
+    if (!rule.threshold) continue;
+    switch (rule.ruleId) {
+      case "long-function":
+        if (rule.threshold.severity === "error") {
+          thresholds.functionLocError = rule.threshold.value;
+        } else {
+          thresholds.functionLocWarning = rule.threshold.value;
+        }
+        break;
+      case "long-file":
+        thresholds.fileLocWarning = rule.threshold.value;
+        break;
+      case "deep-nesting":
+        thresholds.maxNestingDepth = rule.threshold.value;
+        break;
+      case "too-many-parameters":
+        thresholds.maxParameterCount = rule.threshold.value;
+        break;
+    }
+    if (rule.ruleId === "generic-name" && rule.blocklist) {
+      thresholds.genericNames = rule.blocklist;
+    }
+  }
+  return thresholds;
+}
+
 // src/webview/styles.ts
 init_esbuild_shim();
 var DASHBOARD_STYLES = `
@@ -16147,6 +16382,26 @@ var DASHBOARD_STYLES = `
     .files-flyout-remove { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0; }
     .files-flyout-item:hover .files-flyout-remove { opacity: 1; }
     .files-flyout-remove:hover { background: rgba(255,255,255,0.1); color: var(--vscode-errorForeground); }
+
+    /* Rule Status Header */
+    .rule-status-missing { color: var(--vscode-descriptionForeground); }
+    .rule-status-new { color: var(--vscode-notificationsInfoIcon-foreground, #3794ff); cursor: pointer; text-decoration: underline; }
+    .rule-status-new:hover { opacity: 0.8; }
+    .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
+    .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 3px 8px; margin-left: 8px; font-size: 0.85em; cursor: pointer; }
+    .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+
+    /* New Rules Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; width: 90%; max-width: 500px; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--vscode-widget-border); }
+    .modal-header h3 { margin: 0; font-size: 1em; }
+    .modal-close { background: none; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 3px; line-height: 1; }
+    .modal-close:hover { background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); }
+    .modal-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .modal-desc { margin: 0 0 16px 0; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, #3794ff); }
+    .new-rule-text { font-size: 0.9em; line-height: 1.4; }
 `;
 
 // src/webview/tooltip.ts
@@ -17085,7 +17340,6 @@ function renderItemHtml(item) {
 }
 
 function renderGroupHtml(group, gIdx) {
-  const isRuleActive = activeRules.has(group.ruleId);
   const allFiles = group.items.flatMap(item => item.locations.map(loc => loc.file));
   const itemsHtml = group.items.map(renderItemHtml).join('');
 
@@ -17093,8 +17347,8 @@ function renderGroupHtml(group, gIdx) {
     '<div class="pattern-header ' + group.severity + '" data-files="' + allFiles.join(',') + '" data-type="' + group.ruleId + '">' +
     '<span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
     '<span class="pattern-title">' + formatRuleId(group.ruleId) + '</span>' +
-    '<span class="pattern-count">' + group.items.length + '</span><span class="pattern-spacer"></span>' +
-    '<button class="pattern-rules-toggle' + (isRuleActive ? ' active' : '') + '" title="' + (isRuleActive ? 'Remove from' : 'Add to') + ' CLAUDE.md rules">' + (isRuleActive ? '- rule' : '+ rule') + '</button></div>' +
+    '<span class="pattern-count">' + group.items.length + '</span>' +
+    '</div>' +
     '<div class="pattern-items">' + itemsHtml + '</div></div>';
 }
 
@@ -17125,7 +17379,11 @@ function renderIssues() {
   const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
 
   if (activeIssues.length === 0 && ignoredIssues.length === 0) {
-    list.innerHTML = '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>';
+    // If no coding-standards.md, show nothing (Create button is in status bar)
+    // If file exists but no issues, show "No issues detected"
+    list.innerHTML = codingStandardsExists
+      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>'
+      : '';
     return;
   }
 
@@ -17143,7 +17401,6 @@ function renderIssues() {
   setupCategoryHandlers(list);
   setupChevronHandlers(list);
   setupHeaderHandlers(list);
-  setupRulesToggleHandlers(list);
   setupItemHandlers(list);
   setupIgnoreHandlers(list);
   setupIgnoredSectionHandlers(list);
@@ -17525,6 +17782,7 @@ nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
 renderIssues();
 renderFooterStats();
+updateStatus();
 
 // Trigger dependency analysis to detect architecture issues
 vscode.postMessage({ command: 'getDependencies' });
@@ -17560,13 +17818,70 @@ document.getElementById('status').addEventListener('click', () => {
 
 function updateStatus() {
   const statusBtn = document.getElementById('status');
-  const issueFiles = getAllIssueFiles();
 
-  if (issueFiles.length > 0) {
-    statusBtn.innerHTML = '<strong>' + issueFiles.length + ' files with issues</strong>';
-  } else {
-    statusBtn.innerHTML = '<span style="opacity:0.7">No issues detected</span>';
+  if (!codingStandardsExists) {
+    statusBtn.innerHTML = '<span class="rule-status-missing">No coding-standards.md</span> ' +
+      '<button class="rule-status-btn" onclick="createCodingStandards()">Create</button>';
+    return;
   }
+
+  let html = '<strong>' + ruleResult.activeCount + ' rules</strong>';
+
+  if (ruleResult.newCount > 0) {
+    html += ' \xB7 <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
+  }
+
+  if (ruleResult.unsupportedCount > 0) {
+    html += ' \xB7 <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
+  }
+
+  html += ' <button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
+  html += ' <button class="rule-status-btn" onclick="refreshData()" title="Refresh">\u21BB</button>';
+
+  statusBtn.innerHTML = html;
+}
+
+function editCodingStandards() {
+  vscode.postMessage({ command: 'editCodingStandards' });
+}
+
+function refreshData() {
+  vscode.postMessage({ command: 'refresh' });
+}
+
+function createCodingStandards() {
+  vscode.postMessage({ command: 'createCodingStandards' });
+}
+
+function showNewRulesModal() {
+  const newRules = ruleResult.rules.filter(r => r.status === 'new');
+  if (newRules.length === 0) return;
+
+  let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
+    '<div class="modal-content" onclick="event.stopPropagation()">' +
+    '<div class="modal-header"><h3>New Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">\xD7</button></div>' +
+    '<div class="modal-body">' +
+    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them.</p>';
+
+  for (const rule of newRules) {
+    html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';
+  }
+
+  html += '</div></div></div>';
+
+  let modal = document.getElementById('new-rules-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'new-rules-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = html;
+}
+
+function closeNewRulesModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('new-rules-modal');
+  if (modal) modal.innerHTML = '';
 }
 
 function renderFooterStats() {
@@ -17752,6 +18067,37 @@ window.addEventListener('message', event => {
   } else if (msg.type === 'tokenCount') {
     // Handle token count response for prompt costing
     handleTokenCount(msg.promptId, msg.tokens, msg.limit);
+  } else if (msg.type === 'rulesUpdated') {
+    // Handle rule changes from file watcher
+    ruleResult = msg.ruleResult;
+    codingStandardsExists = msg.fileExists;
+    updateStatus();
+  } else if (msg.type === 'dataUpdated') {
+    // Handle full data update (after creating coding-standards.md or refresh)
+    files = msg.files;
+    issues = msg.issues;
+    ruleResult = msg.ruleResult;
+    codingStandardsExists = msg.fileExists;
+
+    // Rebuild issueFileMap from new issues
+    issueFileMap.clear();
+    for (const issue of issues) {
+      for (const loc of issue.locations) {
+        const existing = issueFileMap.get(loc.file);
+        if (!existing || severityRank[issue.severity] < severityRank[existing]) {
+          issueFileMap.set(loc.file, issue.severity);
+        }
+      }
+    }
+
+    renderIssues();
+    updateStatus();
+    // Re-render current view with new data
+    if (currentView === 'files') {
+      renderTreemap();
+    } else if (currentView === 'functions') {
+      renderFunctionTreemap();
+    }
   }
 });
 `;
@@ -19887,7 +20233,7 @@ function getErrorContent(message) {
 <body><h1>Aperture Dashboard</h1><p class="error">Error: ${message}</p></body>
 </html>`;
 }
-function getDashboardContent(data, architectureIssues) {
+function getDashboardContent(data, architectureIssues, ruleResult = null, codingStandardsExists2 = false) {
   const filesJson = JSON.stringify(data.files);
   const rootPath = JSON.stringify(data.root);
   const rulesJson = JSON.stringify(data.rules);
@@ -19895,6 +20241,8 @@ function getDashboardContent(data, architectureIssues) {
   const codeIssues = data.files.flatMap((f2) => f2.issues || []);
   const allIssues = [...architectureIssues, ...codeIssues];
   const issuesJson = JSON.stringify(allIssues);
+  const effectiveRuleResult = ruleResult || getEmptyParseResult();
+  const ruleResultJson = JSON.stringify(effectiveRuleResult);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19968,10 +20316,12 @@ function getDashboardContent(data, architectureIssues) {
 
 <script>
 const vscode = acquireVsCodeApi();
-const files = ${filesJson};
+let files = ${filesJson};
 const rootPath = ${rootPath};
 const rules = ${rulesJson};
-const issues = ${issuesJson};
+let issues = ${issuesJson};
+let ruleResult = ${ruleResultJson};
+let codingStandardsExists = ${codingStandardsExists2};
 
 let currentView = 'treemap';
 let depGraph = null;
@@ -20055,19 +20405,70 @@ ${EVENT_HANDLERS_SCRIPT}
 </html>`;
 }
 
+// src/coding-standards-watcher.ts
+init_esbuild_shim();
+var vscode5 = __toESM(require("vscode"));
+var path11 = __toESM(require("path"));
+var CODING_STANDARDS_FILENAME = "coding-standards.md";
+var watcher = null;
+var currentCallback = null;
+var bundledDefaultsPath = "";
+function setBundledDefaultsPath(extPath) {
+  bundledDefaultsPath = path11.join(extPath, "dist", "defaults", "coding-standards.md");
+}
+async function loadCodingStandards(workspaceRoot) {
+  const filePath = vscode5.Uri.joinPath(vscode5.Uri.file(workspaceRoot), CODING_STANDARDS_FILENAME);
+  try {
+    const content = await vscode5.workspace.fs.readFile(filePath);
+    const text = new TextDecoder().decode(content);
+    return {
+      result: parseCodingStandards(text),
+      fileExists: true
+    };
+  } catch {
+    return {
+      result: getEmptyParseResult(),
+      fileExists: false
+    };
+  }
+}
+function startWatching(workspaceRoot, onChange) {
+  stopWatching();
+  currentCallback = onChange;
+  const pattern = new vscode5.RelativePattern(workspaceRoot, CODING_STANDARDS_FILENAME);
+  watcher = vscode5.workspace.createFileSystemWatcher(pattern);
+  const handleChange = async () => {
+    const { result, fileExists } = await loadCodingStandards(workspaceRoot);
+    currentCallback?.(result, fileExists);
+  };
+  watcher.onDidChange(handleChange);
+  watcher.onDidCreate(handleChange);
+  watcher.onDidDelete(handleChange);
+}
+function stopWatching() {
+  watcher?.dispose();
+  watcher = null;
+  currentCallback = null;
+}
+function getCodingStandardsPath(workspaceRoot) {
+  return vscode5.Uri.joinPath(vscode5.Uri.file(workspaceRoot), CODING_STANDARDS_FILENAME).fsPath;
+}
+
 // src/dashboard-panel.ts
 var currentData = null;
 var currentPanel = null;
 var parserInitPromise = null;
 var currentQueryController = null;
+var currentRuleResult = null;
+var codingStandardsExists = false;
 function setParserInitPromise(promise) {
   parserInitPromise = promise;
 }
 async function openDashboard(context) {
-  const panel = vscode5.window.createWebviewPanel(
+  const panel = vscode6.window.createWebviewPanel(
     "apertureDashboard",
     "Aperture Dashboard",
-    vscode5.ViewColumn.One,
+    vscode6.ViewColumn.One,
     { enableScripts: true, retainContextWhenHidden: true }
   );
   currentPanel = panel;
@@ -20079,22 +20480,22 @@ async function openDashboard(context) {
           let line = null;
           if (message.uri) {
             const relativePath = getFilePath(message.uri);
-            filePath = path11.join(currentData?.root || "", relativePath);
+            filePath = path12.join(currentData?.root || "", relativePath);
             line = getLineFromUri(message.uri) || message.line || null;
           } else {
             filePath = message.path;
             line = message.line || null;
           }
-          const uri = vscode5.Uri.file(filePath);
+          const uri = vscode6.Uri.file(filePath);
           const options = {};
           if (line && line > 0) {
             const lineIndex = Math.max(0, line - 1);
-            options.selection = new vscode5.Range(lineIndex, 0, lineIndex, 0);
+            options.selection = new vscode6.Range(lineIndex, 0, lineIndex, 0);
           }
-          await vscode5.commands.executeCommand("vscode.open", uri, options);
+          await vscode6.commands.executeCommand("vscode.open", uri, options);
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Unknown error";
-          vscode5.window.showErrorMessage(`Failed to open file: ${message.uri || message.path} - ${msg}`);
+          vscode6.window.showErrorMessage(`Failed to open file: ${message.uri || message.path} - ${msg}`);
         }
       } else if (message.command === "abortQuery") {
         if (currentQueryController) {
@@ -20111,7 +20512,7 @@ async function openDashboard(context) {
           const fileContents = {};
           if (message.context?.files) {
             for (const filePath of message.context.files) {
-              const fullPath = path11.join(currentData.root, filePath);
+              const fullPath = path12.join(currentData.root, filePath);
               try {
                 fileContents[filePath] = fs6.readFileSync(fullPath, "utf8");
               } catch {
@@ -20142,8 +20543,8 @@ async function openDashboard(context) {
         try {
           const graph = analyzeDependencies(currentData.files, currentData.root);
           const serializedGraph = {
-            nodes: Array.from(graph.nodes.entries()).map(([path13, node]) => ({
-              path: path13,
+            nodes: Array.from(graph.nodes.entries()).map(([path14, node]) => ({
+              path: path14,
               imports: node.imports,
               importedBy: node.importedBy,
               importDetails: node.importDetails
@@ -20161,10 +20562,33 @@ async function openDashboard(context) {
         await addAntiPatternRule(currentData?.root || "", message.patternType);
       } else if (message.command === "removeRule") {
         await removeAntiPatternRule(currentData?.root || "", message.patternType);
+      } else if (message.command === "editCodingStandards" && currentData) {
+        const filePath = getCodingStandardsPath(currentData.root);
+        const uri = vscode6.Uri.file(filePath);
+        await vscode6.commands.executeCommand("vscode.open", uri);
+      } else if (message.command === "createCodingStandards" && currentData) {
+        await createDefaultCodingStandards(currentData.root);
+        const { result, fileExists } = await loadCodingStandards(currentData.root);
+        currentRuleResult = result;
+        codingStandardsExists = fileExists;
+        const newThresholds = extractThresholds(result.rules);
+        currentData = await scanWorkspace(true, newThresholds);
+        const graph = analyzeDependencies(currentData.files, currentData.root);
+        const allIssues = [
+          ...currentData.files.flatMap((f2) => f2.issues || []),
+          ...graph.issues
+        ];
+        panel.webview.postMessage({
+          type: "dataUpdated",
+          files: currentData.files,
+          issues: allIssues,
+          ruleResult: currentRuleResult,
+          fileExists: codingStandardsExists
+        });
       } else if (message.command === "getCodePreview" && currentData) {
         try {
           const relativePath = getFilePath(message.uri);
-          const filePath = path11.join(currentData.root, relativePath);
+          const filePath = path12.join(currentData.root, relativePath);
           const startLine = message.startLine || 1;
           const endLine = message.endLine || startLine + 50;
           const content = fs6.readFileSync(filePath, "utf8");
@@ -20187,7 +20611,7 @@ async function openDashboard(context) {
         const fileContents = {};
         if (message.context?.files) {
           for (const filePath of message.context.files) {
-            const fullPath = path11.join(currentData.root, filePath);
+            const fullPath = path12.join(currentData.root, filePath);
             try {
               fileContents[filePath] = fs6.readFileSync(fullPath, "utf8");
             } catch {
@@ -20206,36 +20630,127 @@ async function openDashboard(context) {
           tokens: result.tokens,
           limit: result.limit
         });
+      } else if (message.command === "refresh" && currentData) {
+        const { result, fileExists } = await loadCodingStandards(currentData.root);
+        currentRuleResult = result;
+        codingStandardsExists = fileExists;
+        const refreshThresholds = extractThresholds(result.rules);
+        currentData = await scanWorkspace(fileExists, refreshThresholds);
+        const graph = analyzeDependencies(currentData.files, currentData.root);
+        const allIssues = fileExists ? [...currentData.files.flatMap((f2) => f2.issues || []), ...graph.issues] : [];
+        panel.webview.postMessage({
+          type: "dataUpdated",
+          files: currentData.files,
+          issues: allIssues,
+          ruleResult: result,
+          fileExists
+        });
       }
     },
     void 0,
     context.subscriptions
   );
   panel.webview.html = getLoadingContent();
+  panel.onDidDispose(() => {
+    stopWatching();
+    currentPanel = null;
+  });
   try {
     if (parserInitPromise) {
       await parserInitPromise;
     }
-    currentData = await scanWorkspace();
+    const workspaceFolder = vscode6.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      throw new Error("No workspace folder open");
+    }
+    const ruleData = await loadCodingStandards(workspaceFolder.uri.fsPath);
+    currentRuleResult = ruleData.result;
+    codingStandardsExists = ruleData.fileExists;
+    const thresholds = extractThresholds(currentRuleResult.rules);
+    currentData = await scanWorkspace(codingStandardsExists, thresholds);
+    startWatching(currentData.root, async (result, fileExists) => {
+      try {
+        console.log("coding-standards.md changed, re-scanning...");
+        currentRuleResult = result;
+        codingStandardsExists = fileExists;
+        const updatedThresholds = extractThresholds(result.rules);
+        currentData = await scanWorkspace(fileExists, updatedThresholds);
+        const graph2 = analyzeDependencies(currentData.files, currentData.root);
+        const allIssues = fileExists ? [...currentData.files.flatMap((f2) => f2.issues || []), ...graph2.issues] : [];
+        panel.webview.postMessage({
+          type: "dataUpdated",
+          files: currentData.files,
+          issues: allIssues,
+          ruleResult: result,
+          fileExists
+        });
+        console.log("Re-scan complete, UI updated");
+      } catch (err2) {
+        console.error("Error during re-scan:", err2);
+      }
+    });
     const graph = analyzeDependencies(currentData.files, currentData.root);
-    panel.webview.html = getDashboardContent(currentData, graph.issues);
+    const depIssues = codingStandardsExists ? graph.issues : [];
+    panel.webview.html = getDashboardContent(currentData, depIssues, currentRuleResult, codingStandardsExists);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     panel.webview.html = getErrorContent(message);
   }
 }
+var extensionPath = "";
+function setExtensionPath(extPath) {
+  extensionPath = extPath;
+}
+async function createDefaultCodingStandards(workspaceRoot) {
+  const bundledDefaultsPath2 = path12.join(extensionPath, "dist", "defaults", "coding-standards.md");
+  let defaultContent;
+  try {
+    defaultContent = fs6.readFileSync(bundledDefaultsPath2, "utf8");
+  } catch {
+    defaultContent = `# Coding Standards
+
+## Functions
+- Functions should not exceed 20 lines (warning) or 50 lines (error)
+- Functions should start with a verb (get, set, handle, process, etc.)
+- Avoid deep nesting beyond 4 levels
+
+## Naming
+- Avoid generic names: data, result, temp, item, value, obj, ret, res, tmp, info, stuff
+- Boolean variables should be named as questions: is*, has*, can*, should*, will*
+
+## Files
+- Files should not exceed 200 lines
+- Each file should have at least one incoming dependency (no orphans)
+- Avoid circular dependencies
+
+## Error Handling
+- Never use empty catch/except blocks (silent failures)
+
+## Comments
+- Remove commented-out code
+- Comments should explain why, not what
+`;
+  }
+  const filePath = getCodingStandardsPath(workspaceRoot);
+  await vscode6.workspace.fs.writeFile(
+    vscode6.Uri.file(filePath),
+    new TextEncoder().encode(defaultContent)
+  );
+}
 
 // src/extension.ts
 function activate(context) {
   console.log("Aperture extension is now active");
+  setExtensionPath(context.extensionPath);
+  setBundledDefaultsPath(context.extensionPath);
   languageRegistry.register(new TypeScriptHandler());
   languageRegistry.register(new LuaHandler());
-  const wasmDir = path12.join(context.extensionPath, "dist");
+  const wasmDir = path13.join(context.extensionPath, "dist");
   const parserPromise = initializeParser(wasmDir).catch((err2) => {
     console.error("AST parser initialization failed:", err2);
   });
   setParserInitPromise(parserPromise);
-  const disposable = vscode6.commands.registerCommand("aperture.openDashboard", async () => {
+  const disposable = vscode7.commands.registerCommand("aperture.openDashboard", async () => {
     await openDashboard(context);
   });
   context.subscriptions.push(disposable);
