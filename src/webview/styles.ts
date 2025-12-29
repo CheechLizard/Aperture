@@ -140,7 +140,8 @@ export const DASHBOARD_STYLES = `
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
-    .status-btn { display: block; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; border-left: 3px solid #888; color: var(--vscode-foreground); text-align: left; }
+    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; border-left: 3px solid #888; color: var(--vscode-foreground); text-align: left; }
+    .rule-status-left { flex: 1; }
     .status-btn:hover { opacity: 0.9; }
     .status-btn:empty { display: none; }
     .anti-patterns { margin: 0; }
@@ -254,7 +255,7 @@ export const DASHBOARD_STYLES = `
     .rule-status-new { color: var(--vscode-notificationsInfoIcon-foreground, #3794ff); cursor: pointer; text-decoration: underline; }
     .rule-status-new:hover { opacity: 0.8; }
     .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
-    .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 3px 8px; margin-left: 8px; font-size: 0.85em; cursor: pointer; }
+    .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.85em; cursor: pointer; flex-shrink: 0; }
     .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
 
     /* New Rules Modal */

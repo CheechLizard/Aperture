@@ -86,33 +86,27 @@ function updateStatus() {
   const statusBtn = document.getElementById('status');
 
   if (!codingStandardsExists) {
-    statusBtn.innerHTML = '<span class="rule-status-missing">No coding-standards.md</span> ' +
+    statusBtn.innerHTML = '<span class="rule-status-left"><span class="rule-status-missing">No coding-standards.md</span></span>' +
       '<button class="rule-status-btn" onclick="createCodingStandards()">Create</button>';
     return;
   }
 
-  let html = '<strong>' + ruleResult.activeCount + ' rules</strong>';
+  let left = '<strong>' + ruleResult.activeCount + ' rules</strong>';
 
   if (ruleResult.newCount > 0) {
-    html += ' · <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
+    left += ' · <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
   }
 
   if (ruleResult.unsupportedCount > 0) {
-    html += ' · <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
+    left += ' · <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
   }
 
-  html += ' <button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
-  html += ' <button class="rule-status-btn" onclick="refreshData()" title="Refresh">↻</button>';
-
-  statusBtn.innerHTML = html;
+  statusBtn.innerHTML = '<span class="rule-status-left">' + left + '</span>' +
+    '<button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
 }
 
 function editCodingStandards() {
   vscode.postMessage({ command: 'editCodingStandards' });
-}
-
-function refreshData() {
-  vscode.postMessage({ command: 'refresh' });
 }
 
 function createCodingStandards() {
