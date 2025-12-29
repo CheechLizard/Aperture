@@ -217,13 +217,11 @@ function aggregateSmallNodes(hierarchyNode) {
         bbox = computeBbox(toCollapse);
       }
 
-      // Create collapsed node if labelable
-      if (toCollapse.length > 0 && isLabelable(bbox)) {
-        const collapsedNode = createCollapsedNode(toCollapse);
-        return [...toKeep, collapsedNode];
+      // Always create collapsed node if there are smalls
+      if (toCollapse.length > 0) {
+        return [...toKeep, createCollapsedNode(toCollapse)];
       }
 
-      // Not labelable - return items as-is (will be handled at parent level)
       return items;
     }
 
