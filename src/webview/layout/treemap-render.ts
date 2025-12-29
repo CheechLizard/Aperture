@@ -134,6 +134,7 @@ function renderFileRects(layer, leaves, width, height, t) {
         .attr('class', 'folder-node node')
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
+        .attr('data-collapsed-paths', d => d.data._collapsedPaths ? d.data._collapsedPaths.join(',') : null)
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
         .attr('width', d => Math.max(0, d.x1 - d.x0))

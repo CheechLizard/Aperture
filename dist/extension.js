@@ -16904,10 +16904,30 @@ function highlightNodes(urisOrPaths) {
   document.querySelectorAll('.node').forEach(node => {
     const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
+    const collapsedPaths = node.getAttribute('data-collapsed-paths');
+
     if (uri && urisOrPaths.includes(uri)) {
       node.classList.add('highlighted');
     } else if (path && pathSet.has(path)) {
       node.classList.add('highlighted');
+    } else if (collapsedPaths) {
+      // "N small items" node - highlight if any collapsed path matches
+      const paths = collapsedPaths.split(',');
+      for (const p of paths) {
+        if (pathSet.has(p)) {
+          node.classList.add('highlighted');
+          break;
+        }
+        // Also check if collapsed path is a folder containing highlighted files
+        const folderPrefix = p.endsWith('/') ? p : p + '/';
+        for (const filePath of pathSet) {
+          if (filePath.startsWith(folderPrefix)) {
+            node.classList.add('highlighted');
+            break;
+          }
+        }
+        if (node.classList.contains('highlighted')) break;
+      }
     } else if (path) {
       // Highlight folders that contain highlighted files
       const folderPrefix = path.endsWith('/') ? path : path + '/';
@@ -18621,6 +18641,7 @@ function renderFileRects(layer, leaves, width, height, t) {
         .attr('class', 'folder-node node')
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
+        .attr('data-collapsed-paths', d => d.data._collapsedPaths ? d.data._collapsedPaths.join(',') : null)
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
         .attr('width', d => Math.max(0, d.x1 - d.x0))
