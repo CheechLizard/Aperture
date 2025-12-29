@@ -15563,9 +15563,44 @@ const zoom = {
     const invScaleX = bounds.w / width;
     const invScaleY = bounds.h / height;
 
-    // Hide text on old layer before scaling (prevents giant text)
+    // Hide text on old layer
     oldLayer.selectAll('text').style('opacity', 0);
     oldLayer.attr('pointer-events', 'none');
+
+    // Counter-scale text on new layer to maintain constant size during animation
+    // Text counter-scale must be INVERSE of layer scale (not linear interpolation)
+    // Layer interpolates: startLayerScale \u2192 1, so text needs: 1/layerScale at each frame
+    const startLayerScaleX = direction === 'in' ? invScaleX : scaleX;
+    const startLayerScaleY = direction === 'in' ? invScaleY : scaleY;
+
+    // Set initial counter-scale
+    const initCounterX = 1 / startLayerScaleX;
+    const initCounterY = 1 / startLayerScaleY;
+    newLayer.selectAll('text').each(function() {
+      const text = d3.select(this);
+      const x = parseFloat(text.attr('x')) || 0;
+      const y = parseFloat(text.attr('y')) || 0;
+      text.attr('transform', 'translate(' + x + ',' + y + ') scale(' + initCounterX + ',' + initCounterY + ') translate(' + (-x) + ',' + (-y) + ')');
+    });
+
+    // Animate counter-scale as inverse of layer scale
+    newLayer.selectAll('text')
+      .transition(t)
+      .attrTween('transform', function() {
+        const text = d3.select(this);
+        const x = parseFloat(text.attr('x')) || 0;
+        const y = parseFloat(text.attr('y')) || 0;
+        return function(progress) {
+          // Layer scale at this progress: lerp(startLayerScale, 1, progress)
+          const layerSx = startLayerScaleX + (1 - startLayerScaleX) * progress;
+          const layerSy = startLayerScaleY + (1 - startLayerScaleY) * progress;
+          // Counter-scale is inverse of layer scale
+          const sx = 1 / layerSx;
+          const sy = 1 / layerSy;
+          if (Math.abs(sx - 1) < 0.001 && Math.abs(sy - 1) < 0.001) return '';
+          return 'translate(' + x + ',' + y + ') scale(' + sx + ',' + sy + ') translate(' + (-x) + ',' + (-y) + ')';
+        };
+      });
 
     if (direction === 'in') {
       // ZOOM IN: Old scales up toward bounds, new expands from bounds
