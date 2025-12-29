@@ -13596,7 +13596,7 @@ const MIN_NODE_SIZE = 30;  // Minimum px for a clickable node
 const MIN_EXPAND_SIZE = 100;  // Folders larger than this should always expand
 
 // Helper to check if a node is too small to show a useful label
-function isSmall(node) {
+function tooSmallForLabel(node) {
   const w = node.x1 - node.x0;
   const h = node.y1 - node.y0;
   return w < TREEMAP_LABEL_MIN_WIDTH || h < TREEMAP_LABEL_MIN_HEIGHT;
@@ -13667,115 +13667,199 @@ function countDescendantFiles(node) {
 function aggregateSmallNodes(hierarchyNode) {
   if (!hierarchyNode.children) return;
 
-  // Recurse into children first
-  hierarchyNode.children.forEach(c => aggregateSmallNodes(c));
-
+  // Recurse into children first (depth-first, reverse order = smallest first)
   const children = hierarchyNode.children;
-
-  // Find children that are too small to show labels
-  const smallChildren = children.filter(c => isSmall(c));
-  if (smallChildren.length === 0) return;
-
-  // Compute bounding box of all small children
-  let bbox = {
-    x0: Math.min(...smallChildren.map(c => c.x0)),
-    y0: Math.min(...smallChildren.map(c => c.y0)),
-    x1: Math.max(...smallChildren.map(c => c.x1)),
-    y1: Math.max(...smallChildren.map(c => c.y1))
-  };
-
-  // Helper: check if node is fully contained in bbox (with tolerance for padding)
-  const EPS = 2;  // Account for paddingInner(1) + tolerance
-  const isContained = (c) =>
-    c.x0 >= bbox.x0 - EPS && c.x1 <= bbox.x1 + EPS &&
-    c.y0 >= bbox.y0 - EPS && c.y1 <= bbox.y1 + EPS;
-
-  // Helper: check if node shares an edge with bbox (not just corner-adjacent)
-  const sharesEdge = (c) => {
-    const hAdjacent = Math.abs(c.x1 - bbox.x0) < EPS || Math.abs(c.x0 - bbox.x1) < EPS;
-    const vAdjacent = Math.abs(c.y1 - bbox.y0) < EPS || Math.abs(c.y0 - bbox.y1) < EPS;
-    const hOverlap = c.y0 < bbox.y1 && c.y1 > bbox.y0;
-    const vOverlap = c.x0 < bbox.x1 && c.x1 > bbox.x0;
-    // Must be adjacent in one direction AND overlap in the perpendicular direction
-    return (hAdjacent && hOverlap) || (vAdjacent && vOverlap);
-  };
-
-  // Find all children fully contained in bbox (greedy rectangular)
-  let toCollapse = children.filter(isContained);
-
-  // Expand bbox by adding neighbor that maintains rectangular shape
-  const expandBbox = () => {
-    const others = children.filter(c => !toCollapse.includes(c));
-    const adjacent = others.filter(sharesEdge);
-    if (adjacent.length === 0) return false;
-
-    // Only consider neighbors that don't extend beyond bbox (maintains rectangle)
-    const valid = adjacent.filter(c => {
-      const isLeftRight = Math.abs(c.x1 - bbox.x0) < EPS || Math.abs(c.x0 - bbox.x1) < EPS;
-      const isAboveBelow = Math.abs(c.y1 - bbox.y0) < EPS || Math.abs(c.y0 - bbox.y1) < EPS;
-      // Left/right: y-bounds must be within bbox
-      const yContained = c.y0 >= bbox.y0 - EPS && c.y1 <= bbox.y1 + EPS;
-      // Above/below: x-bounds must be within bbox
-      const xContained = c.x0 >= bbox.x0 - EPS && c.x1 <= bbox.x1 + EPS;
-      return (isLeftRight && yContained) || (isAboveBelow && xContained);
-    });
-
-    if (valid.length === 0) return false;  // Can't expand without breaking rectangle
-
-    const neighbor = valid[0];
-    bbox.x0 = Math.min(bbox.x0, neighbor.x0);
-    bbox.y0 = Math.min(bbox.y0, neighbor.y0);
-    bbox.x1 = Math.max(bbox.x1, neighbor.x1);
-    bbox.y1 = Math.max(bbox.y1, neighbor.y1);
-    toCollapse = children.filter(isContained);
-    return true;
-  };
-
-  // Keep expanding until we have 2+ nodes and bbox can show a label
-  while (toCollapse.length < 2 ||
-         bbox.x1 - bbox.x0 < TREEMAP_LABEL_MIN_WIDTH ||
-         bbox.y1 - bbox.y0 < TREEMAP_LABEL_MIN_HEIGHT) {
-    if (!expandBbox()) break;
+  for (let i = children.length - 1; i >= 0; i--) {
+    aggregateSmallNodes(children[i]);
   }
 
-  // Final checks
-  if (toCollapse.length < 2) return;
-  if (bbox.x1 - bbox.x0 < TREEMAP_LABEL_MIN_WIDTH ||
-      bbox.y1 - bbox.y0 < TREEMAP_LABEL_MIN_HEIGHT) return;
+  const EPS = 2;
 
-  // Count files in collapsed nodes and collect their paths
-  const otherCount = toCollapse.reduce((sum, c) =>
-    sum + countDescendantFiles(c.data), 0);
-  const collapsedPaths = toCollapse.map(c => c.data.path);
-  const totalSiblings = hierarchyNode.children.length;
+  // Helper: compute bounding box of nodes
+  const computeBbox = (nodes) => ({
+    x0: Math.min(...nodes.map(c => c.x0)),
+    y0: Math.min(...nodes.map(c => c.y0)),
+    x1: Math.max(...nodes.map(c => c.x1)),
+    y1: Math.max(...nodes.map(c => c.y1))
+  });
 
-  // Create synthetic node with exact bounding box (no relayout needed)
-  const otherData = {
-    name: otherCount + ' small item' + (otherCount !== 1 ? 's' : ''),
-    path: hierarchyNode.data.path + '/_other',
-    uri: hierarchyNode.data.uri,
-    _isOther: true,
-    _otherCount: otherCount,
-    _collapsedPaths: collapsedPaths,
-    _totalSiblings: totalSiblings,
-    _collapsed: true
+  // Helper: check if bbox can fit a label
+  const isLabelable = (bbox) =>
+    (bbox.x1 - bbox.x0) >= TREEMAP_LABEL_MIN_WIDTH &&
+    (bbox.y1 - bbox.y0) >= TREEMAP_LABEL_MIN_HEIGHT;
+
+  // Helper: create a collapsed node from items
+  const createCollapsedNode = (items) => {
+    const bbox = computeBbox(items);
+    let otherCount = 0;
+    const collapsedPaths = [];
+    for (const node of items) {
+      otherCount += countDescendantFiles(node.data);
+      collapsedPaths.push(node.data.path);
+    }
+    return {
+      data: {
+        name: otherCount + ' small item' + (otherCount !== 1 ? 's' : ''),
+        path: hierarchyNode.data.path + '/_other_' + Math.random().toString(36).slice(2, 6),
+        uri: hierarchyNode.data.uri,
+        _isOther: true,
+        _otherCount: otherCount,
+        _collapsedPaths: collapsedPaths,
+        _totalSiblings: children.length,
+        _collapsed: true
+      },
+      x0: bbox.x0, y0: bbox.y0, x1: bbox.x1, y1: bbox.y1,
+      depth: hierarchyNode.depth + 1,
+      parent: hierarchyNode,
+      children: null,
+      _isCollapsedGroup: true,
+      _collapsedItems: items
+    };
   };
 
-  const otherNode = {
-    data: otherData,
-    x0: bbox.x0,
-    y0: bbox.y0,
-    x1: bbox.x1,
-    y1: bbox.y1,
-    depth: hierarchyNode.depth + 1,
-    parent: hierarchyNode,
-    children: null
+  // Find a split line that separates items into two groups
+  const findSplit = (items) => {
+    if (items.length <= 1) return null;
+
+    const allSameY = items.every(n =>
+      Math.abs(n.y0 - items[0].y0) < EPS && Math.abs(n.y1 - items[0].y1) < EPS);
+    const allSameX = items.every(n =>
+      Math.abs(n.x0 - items[0].x0) < EPS && Math.abs(n.x1 - items[0].x1) < EPS);
+
+    if (allSameY || allSameX) return null;
+
+    const xEdges = new Set();
+    const yEdges = new Set();
+    items.forEach(n => {
+      xEdges.add(n.x0); xEdges.add(n.x1);
+      yEdges.add(n.y0); yEdges.add(n.y1);
+    });
+
+    for (const x of xEdges) {
+      const left = items.filter(n => n.x1 <= x + EPS);
+      const right = items.filter(n => n.x0 >= x - EPS);
+      if (left.length > 0 && right.length > 0 && left.length + right.length === items.length) {
+        return { first: left, last: right };
+      }
+    }
+
+    for (const y of yEdges) {
+      const top = items.filter(n => n.y1 <= y + EPS);
+      const bottom = items.filter(n => n.y0 >= y - EPS);
+      if (top.length > 0 && bottom.length > 0 && top.length + bottom.length === items.length) {
+        return { first: top, last: bottom };
+      }
+    }
+
+    return null;
   };
 
-  // Replace collapsed children with the synthetic node
-  const toKeep = children.filter(c => !toCollapse.includes(c));
-  hierarchyNode.children = toKeep.concat([otherNode]);
+  // Build BSP tree node from items
+  const buildBspNode = (items) => {
+    if (items.length === 0) return null;
+    const split = findSplit(items);
+    if (!split) {
+      // Leaf node - items are siblings
+      return { isLeaf: true, items: items };
+    }
+    return {
+      isLeaf: false,
+      first: buildBspNode(split.first),
+      last: buildBspNode(split.last)
+    };
+  };
+
+  // Process BSP tree node, collapsing small items
+  // Modifies the tree in place, returns the resulting items array for this subtree
+  const processBspNode = (node) => {
+    if (!node) return [];
+
+    if (node.isLeaf) {
+      // Leaf: items are siblings, can be collapsed together
+      const items = node.items;
+      const smalls = items.filter(n => tooSmallForLabel(n));
+
+      if (smalls.length === 0) {
+        return items; // Nothing to collapse
+      }
+
+      // Sort by value (large first) so smallest are at end
+      const sorted = [...items].sort((a, b) => (b.data.value || 0) - (a.data.value || 0));
+
+      let toCollapse = [];
+      let toKeep = [];
+
+      for (const item of sorted) {
+        if (tooSmallForLabel(item)) {
+          toCollapse.push(item);
+        } else {
+          toKeep.push(item);
+        }
+      }
+
+      // Grow collapsed region until labelable
+      let bbox = computeBbox(toCollapse);
+      while (!isLabelable(bbox) && toKeep.length > 0) {
+        toCollapse.push(toKeep.pop());
+        bbox = computeBbox(toCollapse);
+      }
+
+      // Create collapsed node if labelable
+      if (toCollapse.length > 0 && isLabelable(bbox)) {
+        const collapsedNode = createCollapsedNode(toCollapse);
+        return [...toKeep, collapsedNode];
+      }
+
+      // Not labelable - return items as-is (will be handled at parent level)
+      return items;
+    }
+
+    // Internal node: process children first
+    const firstItems = processBspNode(node.first);
+    const lastItems = processBspNode(node.last);
+
+    // Check if both sides are fully collapsed (single collapsed node each)
+    const firstIsCollapsed = firstItems.length === 1 && firstItems[0]._isCollapsedGroup;
+    const lastIsCollapsed = lastItems.length === 1 && lastItems[0]._isCollapsedGroup;
+
+    if (firstIsCollapsed && lastIsCollapsed) {
+      // Both siblings are collapsed - merge them
+      const allOriginalItems = [
+        ...firstItems[0]._collapsedItems,
+        ...lastItems[0]._collapsedItems
+      ];
+      const bbox = computeBbox(allOriginalItems);
+
+      if (isLabelable(bbox)) {
+        // Merge into single collapsed node
+        return [createCollapsedNode(allOriginalItems)];
+      }
+      // Can't merge - keep separate (will try at parent level)
+    }
+
+    // Return combined items from both branches
+    return [...firstItems, ...lastItems];
+  };
+
+  // DEBUG: Collect all leaf partitions for visualization
+  const collectLeafPartitions = (items) => {
+    if (items.length === 0) return [];
+    const split = findSplit(items);
+    if (!split) return [items];
+    return [...collectLeafPartitions(split.first), ...collectLeafPartitions(split.last)];
+  };
+
+  // Build BSP tree and process it
+  const bspRoot = buildBspNode([...children]);
+  const resultItems = processBspNode(bspRoot);
+
+  // Store debug partitions
+  hierarchyNode._debugPartitions = collectLeafPartitions([...children]);
+
+  // Update children with processed items
+  hierarchyNode.children = resultItems;
 }
+
 
 function relayoutModifiedNodes(hierarchy, width, height) {
   // Find nodes that need re-layout (bottom-up order so children are processed first)
@@ -13889,6 +13973,9 @@ function renderTreemapLayout(container, fileData, width, height, t, targetLayer)
   renderFileLabels(fileLayer, leaves, width, height, t);
   renderFolderHeaders(fileLayer, hierarchy, width, height, t);
   renderPartialViewHeader(fileLayer, width);
+
+  // DEBUG: Visualize BSP partitions (remove after diagnosis)
+  renderDebugPartitions(fileLayer, hierarchy);
 
   return { svg, fileLayer, leaves, clickedLeaf, hierarchy };
 }
@@ -14157,6 +14244,42 @@ function renderPartialViewHeader(layer, width) {
     )
     .style('pointer-events', 'none')
     .text(d => d.count + ' of ' + d.total + ' items');
+}
+
+// DEBUG: Visualize BSP partitions
+// - Solid red: Partition with small items (2+ items -> will collapse)
+// - Dashed red: Single small item partition (MISS - won't collapse)
+// - Blue: Partition with no small items
+function renderDebugPartitions(layer, hierarchy) {
+  // Clear existing debug elements
+  layer.selectAll('.debug-partition').remove();
+
+  const nodesWithPartitions = hierarchy.descendants().filter(d => d._debugPartitions);
+
+  nodesWithPartitions.forEach(node => {
+    const partitions = node._debugPartitions;
+    partitions.forEach((partition, i) => {
+      const x0 = Math.min(...partition.map(n => n.x0));
+      const y0 = Math.min(...partition.map(n => n.y0));
+      const x1 = Math.max(...partition.map(n => n.x1));
+      const y1 = Math.max(...partition.map(n => n.y1));
+
+      const hasSmall = partition.some(n => tooSmallForLabel(n));
+      const isSingle = partition.length === 1;
+
+      layer.append('rect')
+        .attr('class', 'debug-partition')
+        .attr('x', x0 + 1)
+        .attr('y', y0 + 1)
+        .attr('width', x1 - x0 - 2)
+        .attr('height', y1 - y0 - 2)
+        .attr('fill', 'none')
+        .attr('stroke', hasSmall ? '#ff3333' : '#3333ff')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', isSingle ? '4,4' : 'none')
+        .attr('pointer-events', 'none');
+    });
+  });
 }
 `;
 
