@@ -10,6 +10,18 @@
  *   file:///src/app.ts#processData.if:10.for:11  - Nested block
  */
 
+// Re-export builders for backward compatibility
+export {
+  createFolderUri,
+  createFileUri,
+  createSymbolUri,
+  createNestedSymbolUri,
+  createBlockUri,
+  createUriFromPathAndLine,
+} from './uri-builders';
+
+import { createFileUri, createFolderUri } from './uri-builders';
+
 const URI_SCHEME = 'file://';
 
 export interface ParsedUri {
@@ -22,48 +34,6 @@ export interface SymbolFragment {
   symbolPath: string[];   // ['processData', 'if:10', 'for:11']
   leafName: string;       // Last segment: 'for:11' or 'processData'
   leafLine: number | null; // Line number if block (e.g., 11 from 'for:11')
-}
-
-// ============================================================================
-// Construction
-// ============================================================================
-
-/** Create URI for a folder */
-export function createFolderUri(path: string): string {
-  return `${URI_SCHEME}/${normalizePath(path)}`;
-}
-
-/** Create URI for a file */
-export function createFileUri(path: string): string {
-  return `${URI_SCHEME}/${normalizePath(path)}`;
-}
-
-/** Create URI for a named symbol (function, class, method) */
-export function createSymbolUri(path: string, symbolName: string): string {
-  return `${URI_SCHEME}/${normalizePath(path)}#${symbolName}`;
-}
-
-/** Create URI for a nested symbol (e.g., class method) */
-export function createNestedSymbolUri(path: string, parentSymbol: string, childSymbol: string): string {
-  return `${URI_SCHEME}/${normalizePath(path)}#${parentSymbol}.${childSymbol}`;
-}
-
-/** Create URI for an unnamed block (if, for, try, etc.) */
-export function createBlockUri(path: string, parentFragment: string, blockType: string, line: number): string {
-  const fragment = parentFragment ? `${parentFragment}.${blockType}:${line}` : `${blockType}:${line}`;
-  return `${URI_SCHEME}/${normalizePath(path)}#${fragment}`;
-}
-
-/** Create URI from file path and optional line number (for backwards compat) */
-export function createUriFromPathAndLine(path: string, symbolName?: string, line?: number): string {
-  if (symbolName) {
-    return createSymbolUri(path, symbolName);
-  }
-  if (line !== undefined) {
-    // Anonymous location - use line as identifier
-    return `${URI_SCHEME}/${normalizePath(path)}#L${line}`;
-  }
-  return createFileUri(path);
 }
 
 // ============================================================================
@@ -148,7 +118,6 @@ export function uriStartsWith(uri: string, prefix: string): boolean {
   const normalizedUri = normalizeUri(uri);
   const normalizedPrefix = normalizeUri(prefix);
 
-  // For file paths, check path prefix
   const parsedUri = parseUri(normalizedUri);
   const parsedPrefix = parseUri(normalizedPrefix);
 
@@ -156,12 +125,10 @@ export function uriStartsWith(uri: string, prefix: string): boolean {
     return false;
   }
 
-  // If prefix has no fragment, any fragment in uri is fine
   if (!parsedPrefix.fragment) {
     return true;
   }
 
-  // If prefix has fragment, uri must have matching fragment prefix
   if (!parsedUri.fragment) {
     return false;
   }
@@ -182,17 +149,14 @@ export function getParentUri(uri: string): string | null {
   if (parsed.fragment) {
     const parts = parsed.fragment.split('.');
     if (parts.length > 1) {
-      // Go up in symbol hierarchy
       return createFileUri(parsed.path) + '#' + parts.slice(0, -1).join('.');
     }
-    // Fragment with single part - parent is the file
     return createFileUri(parsed.path);
   }
 
-  // File or folder - go up directory
   const pathParts = parsed.path.split('/');
   if (pathParts.length <= 1) {
-    return null; // Already at root
+    return null;
   }
   return createFolderUri(pathParts.slice(0, -1).join('/'));
 }
@@ -200,14 +164,6 @@ export function getParentUri(uri: string): string | null {
 // ============================================================================
 // Utilities
 // ============================================================================
-
-/** Normalize a file path (remove leading/trailing slashes, normalize separators) */
-function normalizePath(path: string): string {
-  return path
-    .replace(/\\/g, '/')      // Normalize Windows paths
-    .replace(/^\/+/, '')       // Remove leading slashes
-    .replace(/\/+$/, '');      // Remove trailing slashes
-}
 
 /** Normalize a URI for comparison */
 function normalizeUri(uri: string): string {
@@ -233,11 +189,9 @@ export function getDisplayName(uri: string): string {
   if (parsed.fragment) {
     const parts = parsed.fragment.split('.');
     const last = parts[parts.length - 1];
-    // Remove line number from blocks for display
     return last.replace(/:(\d+)$/, '');
   }
 
-  // Return filename
   const pathParts = parsed.path.split('/');
   return pathParts[pathParts.length - 1] || parsed.path;
 }

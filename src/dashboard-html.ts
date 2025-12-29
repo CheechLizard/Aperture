@@ -20,6 +20,7 @@ import { TREEMAP_LABELS_SCRIPT } from './webview/layout/treemap-labels';
 import { PARTITION_LAYOUT_SCRIPT } from './webview/partition-layout';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
+import { FLYOUT_RENDERER_SCRIPT } from './webview/flyout-renderer';
 import { SELECTION_STATE_SCRIPT } from './webview/selection-state';
 import { URI_SCRIPT } from './webview/uri';
 import { BREADCRUMB_SCRIPT } from './webview/breadcrumb';
@@ -182,6 +183,8 @@ ${CHORD_SCRIPT}
 ${HIGHLIGHT_CORE_SCRIPT}
 
 ${PROMPT_UTILS_SCRIPT}
+
+${FLYOUT_RENDERER_SCRIPT}
 
 ${SELECTION_STATE_SCRIPT}
 
