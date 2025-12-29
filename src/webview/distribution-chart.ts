@@ -71,7 +71,9 @@ function renderDistributionChart() {
   // Detect transition type
   const clickedBounds = zoom.consumeClickedBounds();
   const isZoomingIn = !!clickedBounds;
-  const isZoomingOut = !clickedBounds && (prevZoomedFolder || prevZoomedFile);
+  // Only consume partial exit bounds when NOT zooming in (to avoid consuming on entry)
+  const partialExitBounds = !isZoomingIn ? zoom.consumePartialEntryBounds() : null;
+  const isZoomingOut = !isZoomingIn && (prevZoomedFolder || prevZoomedFile || partialExitBounds);
 
   // Determine what to render: files/folders (treemap) or functions (partition)
   const showingFunctions = !!zoomedFile;
@@ -146,13 +148,9 @@ function renderDistributionChart() {
       const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      // Look up the source folder in the new layout
-      let bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
-
-      // If source not found (e.g., partial→full where we're in same folder), use saved entry bounds
-      if (!bounds) {
-        bounds = zoom.consumePartialEntryBounds();
-      }
+      // For partial view exit, use saved entry bounds (the collapsed group's position)
+      // Otherwise look up the source folder in the new layout
+      let bounds = partialExitBounds || findBoundsInHierarchy(result.hierarchy, sourceUri);
 
       if (bounds) {
         zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');

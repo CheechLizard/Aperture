@@ -606,7 +606,7 @@ function renderFileLabels(layer, leaves, width, height, t) {
 function renderFolderHeaders(layer, hierarchy, width, height, t) {
   const depth1 = zoomedFile ? [] : hierarchy.descendants().filter(d => d.depth === 1 && d.children && (d.x1 - d.x0) > 30);
 
-  layer.selectAll('rect.dir-header').data(depth1, d => d.data.path)
+  layer.selectAll('rect.dir-header').data(depth1, d => d.data?.path || '')
     .join(
       enter => enter.append('rect')
         .attr('class', 'dir-header')
@@ -645,7 +645,7 @@ function renderFolderHeaders(layer, hierarchy, width, height, t) {
     .attr('width', d => d.x1 - d.x0)
     .attr('height', 16);
 
-  layer.selectAll('text.dir-label').data(depth1, d => d.data.path)
+  layer.selectAll('text.dir-label').data(depth1, d => d.data?.path || '')
     .join(
       enter => enter.append('text')
         .attr('class', 'dir-label')
