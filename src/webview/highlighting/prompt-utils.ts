@@ -15,12 +15,12 @@ function getContextVariants(fullContext) {
     context: fullContext
   });
 
-  // 2. High severity files only
+  // 2. High severity files only - skip if no high severity issues
   const highSevFiles = getHighSeverityFiles(fullContext.files);
-  if (highSevFiles.length > 0 && highSevFiles.length < fullContext.files.length) {
-    const highSevIssues = fullContext.issues.filter(i =>
-      i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
-    );
+  const highSevIssues = fullContext.issues.filter(i =>
+    i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
+  );
+  if (highSevIssues.length > 0 && highSevFiles.length < fullContext.files.length) {
     variants.push({
       label: ' (high severity only)',
       context: { ...fullContext, files: highSevFiles, issues: highSevIssues }
@@ -203,6 +203,9 @@ function renderCostdPrompts() {
     if (affordable) {
       // Build display label based on variant
       let displayLabel = affordable.label;
+      // Get original issue count from full variant (variantIndex=0)
+      const fullVariant = variants.find(v => v.variantIndex === 0);
+      const totalIssues = fullVariant ? fullVariant.variantContext.issues.length : affordable.variantContext.issues.length;
 
       if (affordable.variantLabel) {
         // If degraded to high severity, update the issue count in label
@@ -212,12 +215,13 @@ function renderCostdPrompts() {
           // "Analyze 175 Long Function issues" → "Analyze 14 high severity Long Function issues"
           displayLabel = displayLabel.replace(/\\d+/, highSevIssueCount + ' high severity');
           usedHighSeverityVariant.add(affordable.baseId);
-        } else {
-          // For other variants (5 files, 1 file), append the suffix
-          displayLabel += affordable.variantLabel;
+        } else if (affordable.variantLabel.includes('file')) {
+          // For file-limited variants (5 files, 1 file), show "Analyze the first X files"
+          const fileCount = affordable.variantContext.files.length;
+          displayLabel = 'Analyze the first ' + fileCount + ' file' + (fileCount === 1 ? '' : 's');
         }
       }
-      // File count is shown in chips below, not needed in button
+      // Track total issues for "(X of Y)" chip display
 
       // Skip "Focus on high severity" buttons if we already degraded another prompt to high severity
       if (affordable.action === 'filter-high-severity') {
@@ -226,7 +230,9 @@ function renderCostdPrompts() {
 
       affordablePrompts.push({
         ...affordable,
-        displayLabel: displayLabel
+        displayLabel: displayLabel,
+        totalIssues: totalIssues,
+        isFileLimited: affordable.variantLabel && affordable.variantLabel.includes('file')
       });
     }
   }
@@ -238,7 +244,10 @@ function renderCostdPrompts() {
 
   container.innerHTML = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
-    const fileLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    // For file-limited variants, show "(X of Y)" where X=files, Y=total issues
+    const fileLabel = p.isFileLimited
+      ? fileCount + ' of ' + p.totalIssues
+      : (fileCount === 1 ? '1 file' : fileCount + ' files');
     return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
       ' data-prompt-id="' + p.id + '"' +
       ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
