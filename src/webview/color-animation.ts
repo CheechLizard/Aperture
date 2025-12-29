@@ -36,10 +36,12 @@ function cycleIssueColors() {
   });
 
   if (selectedElement && selectedElement.isConnected) {
+    // Visible selection background with pulsing alpha
+    const bgAlpha = 0.5 + 0.1 * Math.sin(pulsePhase);
+    // Extract RGB from hex color (regex uses $ to match end after rgba( prefix)
     const bgColor = color.replace('#', 'rgba(')
-      .replace(/(..)(..)(..)/, (_, r, g, b) =>
-        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
-    selectedElement.style.borderLeftColor = color;
+      .replace(/(..)(..)(..)$/, (_, r, g, b) =>
+        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',' + bgAlpha.toFixed(2) + ')');
     selectedElement.style.background = bgColor;
   }
 }

@@ -29,7 +29,6 @@ function setupHeaderHandlers(list) {
       if (e.target.closest('.pattern-chevron')) return;
       if (e.target.classList.contains('pattern-rules-toggle')) return;
       if (selectedElement) {
-        selectedElement.style.borderLeftColor = '';
         selectedElement.style.background = '';
       }
       selectedElement = header;
@@ -72,6 +71,11 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
+      // Clear previous selection styling
+      if (selectedElement) {
+        selectedElement.style.background = '';
+      }
+      selectedElement = item;
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);

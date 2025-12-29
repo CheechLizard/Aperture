@@ -173,8 +173,8 @@ export const DASHBOARD_STYLES = `
     .pattern-item.high { border-left-color: #e74c3c; }
     .pattern-item.medium { border-left-color: #f39c12; }
     .pattern-item.low { border-left-color: #7f8c8d; }
-    .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
-    .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
+    .pattern-item-file { color: var(--vscode-foreground); font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pattern-item-desc { font-size: 0.9em; color: var(--vscode-descriptionForeground); line-height: 1.3; }
     .pattern-item-row { display: flex; align-items: center; gap: 8px; }
     .pattern-item-content { flex: 1; }
     .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
