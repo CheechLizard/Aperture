@@ -7,6 +7,7 @@ const TREEMAP_LABEL_MIN_WIDTH = 40;
 const TREEMAP_LABEL_MIN_HEIGHT = 16;
 const MIN_NODE_SIZE = 30;  // Minimum px for a clickable node
 const MIN_EXPAND_SIZE = 100;  // Folders larger than this should always expand
+const DEBUG_SHOW_PARTITIONS = false;  // Show BSP partition debug visualization
 
 // Helper to check if a node is too small to show a useful label
 function tooSmallForLabel(node) {
@@ -95,11 +96,6 @@ function aggregateSmallNodes(hierarchyNode) {
     x1: Math.max(...nodes.map(c => c.x1)),
     y1: Math.max(...nodes.map(c => c.y1))
   });
-
-  // Helper: check if bbox can fit a label
-  const isLabelable = (bbox) =>
-    (bbox.x1 - bbox.x0) >= TREEMAP_LABEL_MIN_WIDTH &&
-    (bbox.y1 - bbox.y0) >= TREEMAP_LABEL_MIN_HEIGHT;
 
   // Helper: create a collapsed node from items
   const createCollapsedNode = (items) => {
@@ -212,7 +208,7 @@ function aggregateSmallNodes(hierarchyNode) {
 
       // Grow collapsed region until labelable
       let bbox = computeBbox(toCollapse);
-      while (!isLabelable(bbox) && toKeep.length > 0) {
+      while (tooSmallForLabel(bbox) && toKeep.length > 0) {
         toCollapse.push(toKeep.pop());
         bbox = computeBbox(toCollapse);
       }
@@ -232,8 +228,8 @@ function aggregateSmallNodes(hierarchyNode) {
     // Find collapsed groups that need growth (not labelable)
     const firstCollapsed = firstItems.find(n => n._isCollapsedGroup);
     const lastCollapsed = lastItems.find(n => n._isCollapsedGroup);
-    const needsGrowth = (firstCollapsed && !isLabelable(firstCollapsed)) ||
-                        (lastCollapsed && !isLabelable(lastCollapsed));
+    const needsGrowth = (firstCollapsed && tooSmallForLabel(firstCollapsed)) ||
+                        (lastCollapsed && tooSmallForLabel(lastCollapsed));
 
     if (needsGrowth) {
       // Collect all original items from both sides
@@ -260,7 +256,7 @@ function aggregateSmallNodes(hierarchyNode) {
       ];
       const bbox = computeBbox(allOriginalItems);
 
-      if (isLabelable(bbox)) {
+      if (!tooSmallForLabel(bbox)) {
         // Merge into single collapsed node
         return [createCollapsedNode(allOriginalItems)];
       }
@@ -404,8 +400,9 @@ function renderTreemapLayout(container, fileData, width, height, t, targetLayer)
   renderFolderHeaders(fileLayer, hierarchy, width, height, t);
   renderPartialViewHeader(fileLayer, width);
 
-  // DEBUG: Visualize BSP partitions (remove after diagnosis)
-  renderDebugPartitions(fileLayer, hierarchy);
+  if (DEBUG_SHOW_PARTITIONS) {
+    renderDebugPartitions(fileLayer, hierarchy);
+  }
 
   return { svg, fileLayer, leaves, clickedLeaf, hierarchy };
 }
