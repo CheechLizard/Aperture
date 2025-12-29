@@ -34,6 +34,15 @@ function highlightNodes(urisOrPaths) {
       node.classList.add('highlighted');
     } else if (path && pathSet.has(path)) {
       node.classList.add('highlighted');
+    } else if (path) {
+      // Highlight folders that contain highlighted files
+      const folderPrefix = path.endsWith('/') ? path : path + '/';
+      for (const filePath of pathSet) {
+        if (filePath.startsWith(folderPrefix)) {
+          node.classList.add('highlighted');
+          break;
+        }
+      }
     }
   });
 

@@ -92,8 +92,8 @@ function renderItemHtml(item) {
 
   return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-line="' + (firstLoc.line || '') + '" data-rule-id="' + item.ruleId + '" data-message="' + item.message.replace(/"/g, '&quot;') + '">' +
     '<div class="pattern-item-row"><div class="pattern-item-content">' +
-    '<div class="pattern-item-desc">' + item.message + '</div>' +
-    '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
+    '<div class="pattern-item-file">' + fileName + lineInfo + '</div>' +
+    '<div class="pattern-item-desc">' + item.message + '</div></div>' +
     '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
 }
 

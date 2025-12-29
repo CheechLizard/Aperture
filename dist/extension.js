@@ -16307,8 +16307,8 @@ var DASHBOARD_STYLES = `
     .pattern-item.high { border-left-color: #e74c3c; }
     .pattern-item.medium { border-left-color: #f39c12; }
     .pattern-item.low { border-left-color: #7f8c8d; }
-    .pattern-item-desc { color: var(--vscode-foreground); line-height: 1.3; margin-bottom: 4px; }
-    .pattern-item-file { font-size: 0.9em; color: var(--vscode-textLink-foreground); }
+    .pattern-item-file { color: var(--vscode-foreground); font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pattern-item-desc { font-size: 0.9em; color: var(--vscode-descriptionForeground); line-height: 1.3; }
     .pattern-item-row { display: flex; align-items: center; gap: 8px; }
     .pattern-item-content { flex: 1; }
     .pattern-ignore-btn { background: var(--vscode-descriptionForeground); border: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; padding: 0; }
@@ -16908,6 +16908,15 @@ function highlightNodes(urisOrPaths) {
       node.classList.add('highlighted');
     } else if (path && pathSet.has(path)) {
       node.classList.add('highlighted');
+    } else if (path) {
+      // Highlight folders that contain highlighted files
+      const folderPrefix = path.endsWith('/') ? path : path + '/';
+      for (const filePath of pathSet) {
+        if (filePath.startsWith(folderPrefix)) {
+          node.classList.add('highlighted');
+          break;
+        }
+      }
     }
   });
 
@@ -16956,12 +16965,12 @@ function getContextVariants(fullContext) {
     context: fullContext
   });
 
-  // 2. High severity files only
+  // 2. High severity files only - skip if no high severity issues
   const highSevFiles = getHighSeverityFiles(fullContext.files);
-  if (highSevFiles.length > 0 && highSevFiles.length < fullContext.files.length) {
-    const highSevIssues = fullContext.issues.filter(i =>
-      i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
-    );
+  const highSevIssues = fullContext.issues.filter(i =>
+    i.severity === 'high' && i.locations.some(l => highSevFiles.includes(l.file))
+  );
+  if (highSevIssues.length > 0 && highSevFiles.length < fullContext.files.length) {
     variants.push({
       label: ' (high severity only)',
       context: { ...fullContext, files: highSevFiles, issues: highSevIssues }
@@ -17144,6 +17153,9 @@ function renderCostdPrompts() {
     if (affordable) {
       // Build display label based on variant
       let displayLabel = affordable.label;
+      // Get original issue count from full variant (variantIndex=0)
+      const fullVariant = variants.find(v => v.variantIndex === 0);
+      const totalIssues = fullVariant ? fullVariant.variantContext.issues.length : affordable.variantContext.issues.length;
 
       if (affordable.variantLabel) {
         // If degraded to high severity, update the issue count in label
@@ -17153,12 +17165,13 @@ function renderCostdPrompts() {
           // "Analyze 175 Long Function issues" \u2192 "Analyze 14 high severity Long Function issues"
           displayLabel = displayLabel.replace(/\\d+/, highSevIssueCount + ' high severity');
           usedHighSeverityVariant.add(affordable.baseId);
-        } else {
-          // For other variants (5 files, 1 file), append the suffix
-          displayLabel += affordable.variantLabel;
+        } else if (affordable.variantLabel.includes('file')) {
+          // For file-limited variants (5 files, 1 file), show "Analyze the first X files"
+          const fileCount = affordable.variantContext.files.length;
+          displayLabel = 'Analyze the first ' + fileCount + ' file' + (fileCount === 1 ? '' : 's');
         }
       }
-      // File count is shown in chips below, not needed in button
+      // Track total issues for "(X of Y)" chip display
 
       // Skip "Focus on high severity" buttons if we already degraded another prompt to high severity
       if (affordable.action === 'filter-high-severity') {
@@ -17167,7 +17180,9 @@ function renderCostdPrompts() {
 
       affordablePrompts.push({
         ...affordable,
-        displayLabel: displayLabel
+        displayLabel: displayLabel,
+        totalIssues: totalIssues,
+        isFileLimited: affordable.variantLabel && affordable.variantLabel.includes('file')
       });
     }
   }
@@ -17179,7 +17194,10 @@ function renderCostdPrompts() {
 
   container.innerHTML = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
-    const fileLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    // For file-limited variants, show "(X of Y)" where X=files, Y=total issues
+    const fileLabel = p.isFileLimited
+      ? fileCount + ' of ' + p.totalIssues
+      : (fileCount === 1 ? '1 file' : fileCount + ' files');
     return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
       ' data-prompt-id="' + p.id + '"' +
       ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
@@ -17335,8 +17353,8 @@ function renderItemHtml(item) {
 
   return '<div class="pattern-item ' + item.severity + '" data-files="' + filesData + '" data-line="' + (firstLoc.line || '') + '" data-rule-id="' + item.ruleId + '" data-message="' + item.message.replace(/"/g, '&quot;') + '">' +
     '<div class="pattern-item-row"><div class="pattern-item-content">' +
-    '<div class="pattern-item-desc">' + item.message + '</div>' +
-    '<div class="pattern-item-file">' + fileName + lineInfo + '</div></div>' +
+    '<div class="pattern-item-file">' + fileName + lineInfo + '</div>' +
+    '<div class="pattern-item-desc">' + item.message + '</div></div>' +
     '<button class="pattern-ignore-btn" title="Ignore this item"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div></div>';
 }
 
@@ -17442,7 +17460,6 @@ function setupHeaderHandlers(list) {
       if (e.target.closest('.pattern-chevron')) return;
       if (e.target.classList.contains('pattern-rules-toggle')) return;
       if (selectedElement) {
-        selectedElement.style.borderLeftColor = '';
         selectedElement.style.background = '';
       }
       selectedElement = header;
@@ -17485,6 +17502,11 @@ function setupItemHandlers(list) {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
       e.stopPropagation();
+      // Clear previous selection styling
+      if (selectedElement) {
+        selectedElement.style.background = '';
+      }
+      selectedElement = item;
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
@@ -19298,10 +19320,12 @@ function cycleIssueColors() {
   });
 
   if (selectedElement && selectedElement.isConnected) {
+    // Visible selection background with pulsing alpha
+    const bgAlpha = 0.5 + 0.1 * Math.sin(pulsePhase);
+    // Extract RGB from hex color (regex uses $ to match end after rgba( prefix)
     const bgColor = color.replace('#', 'rgba(')
-      .replace(/(..)(..)(..)/, (_, r, g, b) =>
-        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',0.2)');
-    selectedElement.style.borderLeftColor = color;
+      .replace(/(..)(..)(..)$/, (_, r, g, b) =>
+        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',' + bgAlpha.toFixed(2) + ')');
     selectedElement.style.background = bgColor;
   }
 }
