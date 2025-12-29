@@ -115,6 +115,8 @@ function renderPartitionRects(layer, nodes, width, height) {
         .attr('class', 'partition-node node')
         .attr('data-uri', d => d.uri)
         .attr('data-path', d => d.filePath)
+        .attr('data-line', d => d.line)
+        .attr('data-end-line', d => d.endLine)
         .attr('fill', FUNC_NEUTRAL_COLOR)
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)

@@ -16880,7 +16880,8 @@ function updateStatusButton() {
 }
 
 // Pure DOM operation - highlights nodes matching the given URIs or file paths
-function highlightNodes(urisOrPaths) {
+// lineMap is optional: { filePath: [line1, line2, ...] } for function-level highlighting
+function highlightNodes(urisOrPaths, lineMap) {
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -16900,11 +16901,33 @@ function highlightNodes(urisOrPaths) {
     }
   }
 
+  lineMap = lineMap || {};
+
   // Highlight matching nodes (check both data-uri and data-path for compatibility)
   document.querySelectorAll('.node').forEach(node => {
     const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
     const collapsedPaths = node.getAttribute('data-collapsed-paths');
+    const nodeLine = node.getAttribute('data-line');
+    const nodeEndLine = node.getAttribute('data-end-line');
+
+    // For partition-node (function) elements, check line ranges
+    if (nodeLine && nodeEndLine && path) {
+      const lines = lineMap[path];
+      if (lines && lines.length > 0) {
+        // Only highlight if an issue line falls within this function's range
+        const startLine = parseInt(nodeLine);
+        const endLine = parseInt(nodeEndLine);
+        const matches = lines.some(l => l >= startLine && l <= endLine);
+        if (matches) {
+          node.classList.add('highlighted');
+        }
+        return; // Don't fall through to file-level matching
+      }
+      // If no line info for this file, don't highlight function nodes
+      // (file-level highlighting happens on file nodes, not function nodes)
+      return;
+    }
 
     if (uri && urisOrPaths.includes(uri)) {
       node.classList.add('highlighted');
@@ -17517,6 +17540,7 @@ function setupRulesToggleHandlers(list) {
 function setupItemHandlers(list) {
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
+    const line = item.getAttribute('data-line');
     const ruleId = item.getAttribute('data-rule-id');
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
@@ -17527,7 +17551,12 @@ function setupItemHandlers(list) {
       }
       selectedElement = item;
       selection.selectRule(ruleId);
-      selection.setFocus(files);
+      // Build lineMap for function-level highlighting
+      const lineMap = {};
+      if (line && files.length > 0) {
+        lineMap[files[0]] = [parseInt(line)];
+      }
+      selection.setFocus(files, lineMap);
       switchToView(ruleId);
     });
   });
@@ -19011,6 +19040,8 @@ function renderPartitionRects(layer, nodes, width, height) {
         .attr('class', 'partition-node node')
         .attr('data-uri', d => d.uri)
         .attr('data-path', d => d.filePath)
+        .attr('data-line', d => d.line)
+        .attr('data-end-line', d => d.endLine)
         .attr('fill', FUNC_NEUTRAL_COLOR)
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
@@ -19439,6 +19470,7 @@ const selection = {
   _state: {
     ruleId: null,         // Selected issue type (e.g., 'silent-failure')
     highlightFiles: [],   // Files to highlight visually (what user is browsing)
+    highlightLines: {},   // Map of file path -> line number for function-level highlighting
     attachedFiles: [],    // Files attached to context (ready to send)
     attachedIssues: []    // Issues attached to context
   },
@@ -19447,7 +19479,25 @@ const selection = {
   selectRule(ruleId) {
     this._state.ruleId = ruleId;
     this._state.highlightFiles = this.getAffectedFiles();
+    this._state.highlightLines = this.getAffectedLines();
     this._applyHighlights();
+  },
+
+  // Get lines affected by current rule (for function-level highlighting)
+  getAffectedLines() {
+    if (!this._state.ruleId) return {};
+    const lineMap = {};
+    for (const issue of issues) {
+      if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
+        for (const loc of issue.locations) {
+          if (loc.line) {
+            if (!lineMap[loc.file]) lineMap[loc.file] = [];
+            lineMap[loc.file].push(loc.line);
+          }
+        }
+      }
+    }
+    return lineMap;
   },
 
   // Get files affected by current rule (derived, not stored)
@@ -19465,8 +19515,10 @@ const selection = {
   },
 
   // Set highlight focus to specific files (visual only, does NOT attach to context)
-  setFocus(files) {
+  // lineMap is optional: { filePath: [line1, line2, ...] }
+  setFocus(files, lineMap) {
     this._state.highlightFiles = files;
+    this._state.highlightLines = lineMap || {};
     this._applyHighlights();
   },
 
@@ -19489,6 +19541,7 @@ const selection = {
   clear() {
     this._state.ruleId = null;
     this._state.highlightFiles = [];
+    this._state.highlightLines = {};
     this._state.attachedFiles = [];
     this._state.attachedIssues = [];
     this._applyHighlights();
@@ -19550,7 +19603,7 @@ const selection = {
 
   // Apply highlights to DOM nodes
   _applyHighlights() {
-    highlightNodes(this._state.highlightFiles);
+    highlightNodes(this._state.highlightFiles, this._state.highlightLines);
     this._renderContextFiles();
     renderDynamicPrompts();
   },

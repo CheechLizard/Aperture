@@ -66,6 +66,7 @@ function setupRulesToggleHandlers(list) {
 function setupItemHandlers(list) {
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
+    const line = item.getAttribute('data-line');
     const ruleId = item.getAttribute('data-rule-id');
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
@@ -76,7 +77,12 @@ function setupItemHandlers(list) {
       }
       selectedElement = item;
       selection.selectRule(ruleId);
-      selection.setFocus(files);
+      // Build lineMap for function-level highlighting
+      const lineMap = {};
+      if (line && files.length > 0) {
+        lineMap[files[0]] = [parseInt(line)];
+      }
+      selection.setFocus(files, lineMap);
       switchToView(ruleId);
     });
   });

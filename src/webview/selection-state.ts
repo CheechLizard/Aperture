@@ -19,6 +19,7 @@ const selection = {
   _state: {
     ruleId: null,         // Selected issue type (e.g., 'silent-failure')
     highlightFiles: [],   // Files to highlight visually (what user is browsing)
+    highlightLines: {},   // Map of file path -> line number for function-level highlighting
     attachedFiles: [],    // Files attached to context (ready to send)
     attachedIssues: []    // Issues attached to context
   },
@@ -27,7 +28,25 @@ const selection = {
   selectRule(ruleId) {
     this._state.ruleId = ruleId;
     this._state.highlightFiles = this.getAffectedFiles();
+    this._state.highlightLines = this.getAffectedLines();
     this._applyHighlights();
+  },
+
+  // Get lines affected by current rule (for function-level highlighting)
+  getAffectedLines() {
+    if (!this._state.ruleId) return {};
+    const lineMap = {};
+    for (const issue of issues) {
+      if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
+        for (const loc of issue.locations) {
+          if (loc.line) {
+            if (!lineMap[loc.file]) lineMap[loc.file] = [];
+            lineMap[loc.file].push(loc.line);
+          }
+        }
+      }
+    }
+    return lineMap;
   },
 
   // Get files affected by current rule (derived, not stored)
@@ -45,8 +64,10 @@ const selection = {
   },
 
   // Set highlight focus to specific files (visual only, does NOT attach to context)
-  setFocus(files) {
+  // lineMap is optional: { filePath: [line1, line2, ...] }
+  setFocus(files, lineMap) {
     this._state.highlightFiles = files;
+    this._state.highlightLines = lineMap || {};
     this._applyHighlights();
   },
 
@@ -69,6 +90,7 @@ const selection = {
   clear() {
     this._state.ruleId = null;
     this._state.highlightFiles = [];
+    this._state.highlightLines = {};
     this._state.attachedFiles = [];
     this._state.attachedIssues = [];
     this._applyHighlights();
@@ -130,7 +152,7 @@ const selection = {
 
   // Apply highlights to DOM nodes
   _applyHighlights() {
-    highlightNodes(this._state.highlightFiles);
+    highlightNodes(this._state.highlightFiles, this._state.highlightLines);
     this._renderContextFiles();
     renderDynamicPrompts();
   },

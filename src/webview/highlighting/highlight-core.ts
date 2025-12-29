@@ -6,7 +6,8 @@ function updateStatusButton() {
 }
 
 // Pure DOM operation - highlights nodes matching the given URIs or file paths
-function highlightNodes(urisOrPaths) {
+// lineMap is optional: { filePath: [line1, line2, ...] } for function-level highlighting
+function highlightNodes(urisOrPaths, lineMap) {
   // Clear previous highlights and reset inline styles from animation
   document.querySelectorAll('.node.highlighted, .chord-arc.highlighted, .chord-ribbon.highlighted').forEach(el => {
     el.classList.remove('highlighted');
@@ -26,11 +27,33 @@ function highlightNodes(urisOrPaths) {
     }
   }
 
+  lineMap = lineMap || {};
+
   // Highlight matching nodes (check both data-uri and data-path for compatibility)
   document.querySelectorAll('.node').forEach(node => {
     const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
     const collapsedPaths = node.getAttribute('data-collapsed-paths');
+    const nodeLine = node.getAttribute('data-line');
+    const nodeEndLine = node.getAttribute('data-end-line');
+
+    // For partition-node (function) elements, check line ranges
+    if (nodeLine && nodeEndLine && path) {
+      const lines = lineMap[path];
+      if (lines && lines.length > 0) {
+        // Only highlight if an issue line falls within this function's range
+        const startLine = parseInt(nodeLine);
+        const endLine = parseInt(nodeEndLine);
+        const matches = lines.some(l => l >= startLine && l <= endLine);
+        if (matches) {
+          node.classList.add('highlighted');
+        }
+        return; // Don't fall through to file-level matching
+      }
+      // If no line info for this file, don't highlight function nodes
+      // (file-level highlighting happens on file nodes, not function nodes)
+      return;
+    }
 
     if (uri && urisOrPaths.includes(uri)) {
       node.classList.add('highlighted');
