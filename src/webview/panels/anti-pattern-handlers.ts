@@ -66,7 +66,6 @@ function setupRulesToggleHandlers(list) {
 function setupItemHandlers(list) {
   list.querySelectorAll('.pattern-item').forEach(item => {
     const files = item.getAttribute('data-files').split(',').filter(f => f);
-    const line = item.getAttribute('data-line');
     const ruleId = item.getAttribute('data-rule-id');
     item.addEventListener('click', (e) => {
       if (e.target.closest('.pattern-ignore-btn')) return;
@@ -79,11 +78,6 @@ function setupItemHandlers(list) {
       selection.selectRule(ruleId);
       selection.setFocus(files);
       switchToView(ruleId);
-      if (files.length > 0) {
-        const lineNum = line ? parseInt(line) : undefined;
-        const uri = createUriFromPathAndLine(files[0], null, lineNum);
-        vscode.postMessage({ command: 'openFile', uri: uri });
-      }
     });
   });
 }
