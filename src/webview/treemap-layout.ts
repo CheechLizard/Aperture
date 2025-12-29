@@ -29,7 +29,7 @@ function getZoomedOther() {
 
 function buildFileHierarchy(fileData, zoomedFolderPath) {
   // Build full hierarchy with folder URIs
-  const root = { name: 'root', path: '', uri: null, children: [] };
+  const root = { name: 'root', path: '', uri: createFolderUri(''), children: [] };
   for (const file of fileData) {
     const parts = file.path.split('/');
     let current = root;
@@ -58,6 +58,12 @@ function buildFileHierarchy(fileData, zoomedFolderPath) {
       }
       return subtree;
     }
+  }
+
+  // Handle root-level partial view (when folderPath is '')
+  if (zoomedOtherInfo && zoomedOtherInfo.folderPath === '') {
+    const allowedPaths = new Set(zoomedOtherInfo.paths);
+    root.children = root.children.filter(c => allowedPaths.has(c.path));
   }
 
   return root;
