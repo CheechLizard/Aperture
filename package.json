@@ -42,7 +42,7 @@
     "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
     "copy-wasm": "cp node_modules/web-tree-sitter/web-tree-sitter.wasm dist/ && cp node_modules/@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm dist/ && cp node_modules/tree-sitter-typescript/tree-sitter-typescript.wasm dist/ && cp node_modules/tree-sitter-typescript/tree-sitter-tsx.wasm dist/",
-    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node && npm run copy-wasm",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --inject:esbuild-shim.js --define:import.meta.url=importMetaUrl && npm run copy-wasm",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
