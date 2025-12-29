@@ -13816,6 +13816,25 @@ function aggregateSmallNodes(hierarchyNode) {
     const firstItems = processBspNode(node.first);
     const lastItems = processBspNode(node.last);
 
+    // Find collapsed groups that need growth (not labelable)
+    const firstCollapsed = firstItems.find(n => n._isCollapsedGroup);
+    const lastCollapsed = lastItems.find(n => n._isCollapsedGroup);
+    const needsGrowth = (firstCollapsed && !isLabelable(firstCollapsed)) ||
+                        (lastCollapsed && !isLabelable(lastCollapsed));
+
+    if (needsGrowth) {
+      // Collect all original items from both sides
+      const allItems = [];
+      for (const item of [...firstItems, ...lastItems]) {
+        if (item._isCollapsedGroup) {
+          allItems.push(...item._collapsedItems);
+        } else {
+          allItems.push(item);
+        }
+      }
+      return [createCollapsedNode(allItems)];
+    }
+
     // Check if both sides are fully collapsed (single collapsed node each)
     const firstIsCollapsed = firstItems.length === 1 && firstItems[0]._isCollapsedGroup;
     const lastIsCollapsed = lastItems.length === 1 && lastItems[0]._isCollapsedGroup;
