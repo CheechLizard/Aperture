@@ -4,13 +4,19 @@ import { TOOLTIP_SCRIPT } from './webview/tooltip';
 import { TREEMAP_NAV_SCRIPT } from './webview/treemap-nav';
 import { ISSUE_HIGHLIGHTS_SCRIPT } from './webview/issue-highlights';
 import { CHORD_SCRIPT } from './webview/chord-diagram';
-import { HIGHLIGHT_UTILS_SCRIPT } from './webview/highlight-utils';
+import { HIGHLIGHT_CORE_SCRIPT } from './webview/highlighting/highlight-core';
+import { PROMPT_UTILS_SCRIPT } from './webview/highlighting/prompt-utils';
 import { ISSUE_CONFIG_SCRIPT } from './webview/issue-config';
 import { ANTI_PATTERN_PANEL_SCRIPT } from './webview/anti-pattern-panel';
+import { ANTI_PATTERN_HANDLERS_SCRIPT } from './webview/panels/anti-pattern-handlers';
 import { FILE_ISSUES_PANEL_SCRIPT } from './webview/file-issues-panel';
 import { CHAT_PANEL_SCRIPT } from './webview/chat-panel';
 import { EVENT_HANDLERS_SCRIPT } from './webview/event-handlers';
-import { TREEMAP_LAYOUT_SCRIPT } from './webview/treemap-layout';
+import { MESSAGE_HANDLERS_SCRIPT } from './webview/interactions/message-handlers';
+import { TREEMAP_CORE_SCRIPT } from './webview/layout/treemap-core';
+import { TREEMAP_AGGREGATION_SCRIPT } from './webview/layout/treemap-aggregation';
+import { TREEMAP_RENDER_SCRIPT } from './webview/layout/treemap-render';
+import { TREEMAP_LABELS_SCRIPT } from './webview/layout/treemap-labels';
 import { PARTITION_LAYOUT_SCRIPT } from './webview/partition-layout';
 import { DISTRIBUTION_CHART_SCRIPT } from './webview/distribution-chart';
 import { COLOR_ANIMATION_SCRIPT } from './webview/color-animation';
@@ -173,11 +179,15 @@ ${ISSUE_HIGHLIGHTS_SCRIPT}
 
 ${CHORD_SCRIPT}
 
-${HIGHLIGHT_UTILS_SCRIPT}
+${HIGHLIGHT_CORE_SCRIPT}
+
+${PROMPT_UTILS_SCRIPT}
 
 ${SELECTION_STATE_SCRIPT}
 
 ${ISSUE_CONFIG_SCRIPT}
+
+${ANTI_PATTERN_HANDLERS_SCRIPT}
 
 ${ANTI_PATTERN_PANEL_SCRIPT}
 
@@ -185,7 +195,13 @@ ${FILE_ISSUES_PANEL_SCRIPT}
 
 ${CHAT_PANEL_SCRIPT}
 
-${TREEMAP_LAYOUT_SCRIPT}
+${TREEMAP_CORE_SCRIPT}
+
+${TREEMAP_AGGREGATION_SCRIPT}
+
+${TREEMAP_RENDER_SCRIPT}
+
+${TREEMAP_LABELS_SCRIPT}
 
 ${PARTITION_LAYOUT_SCRIPT}
 
@@ -194,6 +210,8 @@ ${DISTRIBUTION_CHART_SCRIPT}
 ${CODE_PREVIEW_SCRIPT}
 
 ${COLOR_ANIMATION_SCRIPT}
+
+${MESSAGE_HANDLERS_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
 </script>
