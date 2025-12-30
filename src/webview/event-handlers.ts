@@ -158,6 +158,11 @@ function renderFooterStats() {
     }
   }
 
+  // Show chars/token ratio if calibrated
+  if (window.charsPerToken) {
+    html += ' · ' + window.charsPerToken.toFixed(2) + ' chars/tok';
+  }
+
   container.innerHTML = html;
 }
 `;

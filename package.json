@@ -47,7 +47,7 @@
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@tree-sitter-grammars/tree-sitter-lua": "^0.2.0",
     "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.26.3"

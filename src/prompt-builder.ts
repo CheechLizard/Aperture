@@ -2,7 +2,31 @@
  * Prompt building utilities for Claude API interactions
  */
 
+import Anthropic from '@anthropic-ai/sdk';
 import { FileInfo, Issue } from './types';
+
+// Token limit to avoid rate limits (80K tokens/min on most tiers)
+// Set to 40K to allow larger context while staying well under limits
+const TOKEN_LIMIT = 40000;
+
+// Self-calibrating chars/token ratio
+let observedRatio = 2.5;  // Start with default estimate
+let sampleCount = 0;
+
+/** Calibrate the chars/token ratio using actual API results */
+export function calibrateRatio(chars: number, tokens: number): void {
+  if (tokens <= 0) return;
+  const newRatio = chars / tokens;
+  // Weighted moving average - newer samples have more weight
+  sampleCount++;
+  const weight = Math.min(0.3, 1 / sampleCount);  // Cap at 30% influence per sample
+  observedRatio = observedRatio * (1 - weight) + newRatio * weight;
+}
+
+/** Get the current observed ratio (for debugging) */
+export function getObservedRatio(): number {
+  return observedRatio;
+}
 
 export interface AnalysisContext {
   highlightedFiles: string[];
@@ -44,17 +68,32 @@ Be concise but helpful. Always use the respond tool to provide your final answer
   return systemPrompt;
 }
 
-/** Estimate tokens for a prompt - uses character count heuristic (~4 chars per token) */
+/** Estimate tokens for a prompt - uses self-calibrating ratio */
 export function estimatePromptTokens(
   query: string,
   context?: AnalysisContext
 ): { tokens: number; limit: number } {
   const systemPrompt = buildSystemPrompt(context);
   const totalChars = systemPrompt.length + query.length;
-  // Rough estimate: ~4 characters per token for English text
-  const estimatedTokens = Math.ceil(totalChars / 4);
+  const estimatedTokens = Math.ceil(totalChars / observedRatio);
+  return { tokens: estimatedTokens, limit: TOKEN_LIMIT };
+}
 
-  return { tokens: estimatedTokens, limit: 30000 }; // rate limit constraint
+/** Count tokens using Anthropic's official API (exact count) */
+export async function countPromptTokens(
+  query: string,
+  context: AnalysisContext | undefined,
+  client: Anthropic
+): Promise<{ tokens: number; limit: number }> {
+  const systemPrompt = buildSystemPrompt(context);
+
+  const result = await client.messages.countTokens({
+    model: 'claude-sonnet-4-20250514',
+    system: systemPrompt,
+    messages: [{ role: 'user', content: query }],
+  });
+
+  return { tokens: result.input_tokens, limit: TOKEN_LIMIT };
 }
 
 /** Build a preview showing exactly what will be sent to Claude */

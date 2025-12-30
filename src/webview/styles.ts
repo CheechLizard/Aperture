@@ -54,6 +54,8 @@ export const DASHBOARD_STYLES = `
     .ai-message .thinking-abort { margin-left: auto; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1; }
     .ai-message .thinking-abort:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .ai-message.error { background: rgba(200, 80, 80, 0.15); border: 1px solid rgba(200, 80, 80, 0.3); color: var(--vscode-errorForeground, #f88); }
+    .ai-usage { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 8px; opacity: 0.7; }
+    .prompt-estimate { font-size: 11px; color: rgba(150, 150, 200, 0.8); margin-top: 8px; text-align: right; }
     /* Chat Actions */
     .chat-actions { margin-top: auto; }
     .chat-actions .action-btns + .chat-actions { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }

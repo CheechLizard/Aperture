@@ -104,11 +104,17 @@ window.addEventListener('message', event => {
     const chatMessages = document.getElementById('chat-messages');
     const thinkingBubble = document.getElementById('thinking-bubble');
 
+    // Estimate tokens using calibrated ratio
+    const promptChars = msg.prompt.length;
+    const ratio = window.charsPerToken || 2.5;
+    const estimatedTokens = Math.ceil(promptChars / ratio);
+
     const promptMsg = document.createElement('div');
     promptMsg.className = 'user-message debug';
     promptMsg.innerHTML = '<pre style="margin:0;font-size:0.7em;white-space:pre-wrap;word-break:break-all;color:#ccc;">' +
       msg.prompt.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-      '</pre>';
+      '</pre>' +
+      '<div class="prompt-estimate">~' + estimatedTokens.toLocaleString() + ' tokens (' + promptChars.toLocaleString() + ' chars)</div>';
 
     // Insert before thinking bubble
     if (thinkingBubble) {
@@ -144,6 +150,16 @@ window.addEventListener('message', event => {
     } else {
       aiMsg.textContent = msg.message;
     }
+
+    // Add token usage display
+    if (msg.usage) {
+      const usageEl = document.createElement('div');
+      usageEl.className = 'ai-usage';
+      usageEl.textContent = msg.usage.inputTokens.toLocaleString() + ' in \\u00b7 ' +
+                            msg.usage.outputTokens.toLocaleString() + ' out';
+      aiMsg.appendChild(usageEl);
+    }
+
     chatMessages.appendChild(aiMsg);
 
     // Scroll to show top of AI message so user can read from beginning
@@ -226,6 +242,11 @@ window.addEventListener('message', event => {
   } else if (msg.type === 'tokenCount') {
     // Handle token count response for prompt costing
     handleTokenCount(msg.promptId, msg.tokens, msg.limit);
+    // Update chars/token ratio for footer display
+    if (msg.charsPerToken) {
+      window.charsPerToken = msg.charsPerToken;
+      renderFooterStats();
+    }
   } else if (msg.type === 'rulesUpdated') {
     // Handle rule changes from file watcher
     ruleResult = msg.ruleResult;

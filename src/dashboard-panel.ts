@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 import { scanWorkspace } from './scanner';
 import { ProjectData, RuleParseResult } from './types';
-import { analyzeQuery, buildPromptPreview, estimatePromptTokens } from './agent';
+import { analyzeQuery, buildPromptPreview, countPromptTokens, estimatePromptTokens, calibrateRatio, buildSystemPrompt } from './agent';
 import { analyzeDependencies, debugInfo } from './dependency-analyzer';
 import { addAntiPatternRule, removeAntiPatternRule } from './anti-pattern-rules';
 import { getLoadingContent, getErrorContent, getDashboardContent } from './dashboard-html';
@@ -197,7 +198,7 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           });
         }
       } else if (message.command === 'countTokens' && currentData) {
-        // Estimate tokens for prompt cost estimation (synchronous, no API call)
+        // Count tokens using Anthropic's official API for exact counts
         const fileContents: Record<string, string> = {};
         if (message.context?.files) {
           for (const filePath of message.context.files) {
@@ -216,12 +217,33 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           fileContents
         } : undefined;
 
-        const result = estimatePromptTokens(message.text, context);
+        // Use API for exact count if key available, else fall back to estimate
+        const apiKey = getApiKey();
+        let result: { tokens: number; limit: number };
+        if (apiKey) {
+          try {
+            const client = new Anthropic({ apiKey });
+            result = await countPromptTokens(message.text, context, client);
+            // Calibrate the estimate using actual count
+            const systemPrompt = buildSystemPrompt(context);
+            const totalChars = systemPrompt.length + message.text.length;
+            calibrateRatio(totalChars, result.tokens);
+          } catch {
+            // API call failed, fall back to estimate
+            result = estimatePromptTokens(message.text, context);
+          }
+        } else {
+          result = estimatePromptTokens(message.text, context);
+        }
+
+        // Import getObservedRatio dynamically to get current value
+        const { getObservedRatio } = await import('./prompt-builder');
         panel.webview.postMessage({
           type: 'tokenCount',
           promptId: message.promptId,
           tokens: result.tokens,
-          limit: result.limit
+          limit: result.limit,
+          charsPerToken: getObservedRatio()
         });
       } else if (message.command === 'refresh' && currentData) {
         // Manual refresh - re-load rules and re-scan
@@ -251,6 +273,22 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
   );
 
   panel.webview.html = getLoadingContent();
+
+  // Calibrate token ratio at startup with known payload (non-blocking)
+  const startupApiKey = getApiKey();
+  if (startupApiKey) {
+    const client = new Anthropic({ apiKey: startupApiKey });
+    const calibrationText = 'function example() { return 42; }';
+    const calibrationSystem = 'You are a code analyzer.';
+    client.messages.countTokens({
+      model: 'claude-sonnet-4-20250514',
+      system: calibrationSystem,
+      messages: [{ role: 'user', content: calibrationText }]
+    }).then(result => {
+      const chars = calibrationText.length + calibrationSystem.length;
+      calibrateRatio(chars, result.input_tokens);
+    }).catch(() => {});  // Silently ignore errors
+  }
 
   panel.onDidDispose(() => {
     stopWatching();
@@ -368,4 +406,13 @@ async function createDefaultCodingStandards(workspaceRoot: string): Promise<void
     vscode.Uri.file(filePath),
     new TextEncoder().encode(defaultContent)
   );
+}
+
+function getApiKey(): string | undefined {
+  const config = vscode.workspace.getConfiguration('aperture');
+  const configKey = config.get<string>('anthropicApiKey');
+  if (configKey) {
+    return configKey;
+  }
+  return process.env.ANTHROPIC_API_KEY;
 }
