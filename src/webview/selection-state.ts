@@ -168,8 +168,8 @@ const selection = {
       return;
     }
 
-    // Show first 5 files, then +N more button (but ALL files are sent to API)
-    const maxVisible = 5;
+    // Show first 3 files, then +N more button (but ALL files are sent to API)
+    const maxVisible = 3;
     const visibleFiles = files.slice(0, maxVisible);
     const hiddenCount = files.length - maxVisible;
 

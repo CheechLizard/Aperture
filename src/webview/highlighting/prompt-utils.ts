@@ -207,6 +207,12 @@ function renderNoContextPrompts(prompts) {
         const prompt = btn.getAttribute('data-prompt');
         const input = document.getElementById('query');
         input.value = prompt;
+        // Resize input to fit content
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        // Update send button state and reposition panel
+        document.getElementById('send').classList.add('ready');
+        positionAiPanel();
         input.focus();
       }
     });
@@ -335,6 +341,12 @@ function renderCostdPrompts() {
       const prompt = btn.getAttribute('data-prompt');
       const input = document.getElementById('query');
       input.value = prompt;
+      // Resize input to fit content
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      // Update send button state and reposition panel
+      document.getElementById('send').classList.add('ready');
+      positionAiPanel();
       input.focus();
     });
   });
