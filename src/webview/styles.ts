@@ -48,7 +48,7 @@ export const DASHBOARD_STYLES = `
     .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
     .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
     .user-message-file::before { content: '📎'; font-size: 0.9em; }
-    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 0; padding: 10px 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 0; padding: 10px 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     .ai-message .thinking-abort { margin-left: auto; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1; }
