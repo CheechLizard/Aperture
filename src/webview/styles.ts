@@ -95,8 +95,9 @@ export const DASHBOARD_STYLES = `
     /* Collapsed folder nodes - render as clickable leaves */
     .folder-node { fill: #2d2d2d; stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .folder-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .folder-node.other { fill: #222; stroke: rgba(255,255,255,0.08); }
+    .folder-node.other { fill: #222; stroke: var(--vscode-editor-background); }
     .folder-node.other:hover { stroke: var(--vscode-focusBorder); }
+    .other-divider { stroke: var(--vscode-editor-background); stroke-width: 1; }
     .folder-label { font-size: 9px; fill: #fff; pointer-events: none; }
     .folder-count { font-size: 8px; fill: #888; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }

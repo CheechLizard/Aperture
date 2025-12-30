@@ -1,22 +1,34 @@
 export const COLOR_ANIMATION_SCRIPT = `
-let cycleTime = 0;
+// Color cycle synced with CSS animations (3s cycle: cornflower → purple → turquoise)
+const CYCLE_COLORS = [
+  [100, 149, 237],  // Cornflower blue at 0%
+  [147, 112, 219],  // Purple at 33%
+  [64, 224, 208]    // Turquoise at 66%
+];
 
-function hslToHex(h, s, l) {
-  const a = s * Math.min(l, 1 - l);
-  const f = n => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, '0');
-  };
-  return '#' + f(0) + f(8) + f(4);
+function interpolateColor(t) {
+  // t is 0-1 representing position in 3s cycle
+  // 0-0.33: blue→purple, 0.33-0.66: purple→turquoise, 0.66-1: turquoise→blue
+  const segment = t * 3;
+  const idx = Math.floor(segment) % 3;
+  const nextIdx = (idx + 1) % 3;
+  const localT = segment - Math.floor(segment);
+
+  const c1 = CYCLE_COLORS[idx];
+  const c2 = CYCLE_COLORS[nextIdx];
+  const r = Math.round(c1[0] + (c2[0] - c1[0]) * localT);
+  const g = Math.round(c1[1] + (c2[1] - c1[1]) * localT);
+  const b = Math.round(c1[2] + (c2[2] - c1[2]) * localT);
+  return [r, g, b];
 }
 
 function cycleIssueColors() {
-  cycleTime += 0.016;
-  const hue = (cycleTime * 36) % 360;
-  const color = hslToHex(hue, 0.85, 0.6);
+  // Sync with CSS animations using same timing base
+  const t = (Date.now() % 3000) / 3000;
+  const [r, g, b] = interpolateColor(t);
+  const color = '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
 
-  const pulsePhase = (cycleTime * 1000 / 2000) * 2 * Math.PI;
+  const pulsePhase = t * 2 * Math.PI;
   const alpha = 0.7 + 0.05 * Math.sin(pulsePhase);
   const ribbonAlpha = 0.3 + 0.2 * Math.sin(pulsePhase);
 
@@ -38,11 +50,7 @@ function cycleIssueColors() {
   if (selectedElement && selectedElement.isConnected) {
     // Visible selection background with pulsing alpha
     const bgAlpha = 0.5 + 0.1 * Math.sin(pulsePhase);
-    // Extract RGB from hex color (regex uses $ to match end after rgba( prefix)
-    const bgColor = color.replace('#', 'rgba(')
-      .replace(/(..)(..)(..)$/, (_, r, g, b) =>
-        parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',' + bgAlpha.toFixed(2) + ')');
-    selectedElement.style.background = bgColor;
+    selectedElement.style.background = 'rgba(' + r + ',' + g + ',' + b + ',' + bgAlpha.toFixed(2) + ')';
   }
 }
 

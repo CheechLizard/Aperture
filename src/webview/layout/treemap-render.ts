@@ -225,8 +225,6 @@ function renderFileRects(layer, leaves, width, height, t) {
     .join(
       enter => enter.append('line')
         .attr('class', 'other-divider')
-        .attr('stroke', 'rgba(255,255,255,0.15)')
-        .attr('stroke-width', 1)
         .attr('x1', d => d.x1).attr('y1', d => d.y1)
         .attr('x2', d => d.x2).attr('y2', d => d.y2),
       update => update
