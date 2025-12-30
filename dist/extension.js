@@ -15985,7 +15985,7 @@ var RULE_MATCHERS = [
     ruleId: "circular-dependency"
   },
   {
-    pattern: /orphan\s+files?|no\s+(?:imports?\s+or\s+)?dependents?/i,
+    pattern: /orphan(?:ed)?\s*files?|(?:no\s+)?orphans?|no\s+(?:imports?\s+or\s+)?dependents?|incoming\s+dependenc/i,
     ruleId: "orphan-file"
   }
 ];
@@ -16147,19 +16147,23 @@ var DASHBOARD_STYLES = `
     @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
     .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
-    .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .context-pie { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
+    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+    .ai-send-btn { width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 4px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    /* Context Files Chips - shown below input in footer */
-    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 8px; overflow: hidden; min-height: 24px; }
+    /* Context Files Chips - shown in footer context row */
+    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; overflow: hidden; flex: 1; min-height: 0; }
+    .footer-context-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+    .footer-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
     .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
-    /* AI Chat Panel - opens upward from footer, centered */
-    .ai-panel { position: fixed; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
+    /* AI Chat Panel - opens upward from footer, positioned via JS */
+    .ai-panel { position: fixed; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
     .ai-panel.visible { display: flex; }
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -16185,12 +16189,12 @@ var DASHBOARD_STYLES = `
     /* Prompt Loading Spinner */
     .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; }
+    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
     .footer-stats { font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
     .footer-lang { background: rgba(204, 167, 0, 0.15); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 8px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; }
+    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
@@ -16385,12 +16389,13 @@ var DASHBOARD_STYLES = `
     .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
     .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.85em; cursor: pointer; flex-shrink: 0; }
     .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: rgba(204, 167, 0, 0.15); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
-    .rules-warning:hover { background: rgba(204, 167, 0, 0.25); }
+    /* Rules warning - footer context */
+    .rules-warning-container { margin-bottom: 6px; }
+    .rules-warning-container:empty { display: none; }
+    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border-radius: 4px; font-size: 0.9em; cursor: pointer; background: rgba(204, 167, 0, 0.1); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
+    .rules-warning:hover { background: rgba(204, 167, 0, 0.2); }
     .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
-    .rules-warning-text { flex: 1; }
-    .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
-    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
+    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border-radius: 4px; font-size: 0.9em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
     .rules-create-btn:hover { background: var(--vscode-list-hoverBackground); }
     .rules-create-text { color: var(--vscode-descriptionForeground); }
     .rules-create-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
@@ -17877,10 +17882,9 @@ function updateStatus() {
         '<span class="rules-create-action">Create</span>' +
         '</button>';
     } else if (ruleResult.newCount > 0) {
-      warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
+      warningContainer.innerHTML = '<button class="rules-warning" onclick="promptFixRules()">' +
         '<span class="rules-warning-icon">&#9888;</span>' +
-        '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
-        '<span class="rules-warning-action">Fix with AI</span>' +
+        '<span>' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '</span>' +
         '</button>';
     } else {
       warningContainer.innerHTML = '';
@@ -17901,35 +17905,27 @@ function createCodingStandards() {
   vscode.postMessage({ command: 'createCodingStandards' });
 }
 
-function showNewRulesModal() {
+function promptFixRules() {
   const newRules = ruleResult.rules.filter(r => r.status === 'new');
   if (newRules.length === 0) return;
 
-  let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
-    '<div class="modal-content" onclick="event.stopPropagation()">' +
-    '<div class="modal-header"><h3>Unrecognized Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">\xD7</button></div>' +
-    '<div class="modal-body">' +
-    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them, or use AI to suggest fixes.</p>';
+  // Build prompt with the unrecognized rules
+  const rulesList = newRules.map(r => '- ' + r.rawText).join('\\n');
+  const prompt = 'Help me fix these unrecognized rules in coding-standards.md:\\n\\n' + rulesList +
+    '\\n\\nFor each rule, tell me if it\\'s a typo, something you could help implement, too complex for automation, or should be removed.';
 
-  for (const rule of newRules) {
-    html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';
-  }
+  // Populate input and focus
+  const input = document.getElementById('query');
+  input.value = prompt;
 
-  html += '</div></div></div>';
+  // Auto-resize textarea to fit content
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 
-  let modal = document.getElementById('new-rules-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'new-rules-modal';
-    document.body.appendChild(modal);
-  }
-  modal.innerHTML = html;
-}
+  input.focus();
 
-function closeNewRulesModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  const modal = document.getElementById('new-rules-modal');
-  if (modal) modal.innerHTML = '';
+  // Show AI panel (positions before making visible to prevent flash)
+  showAiPanel();
 }
 
 function renderFooterStats() {
@@ -17965,14 +17961,15 @@ document.getElementById('send').addEventListener('click', () => {
   if (!text) return;
   document.getElementById('send').disabled = true;
   input.value = '';
+  input.style.height = 'auto';  // Reset to single line
 
   // Get context from selection state
   const context = selection.getAIContext();
   const chatMessages = document.getElementById('chat-messages');
   const panel = document.getElementById('ai-panel');
 
-  // Show panel
-  panel.classList.add('visible');
+  // Show panel (positions before making visible to prevent flash)
+  showAiPanel();
 
   // Render thinking bubble (prompt preview will be inserted before this)
   const thinkingMsg = document.createElement('div');
@@ -18008,6 +18005,39 @@ document.getElementById('query').addEventListener('keydown', (e) => {
     document.getElementById('send').click();
   }
 });
+
+// Position AI panel above the input container (synchronous for initial positioning)
+function positionAiPanel() {
+  const panel = document.getElementById('ai-panel');
+  const container = document.querySelector('.footer-input-container');
+  if (!panel || !container) return;
+
+  const containerRect = container.getBoundingClientRect();
+  // Account for container's 8px padding, position 4px above content
+  panel.style.bottom = (window.innerHeight - containerRect.top - 4) + 'px';
+}
+
+// Show AI panel - position first, then make visible
+function showAiPanel() {
+  const panel = document.getElementById('ai-panel');
+  if (!panel) return;
+
+  // Position before showing to prevent flash
+  positionAiPanel();
+  panel.classList.add('visible');
+}
+
+// Auto-resize textarea and reposition AI panel
+document.getElementById('query').addEventListener('input', (e) => {
+  const textarea = e.target;
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  positionAiPanel();
+});
+
+// Reposition panel on window resize and focus
+window.addEventListener('resize', positionAiPanel);
+window.addEventListener('focus', positionAiPanel);
 
 window.addEventListener('message', event => {
   const msg = event.data;
@@ -18087,9 +18117,13 @@ window.addEventListener('message', event => {
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
       const pie = document.getElementById('context-pie');
+      const pctLabel = document.getElementById('context-pct');
       if (pie) {
         pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
         pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+      }
+      if (pctLabel) {
+        pctLabel.textContent = pct + '% used';
       }
     }
   } else if (msg.type === 'dependencyGraph') {
@@ -20391,30 +20425,34 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
-      <div id="rules-warning-container"></div>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
-  <div id="ai-panel" class="ai-panel">
-    <div id="chat-messages" class="chat-messages"></div>
-    <div id="chat-actions" class="chat-actions">
-      <div id="rules" class="rules"></div>
-    </div>
-  </div>
   <div class="footer">
     <div id="footer-stats" class="footer-stats"></div>
     <div class="footer-input-container">
+      <div id="ai-panel" class="ai-panel">
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="chat-actions" class="chat-actions">
+          <div id="rules" class="rules"></div>
+        </div>
+      </div>
+      <div id="rules-warning-container" class="rules-warning-container"></div>
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
-        <div class="ai-input-actions">
+      </div>
+      <hr class="input-divider">
+      <div class="footer-context-row">
+        <div id="context-files" class="context-files"></div>
+        <div class="footer-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
+          <span id="context-pct" class="context-pct"></span>
           <button id="send" class="ai-send-btn">\u2191</button>
         </div>
       </div>
-      <div id="context-files" class="context-files"></div>
     </div>
     ${unsupportedCount > 0 ? `<div id="footer-parsers" class="footer-parsers"><span class="footer-parsers-icon">\u26A0</span><span>Missing parsers:</span>${data.languageSupport.filter((l2) => !l2.isSupported).map((l2) => '<span class="footer-lang">' + l2.language + "</span>").join("")}</div>` : ""}
   </div>

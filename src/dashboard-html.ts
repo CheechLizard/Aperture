@@ -115,30 +115,34 @@ export function getDashboardContent(
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
-      <div id="rules-warning-container"></div>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>
     </div>
   </div>
   <div class="tooltip" style="display:none;"></div>
-  <div id="ai-panel" class="ai-panel">
-    <div id="chat-messages" class="chat-messages"></div>
-    <div id="chat-actions" class="chat-actions">
-      <div id="rules" class="rules"></div>
-    </div>
-  </div>
   <div class="footer">
     <div id="footer-stats" class="footer-stats"></div>
     <div class="footer-input-container">
+      <div id="ai-panel" class="ai-panel">
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="chat-actions" class="chat-actions">
+          <div id="rules" class="rules"></div>
+        </div>
+      </div>
+      <div id="rules-warning-container" class="rules-warning-container"></div>
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
-        <div class="ai-input-actions">
+      </div>
+      <hr class="input-divider">
+      <div class="footer-context-row">
+        <div id="context-files" class="context-files"></div>
+        <div class="footer-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
+          <span id="context-pct" class="context-pct"></span>
           <button id="send" class="ai-send-btn">↑</button>
         </div>
       </div>
-      <div id="context-files" class="context-files"></div>
     </div>
     ${unsupportedCount > 0 ? `<div id="footer-parsers" class="footer-parsers"><span class="footer-parsers-icon">⚠</span><span>Missing parsers:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
   </div>

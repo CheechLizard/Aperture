@@ -13,19 +13,23 @@ export const DASHBOARD_STYLES = `
     @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
     .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
-    .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 5px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .context-pie { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
+    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+    .ai-send-btn { width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 4px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    /* Context Files Chips - shown below input in footer */
-    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 8px; overflow: hidden; min-height: 24px; }
+    /* Context Files Chips - shown in footer context row */
+    .context-files { display: flex; flex-wrap: nowrap; gap: 6px; overflow: hidden; flex: 1; min-height: 0; }
+    .footer-context-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+    .footer-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
     .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
-    /* AI Chat Panel - opens upward from footer, centered */
-    .ai-panel { position: fixed; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
+    /* AI Chat Panel - opens upward from footer, positioned via JS */
+    .ai-panel { position: fixed; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); padding: 12px; display: none; z-index: 50; max-height: 50vh; overflow: hidden; flex-direction: column; }
     .ai-panel.visible { display: flex; }
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -51,12 +55,12 @@ export const DASHBOARD_STYLES = `
     /* Prompt Loading Spinner */
     .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; }
+    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
     .footer-stats { font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
     .footer-lang { background: rgba(204, 167, 0, 0.15); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 8px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; }
+    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
@@ -251,12 +255,13 @@ export const DASHBOARD_STYLES = `
     .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
     .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.85em; cursor: pointer; flex-shrink: 0; }
     .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: rgba(204, 167, 0, 0.15); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
-    .rules-warning:hover { background: rgba(204, 167, 0, 0.25); }
+    /* Rules warning - footer context */
+    .rules-warning-container { margin-bottom: 6px; }
+    .rules-warning-container:empty { display: none; }
+    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border-radius: 4px; font-size: 0.9em; cursor: pointer; background: rgba(204, 167, 0, 0.1); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
+    .rules-warning:hover { background: rgba(204, 167, 0, 0.2); }
     .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
-    .rules-warning-text { flex: 1; }
-    .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
-    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
+    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border-radius: 4px; font-size: 0.9em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
     .rules-create-btn:hover { background: var(--vscode-list-hoverBackground); }
     .rules-create-text { color: var(--vscode-descriptionForeground); }
     .rules-create-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }

@@ -77,10 +77,9 @@ function updateStatus() {
         '<span class="rules-create-action">Create</span>' +
         '</button>';
     } else if (ruleResult.newCount > 0) {
-      warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
+      warningContainer.innerHTML = '<button class="rules-warning" onclick="promptFixRules()">' +
         '<span class="rules-warning-icon">&#9888;</span>' +
-        '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
-        '<span class="rules-warning-action">Fix with AI</span>' +
+        '<span>' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '</span>' +
         '</button>';
     } else {
       warningContainer.innerHTML = '';
@@ -101,35 +100,27 @@ function createCodingStandards() {
   vscode.postMessage({ command: 'createCodingStandards' });
 }
 
-function showNewRulesModal() {
+function promptFixRules() {
   const newRules = ruleResult.rules.filter(r => r.status === 'new');
   if (newRules.length === 0) return;
 
-  let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
-    '<div class="modal-content" onclick="event.stopPropagation()">' +
-    '<div class="modal-header"><h3>Unrecognized Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">×</button></div>' +
-    '<div class="modal-body">' +
-    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them, or use AI to suggest fixes.</p>';
+  // Build prompt with the unrecognized rules
+  const rulesList = newRules.map(r => '- ' + r.rawText).join('\\n');
+  const prompt = 'Help me fix these unrecognized rules in coding-standards.md:\\n\\n' + rulesList +
+    '\\n\\nFor each rule, tell me if it\\'s a typo, something you could help implement, too complex for automation, or should be removed.';
 
-  for (const rule of newRules) {
-    html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';
-  }
+  // Populate input and focus
+  const input = document.getElementById('query');
+  input.value = prompt;
 
-  html += '</div></div></div>';
+  // Auto-resize textarea to fit content
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 
-  let modal = document.getElementById('new-rules-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'new-rules-modal';
-    document.body.appendChild(modal);
-  }
-  modal.innerHTML = html;
-}
+  input.focus();
 
-function closeNewRulesModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  const modal = document.getElementById('new-rules-modal');
-  if (modal) modal.innerHTML = '';
+  // Show AI panel (positions before making visible to prevent flash)
+  showAiPanel();
 }
 
 function renderFooterStats() {

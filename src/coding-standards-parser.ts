@@ -95,7 +95,7 @@ const RULE_MATCHERS: Array<{
     ruleId: 'circular-dependency',
   },
   {
-    pattern: /orphan\s+files?|no\s+(?:imports?\s+or\s+)?dependents?/i,
+    pattern: /orphan(?:ed)?\s*files?|(?:no\s+)?orphans?|no\s+(?:imports?\s+or\s+)?dependents?|incoming\s+dependenc/i,
     ruleId: 'orphan-file',
   },
 ];

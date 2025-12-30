@@ -7,14 +7,15 @@ document.getElementById('send').addEventListener('click', () => {
   if (!text) return;
   document.getElementById('send').disabled = true;
   input.value = '';
+  input.style.height = 'auto';  // Reset to single line
 
   // Get context from selection state
   const context = selection.getAIContext();
   const chatMessages = document.getElementById('chat-messages');
   const panel = document.getElementById('ai-panel');
 
-  // Show panel
-  panel.classList.add('visible');
+  // Show panel (positions before making visible to prevent flash)
+  showAiPanel();
 
   // Render thinking bubble (prompt preview will be inserted before this)
   const thinkingMsg = document.createElement('div');
@@ -50,6 +51,39 @@ document.getElementById('query').addEventListener('keydown', (e) => {
     document.getElementById('send').click();
   }
 });
+
+// Position AI panel above the input container (synchronous for initial positioning)
+function positionAiPanel() {
+  const panel = document.getElementById('ai-panel');
+  const container = document.querySelector('.footer-input-container');
+  if (!panel || !container) return;
+
+  const containerRect = container.getBoundingClientRect();
+  // Account for container's 8px padding, position 4px above content
+  panel.style.bottom = (window.innerHeight - containerRect.top - 4) + 'px';
+}
+
+// Show AI panel - position first, then make visible
+function showAiPanel() {
+  const panel = document.getElementById('ai-panel');
+  if (!panel) return;
+
+  // Position before showing to prevent flash
+  positionAiPanel();
+  panel.classList.add('visible');
+}
+
+// Auto-resize textarea and reposition AI panel
+document.getElementById('query').addEventListener('input', (e) => {
+  const textarea = e.target;
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  positionAiPanel();
+});
+
+// Reposition panel on window resize and focus
+window.addEventListener('resize', positionAiPanel);
+window.addEventListener('focus', positionAiPanel);
 
 window.addEventListener('message', event => {
   const msg = event.data;
@@ -129,9 +163,13 @@ window.addEventListener('message', event => {
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
       const pie = document.getElementById('context-pie');
+      const pctLabel = document.getElementById('context-pct');
       if (pie) {
         pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
         pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+      }
+      if (pctLabel) {
+        pctLabel.textContent = pct + '% used';
       }
     }
   } else if (msg.type === 'dependencyGraph') {
