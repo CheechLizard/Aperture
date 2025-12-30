@@ -140,7 +140,7 @@ export const DASHBOARD_STYLES = `
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
-    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; border-left: 3px solid #888; color: var(--vscode-foreground); text-align: left; }
+    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; color: var(--vscode-foreground); text-align: left; }
     .rule-status-left { flex: 1; }
     .status-btn:hover { opacity: 0.9; }
     .status-btn:empty { display: none; }
@@ -252,13 +252,16 @@ export const DASHBOARD_STYLES = `
 
     /* Rule Status Header */
     .rule-status-missing { color: var(--vscode-descriptionForeground); }
-    .rule-status-new { color: var(--vscode-notificationsInfoIcon-foreground, #3794ff); cursor: pointer; text-decoration: underline; }
-    .rule-status-new:hover { opacity: 0.8; }
     .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
     .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.85em; cursor: pointer; flex-shrink: 0; }
     .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: rgba(204, 167, 0, 0.15); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
+    .rules-warning:hover { background: rgba(204, 167, 0, 0.25); }
+    .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
+    .rules-warning-text { flex: 1; }
+    .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
 
-    /* New Rules Modal */
+    /* Unrecognized Rules Modal */
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-content { background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; width: 90%; max-width: 500px; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
     .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--vscode-widget-border); }
@@ -267,6 +270,6 @@ export const DASHBOARD_STYLES = `
     .modal-close:hover { background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); }
     .modal-body { flex: 1; overflow-y: auto; padding: 16px; }
     .modal-desc { margin: 0 0 16px 0; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
-    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, #3794ff); }
+    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); }
     .new-rule-text { font-size: 0.9em; line-height: 1.4; }
 `;

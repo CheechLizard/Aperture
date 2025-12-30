@@ -92,6 +92,8 @@ function renderDistributionChart() {
     if (showingFunctions && !wasShowingFunctions) {
       // File → Functions: new partition layer expands from file
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.partition-layer');
+
       const newLayer = svg.append('g').attr('class', 'partition-layer');
 
       const file = files.find(f => f.path === zoomedFile);
@@ -105,6 +107,8 @@ function renderDistributionChart() {
     } else {
       // Folder → Folder (or Folder → File preview): new file layer expands
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer-old');
+
       // For zoom-in, new layer goes on TOP (append) - it expands from clicked element
       const newLayer = svg.append('g').attr('class', 'file-layer');
 
@@ -112,50 +116,50 @@ function renderDistributionChart() {
 
       zoom.animateLayers(oldLayer, newLayer, clickedBounds, width, height, t, 'in');
 
-      // Remove old layer class to avoid conflicts
+      // Mark old layer to avoid selection conflicts
       oldLayer.attr('class', 'file-layer-old');
     }
 
   } else if (isZoomingOut) {
     // ZOOM OUT: use previous URI to find bounds in new layout
-    // The previous location is a descendant of current, so it's in the new hierarchy
     const prevPath = prevZoomedFile || prevZoomedFolder;
     const sourceUri = prevPath ? createFileUri(prevPath) : null;
 
     if (wasShowingFunctions && !showingFunctions) {
       // Functions → File: partition shrinks to file, file layer appears
       const oldLayer = svg.select('g.partition-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer, g.file-layer-old');
+
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
       const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      // Look up the source file in the new layout
-      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
-      if (bounds) {
-        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
-      } else {
-        // Source not visible in new layout, crossfade
-        oldLayer.transition(t).style('opacity', 0).remove();
+      // Look up the source file in the new layout, fallback to center
+      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri) || {
+        x: width * 0.25, y: height * 0.25, w: width * 0.5, h: height * 0.5
+      };
+
+      if (!zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out')) {
+        // Animation failed (empty layer) - just fade in new layer
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
 
     } else {
       // Folder → Parent Folder (or partial → full): file layer shrinks to folder
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer-old');
+
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
       const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      // For partial view exit, use saved entry bounds (the collapsed group's position)
-      // Otherwise look up the source folder in the new layout
-      let bounds = partialExitBounds || findBoundsInHierarchy(result.hierarchy, sourceUri);
+      // For partial view exit, use saved entry bounds, otherwise look up in hierarchy
+      const bounds = partialExitBounds || findBoundsInHierarchy(result.hierarchy, sourceUri);
 
-      if (bounds) {
-        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
-      } else {
-        // Source not visible in new layout, crossfade
+      if (!zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out')) {
+        // Animation failed - crossfade
         oldLayer.transition(t).style('opacity', 0).remove();
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }

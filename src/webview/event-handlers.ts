@@ -79,11 +79,25 @@ document.getElementById('status').addEventListener('click', () => {
   selection.selectAllIssues();
 
   // Navigate to files view
-  nav.goTo({ view: 'files', file: null });
+  nav.goTo({ view: 'files', uri: null });
 });
 
 function updateStatus() {
   const statusBtn = document.getElementById('status');
+  const warningContainer = document.getElementById('rules-warning-container');
+
+  // Render warning for unrecognized rules
+  if (warningContainer) {
+    if (codingStandardsExists && ruleResult.newCount > 0) {
+      warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
+        '<span class="rules-warning-icon">&#9888;</span>' +
+        '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
+        '<span class="rules-warning-action">Fix with AI</span>' +
+        '</button>';
+    } else {
+      warningContainer.innerHTML = '';
+    }
+  }
 
   if (!codingStandardsExists) {
     statusBtn.innerHTML = '<span class="rule-status-left"><span class="rule-status-missing">No coding-standards.md</span></span>' +
@@ -92,10 +106,6 @@ function updateStatus() {
   }
 
   let left = '<strong>' + ruleResult.activeCount + ' rules</strong>';
-
-  if (ruleResult.newCount > 0) {
-    left += ' · <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
-  }
 
   if (ruleResult.unsupportedCount > 0) {
     left += ' · <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
@@ -119,9 +129,9 @@ function showNewRulesModal() {
 
   let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
     '<div class="modal-content" onclick="event.stopPropagation()">' +
-    '<div class="modal-header"><h3>New Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">×</button></div>' +
+    '<div class="modal-header"><h3>Unrecognized Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">×</button></div>' +
     '<div class="modal-body">' +
-    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them.</p>';
+    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them, or use AI to suggest fixes.</p>';
 
   for (const rule of newRules) {
     html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';

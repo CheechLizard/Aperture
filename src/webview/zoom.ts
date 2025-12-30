@@ -77,11 +77,26 @@ const zoom = {
     return bounds;
   },
 
+  // Prepare SVG for animation by interrupting existing transitions and removing stale layers
+  // Returns true if ready to animate, false if oldLayer is empty
+  prepareAnimation(svg, oldLayer, staleSelector) {
+    // Interrupt and remove stale layers
+    if (staleSelector) {
+      svg.selectAll(staleSelector).interrupt().remove();
+    }
+    // Interrupt old layer if it exists
+    if (oldLayer && !oldLayer.empty()) {
+      oldLayer.interrupt();
+      return true;
+    }
+    return false;
+  },
+
   // Generalized two-layer crossfade animation
   // Works for any transition: folder→folder, file→function, etc.
   // direction: 'in' (zoom into clicked element) or 'out' (zoom back to parent)
   animateLayers(oldLayer, newLayer, bounds, width, height, t, direction) {
-    if (!bounds || !oldLayer || !newLayer) return;
+    if (!bounds || !oldLayer || !newLayer || oldLayer.empty() || newLayer.empty()) return false;
 
     // Use non-uniform scaling so both dimensions animate (avoids no-zoom when one dimension matches)
     const scaleX = width / bounds.w;
@@ -163,6 +178,7 @@ const zoom = {
         .transition(t)
         .attr('transform', 'translate(0,0) scale(1)');
     }
+    return true;
   },
 
   // Getters for current state

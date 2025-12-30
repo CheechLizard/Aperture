@@ -16274,7 +16274,7 @@ var DASHBOARD_STYLES = `
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
-    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; border-left: 3px solid #888; color: var(--vscode-foreground); text-align: left; }
+    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; color: var(--vscode-foreground); text-align: left; }
     .rule-status-left { flex: 1; }
     .status-btn:hover { opacity: 0.9; }
     .status-btn:empty { display: none; }
@@ -16386,13 +16386,16 @@ var DASHBOARD_STYLES = `
 
     /* Rule Status Header */
     .rule-status-missing { color: var(--vscode-descriptionForeground); }
-    .rule-status-new { color: var(--vscode-notificationsInfoIcon-foreground, #3794ff); cursor: pointer; text-decoration: underline; }
-    .rule-status-new:hover { opacity: 0.8; }
     .rule-status-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
     .rule-status-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.85em; cursor: pointer; flex-shrink: 0; }
     .rule-status-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .rules-warning { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: rgba(204, 167, 0, 0.15); border: none; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-foreground); text-align: left; }
+    .rules-warning:hover { background: rgba(204, 167, 0, 0.25); }
+    .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
+    .rules-warning-text { flex: 1; }
+    .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
 
-    /* New Rules Modal */
+    /* Unrecognized Rules Modal */
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-content { background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border); border-radius: 8px; width: 90%; max-width: 500px; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
     .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--vscode-widget-border); }
@@ -16401,7 +16404,7 @@ var DASHBOARD_STYLES = `
     .modal-close:hover { background: rgba(255, 255, 255, 0.1); color: var(--vscode-foreground); }
     .modal-body { flex: 1; overflow-y: auto; padding: 16px; }
     .modal-desc { margin: 0 0 16px 0; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
-    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, #3794ff); }
+    .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); }
     .new-rule-text { font-size: 0.9em; line-height: 1.4; }
 `;
 
@@ -17879,11 +17882,25 @@ document.getElementById('status').addEventListener('click', () => {
   selection.selectAllIssues();
 
   // Navigate to files view
-  nav.goTo({ view: 'files', file: null });
+  nav.goTo({ view: 'files', uri: null });
 });
 
 function updateStatus() {
   const statusBtn = document.getElementById('status');
+  const warningContainer = document.getElementById('rules-warning-container');
+
+  // Render warning for unrecognized rules
+  if (warningContainer) {
+    if (codingStandardsExists && ruleResult.newCount > 0) {
+      warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
+        '<span class="rules-warning-icon">&#9888;</span>' +
+        '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
+        '<span class="rules-warning-action">Fix with AI</span>' +
+        '</button>';
+    } else {
+      warningContainer.innerHTML = '';
+    }
+  }
 
   if (!codingStandardsExists) {
     statusBtn.innerHTML = '<span class="rule-status-left"><span class="rule-status-missing">No coding-standards.md</span></span>' +
@@ -17892,10 +17909,6 @@ function updateStatus() {
   }
 
   let left = '<strong>' + ruleResult.activeCount + ' rules</strong>';
-
-  if (ruleResult.newCount > 0) {
-    left += ' \xB7 <span class="rule-status-new" onclick="showNewRulesModal()">' + ruleResult.newCount + ' new</span>';
-  }
 
   if (ruleResult.unsupportedCount > 0) {
     left += ' \xB7 <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
@@ -17919,9 +17932,9 @@ function showNewRulesModal() {
 
   let html = '<div class="modal-overlay" onclick="closeNewRulesModal(event)">' +
     '<div class="modal-content" onclick="event.stopPropagation()">' +
-    '<div class="modal-header"><h3>New Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">\xD7</button></div>' +
+    '<div class="modal-header"><h3>Unrecognized Rules</h3><button class="modal-close" onclick="closeNewRulesModal()">\xD7</button></div>' +
     '<div class="modal-body">' +
-    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them.</p>';
+    '<p class="modal-desc">These rules could not be automatically parsed. Edit the coding-standards.md file to clarify them, or use AI to suggest fixes.</p>';
 
   for (const rule of newRules) {
     html += '<div class="new-rule-item"><span class="new-rule-text">' + rule.rawText + '</span></div>';
@@ -19199,6 +19212,8 @@ function renderDistributionChart() {
     if (showingFunctions && !wasShowingFunctions) {
       // File \u2192 Functions: new partition layer expands from file
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.partition-layer');
+
       const newLayer = svg.append('g').attr('class', 'partition-layer');
 
       const file = files.find(f => f.path === zoomedFile);
@@ -19212,6 +19227,8 @@ function renderDistributionChart() {
     } else {
       // Folder \u2192 Folder (or Folder \u2192 File preview): new file layer expands
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer-old');
+
       // For zoom-in, new layer goes on TOP (append) - it expands from clicked element
       const newLayer = svg.append('g').attr('class', 'file-layer');
 
@@ -19219,50 +19236,50 @@ function renderDistributionChart() {
 
       zoom.animateLayers(oldLayer, newLayer, clickedBounds, width, height, t, 'in');
 
-      // Remove old layer class to avoid conflicts
+      // Mark old layer to avoid selection conflicts
       oldLayer.attr('class', 'file-layer-old');
     }
 
   } else if (isZoomingOut) {
     // ZOOM OUT: use previous URI to find bounds in new layout
-    // The previous location is a descendant of current, so it's in the new hierarchy
     const prevPath = prevZoomedFile || prevZoomedFolder;
     const sourceUri = prevPath ? createFileUri(prevPath) : null;
 
     if (wasShowingFunctions && !showingFunctions) {
       // Functions \u2192 File: partition shrinks to file, file layer appears
       const oldLayer = svg.select('g.partition-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer, g.file-layer-old');
+
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
       const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      // Look up the source file in the new layout
-      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri);
-      if (bounds) {
-        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
-      } else {
-        // Source not visible in new layout, crossfade
-        oldLayer.transition(t).style('opacity', 0).remove();
+      // Look up the source file in the new layout, fallback to center
+      const bounds = findBoundsInHierarchy(result.hierarchy, sourceUri) || {
+        x: width * 0.25, y: height * 0.25, w: width * 0.5, h: height * 0.5
+      };
+
+      if (!zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out')) {
+        // Animation failed (empty layer) - just fade in new layer
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
 
     } else {
       // Folder \u2192 Parent Folder (or partial \u2192 full): file layer shrinks to folder
       const oldLayer = svg.select('g.file-layer');
+      zoom.prepareAnimation(svg, oldLayer, 'g.file-layer-old');
+
       const newLayer = svg.insert('g', ':first-child').attr('class', 'file-layer');
 
       const result = renderTreemapLayout(container, fileData, width, height, t, newLayer);
       renderFilesLegend(fileData);
 
-      // For partial view exit, use saved entry bounds (the collapsed group's position)
-      // Otherwise look up the source folder in the new layout
-      let bounds = partialExitBounds || findBoundsInHierarchy(result.hierarchy, sourceUri);
+      // For partial view exit, use saved entry bounds, otherwise look up in hierarchy
+      const bounds = partialExitBounds || findBoundsInHierarchy(result.hierarchy, sourceUri);
 
-      if (bounds) {
-        zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out');
-      } else {
-        // Source not visible in new layout, crossfade
+      if (!zoom.animateLayers(oldLayer, newLayer, bounds, width, height, t, 'out')) {
+        // Animation failed - crossfade
         oldLayer.transition(t).style('opacity', 0).remove();
         newLayer.style('opacity', 0).transition(t).style('opacity', 1);
       }
@@ -20201,11 +20218,26 @@ const zoom = {
     return bounds;
   },
 
+  // Prepare SVG for animation by interrupting existing transitions and removing stale layers
+  // Returns true if ready to animate, false if oldLayer is empty
+  prepareAnimation(svg, oldLayer, staleSelector) {
+    // Interrupt and remove stale layers
+    if (staleSelector) {
+      svg.selectAll(staleSelector).interrupt().remove();
+    }
+    // Interrupt old layer if it exists
+    if (oldLayer && !oldLayer.empty()) {
+      oldLayer.interrupt();
+      return true;
+    }
+    return false;
+  },
+
   // Generalized two-layer crossfade animation
   // Works for any transition: folder\u2192folder, file\u2192function, etc.
   // direction: 'in' (zoom into clicked element) or 'out' (zoom back to parent)
   animateLayers(oldLayer, newLayer, bounds, width, height, t, direction) {
-    if (!bounds || !oldLayer || !newLayer) return;
+    if (!bounds || !oldLayer || !newLayer || oldLayer.empty() || newLayer.empty()) return false;
 
     // Use non-uniform scaling so both dimensions animate (avoids no-zoom when one dimension matches)
     const scaleX = width / bounds.w;
@@ -20287,6 +20319,7 @@ const zoom = {
         .transition(t)
         .attr('transform', 'translate(0,0) scale(1)');
     }
+    return true;
   },
 
   // Getters for current state
@@ -20373,6 +20406,7 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
+      <div id="rules-warning-container"></div>
       <button id="status" class="status-btn"></button>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>

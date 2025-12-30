@@ -115,6 +115,7 @@ export function getDashboardContent(
     </div>
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
+      <div id="rules-warning-container"></div>
       <button id="status" class="status-btn"></button>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
