@@ -16147,10 +16147,14 @@ var DASHBOARD_STYLES = `
     @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
     .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 24px !important; height: 24px !important; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; display: none; }
-    .context-pie.visible { display: block; }
-    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; margin-right: 6px; display: none; }
-    .context-pct.visible { display: block; }
+    /* Chat footer with usage indicator */
+    .chat-footer { display: none; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 8px; }
+    .chat-footer.visible { display: block; }
+    .chat-usage { display: flex; align-items: center; gap: 8px; }
+    .context-bar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; animation: barGlow 3s ease-in-out infinite; }
+    @keyframes barGlow { 0%, 100% { background: rgba(100, 149, 237, 0.4); } 33% { background: rgba(147, 112, 219, 0.4); } 66% { background: rgba(64, 224, 208, 0.4); } }
+    .context-bar-fill { height: 100%; background: rgba(255, 255, 255, 0.9); border-radius: 3px; transition: width 0.3s ease; }
+    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 6px; border: none; background: rgba(255, 255, 255, 0.15); color: var(--vscode-descriptionForeground); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s, color 0.2s; }
     .ai-send-btn:hover { background: rgba(255, 255, 255, 0.25); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -16161,7 +16165,6 @@ var DASHBOARD_STYLES = `
     .context-files { display: flex; flex-wrap: nowrap; gap: 6px; overflow: hidden; flex: 1; min-height: 0; }
     .footer-context-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
     .footer-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-    .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
     .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; margin: 0 -2px 0 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 14px; line-height: 1; }
@@ -17210,8 +17213,12 @@ function renderNoContextPrompts(prompts) {
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.getAttribute('data-action') === 'fix-rules') {
+        // Clear attached files for fix-rules action
+        selection.attachContext([], []);
         promptFixRules();
       } else {
+        // Clear attached files for prompts without context
+        selection.attachContext([], []);
         const prompt = btn.getAttribute('data-prompt');
         const input = document.getElementById('query');
         input.value = prompt;
@@ -17333,6 +17340,8 @@ function renderCostdPrompts() {
     btn.addEventListener('click', () => {
       // Handle special actions
       if (btn.getAttribute('data-action') === 'fix-rules') {
+        // Clear attached files for fix-rules action
+        selection.attachContext([], []);
         promptFixRules();
         return;
       }
@@ -17344,6 +17353,9 @@ function renderCostdPrompts() {
         const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
         const variantIssues = variantIssuesData ? JSON.parse(decodeURIComponent(variantIssuesData)) : [];
         selection.attachContext(variantFiles, variantIssues);
+      } else {
+        // Clear attached files if no variant data
+        selection.attachContext([], []);
       }
 
       const prompt = btn.getAttribute('data-prompt');
@@ -18208,26 +18220,26 @@ window.addEventListener('message', event => {
 
     updateHighlights(msg.relevantFiles || []);
 
-    // Update context pie chart with actual usage (only show when >0%)
+    // Update context bar with actual usage (only show when >0%)
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
-      const pie = document.getElementById('context-pie');
+      const barFill = document.getElementById('context-bar-fill');
       const pctLabel = document.getElementById('context-pct');
-      if (pie) {
-        if (pct > 0) {
-          pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
-          pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
-          pie.classList.add('visible');
-        } else {
-          pie.classList.remove('visible');
+      const chatFooter = document.querySelector('.chat-footer');
+      if (pct > 0) {
+        if (barFill) {
+          barFill.style.width = pct + '%';
+          barFill.parentElement.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens';
         }
-      }
-      if (pctLabel) {
-        if (pct > 0) {
+        if (pctLabel) {
           pctLabel.textContent = pct + '% used';
-          pctLabel.classList.add('visible');
-        } else {
-          pctLabel.classList.remove('visible');
+        }
+        if (chatFooter) {
+          chatFooter.classList.add('visible');
+        }
+      } else {
+        if (chatFooter) {
+          chatFooter.classList.remove('visible');
         }
       }
     }
@@ -20544,17 +20556,20 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
         <div id="chat-actions" class="chat-actions">
           <div id="rules" class="rules"></div>
         </div>
+        <div class="chat-footer">
+          <div class="chat-usage">
+            <div class="context-bar"><div id="context-bar-fill" class="context-bar-fill" style="width: 0%"></div></div>
+            <span id="context-pct" class="context-pct"></span>
+          </div>
+        </div>
       </div>
       <div id="rules-warning-container" class="rules-warning-container"></div>
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
       </div>
-      <hr class="input-divider">
       <div class="footer-context-row">
         <div id="context-files" class="context-files"></div>
         <div class="footer-actions">
-          <div id="context-pie" class="context-pie" title="Context used"></div>
-          <span id="context-pct" class="context-pct"></span>
           <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>

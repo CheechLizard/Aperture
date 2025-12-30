@@ -129,17 +129,20 @@ export function getDashboardContent(
         <div id="chat-actions" class="chat-actions">
           <div id="rules" class="rules"></div>
         </div>
+        <div class="chat-footer">
+          <div class="chat-usage">
+            <div class="context-bar"><div id="context-bar-fill" class="context-bar-fill" style="width: 0%"></div></div>
+            <span id="context-pct" class="context-pct"></span>
+          </div>
+        </div>
       </div>
       <div id="rules-warning-container" class="rules-warning-container"></div>
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
       </div>
-      <hr class="input-divider">
       <div class="footer-context-row">
         <div id="context-files" class="context-files"></div>
         <div class="footer-actions">
-          <div id="context-pie" class="context-pie" title="Context used"></div>
-          <span id="context-pct" class="context-pct"></span>
           <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>

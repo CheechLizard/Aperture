@@ -202,8 +202,12 @@ function renderNoContextPrompts(prompts) {
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.getAttribute('data-action') === 'fix-rules') {
+        // Clear attached files for fix-rules action
+        selection.attachContext([], []);
         promptFixRules();
       } else {
+        // Clear attached files for prompts without context
+        selection.attachContext([], []);
         const prompt = btn.getAttribute('data-prompt');
         const input = document.getElementById('query');
         input.value = prompt;
@@ -325,6 +329,8 @@ function renderCostdPrompts() {
     btn.addEventListener('click', () => {
       // Handle special actions
       if (btn.getAttribute('data-action') === 'fix-rules') {
+        // Clear attached files for fix-rules action
+        selection.attachContext([], []);
         promptFixRules();
         return;
       }
@@ -336,6 +342,9 @@ function renderCostdPrompts() {
         const variantFiles = JSON.parse(decodeURIComponent(variantFilesData));
         const variantIssues = variantIssuesData ? JSON.parse(decodeURIComponent(variantIssuesData)) : [];
         selection.attachContext(variantFiles, variantIssues);
+      } else {
+        // Clear attached files if no variant data
+        selection.attachContext([], []);
       }
 
       const prompt = btn.getAttribute('data-prompt');

@@ -168,26 +168,26 @@ window.addEventListener('message', event => {
 
     updateHighlights(msg.relevantFiles || []);
 
-    // Update context pie chart with actual usage (only show when >0%)
+    // Update context bar with actual usage (only show when >0%)
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
-      const pie = document.getElementById('context-pie');
+      const barFill = document.getElementById('context-bar-fill');
       const pctLabel = document.getElementById('context-pct');
-      if (pie) {
-        if (pct > 0) {
-          pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
-          pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
-          pie.classList.add('visible');
-        } else {
-          pie.classList.remove('visible');
+      const chatFooter = document.querySelector('.chat-footer');
+      if (pct > 0) {
+        if (barFill) {
+          barFill.style.width = pct + '%';
+          barFill.parentElement.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens';
         }
-      }
-      if (pctLabel) {
-        if (pct > 0) {
+        if (pctLabel) {
           pctLabel.textContent = pct + '% used';
-          pctLabel.classList.add('visible');
-        } else {
-          pctLabel.classList.remove('visible');
+        }
+        if (chatFooter) {
+          chatFooter.classList.add('visible');
+        }
+      } else {
+        if (chatFooter) {
+          chatFooter.classList.remove('visible');
         }
       }
     }
