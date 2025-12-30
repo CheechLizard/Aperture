@@ -16147,8 +16147,10 @@ var DASHBOARD_STYLES = `
     @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
     .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 24px; height: 24px; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
-    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+    .context-pie { width: 24px !important; height: 24px !important; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; display: none; }
+    .context-pie.visible { display: block; }
+    .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; margin-right: 6px; display: none; }
+    .context-pct.visible { display: block; }
     .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 6px; border: none; background: rgba(255, 255, 255, 0.15); color: var(--vscode-descriptionForeground); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s, color 0.2s; }
     .ai-send-btn:hover { background: rgba(255, 255, 255, 0.25); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -18206,17 +18208,27 @@ window.addEventListener('message', event => {
 
     updateHighlights(msg.relevantFiles || []);
 
-    // Update context pie chart with actual usage
+    // Update context pie chart with actual usage (only show when >0%)
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));
       const pie = document.getElementById('context-pie');
       const pctLabel = document.getElementById('context-pct');
       if (pie) {
-        pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
-        pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+        if (pct > 0) {
+          pie.style.background = 'conic-gradient(#bbb 0% ' + pct + '%, #555 ' + pct + '% 100%)';
+          pie.title = msg.usage.totalTokens.toLocaleString() + ' / ' + msg.usage.contextLimit.toLocaleString() + ' tokens (' + pct + '%)';
+          pie.classList.add('visible');
+        } else {
+          pie.classList.remove('visible');
+        }
       }
       if (pctLabel) {
-        pctLabel.textContent = pct + '% used';
+        if (pct > 0) {
+          pctLabel.textContent = pct + '% used';
+          pctLabel.classList.add('visible');
+        } else {
+          pctLabel.classList.remove('visible');
+        }
       }
     }
   } else if (msg.type === 'dependencyGraph') {
