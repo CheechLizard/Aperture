@@ -163,7 +163,7 @@ window.addEventListener('message', event => {
     renderIssues();
     updateStatus();
   } else if (msg.type === 'dependencyError') {
-    document.getElementById('status').textContent = 'Error: ' + msg.message;
+    console.error('Dependency analysis error:', msg.message);
   } else if (msg.type === 'tokenCount') {
     // Handle token count response for prompt costing
     handleTokenCount(msg.promptId, msg.tokens, msg.limit);

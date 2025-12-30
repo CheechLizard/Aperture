@@ -130,7 +130,7 @@ function applyFlipAnimation(oldPositions) {
   }, 300);
 }
 
-function refreshAfterChange(selectedType, wasStatusSelected) {
+function refreshAfterChange(selectedType) {
   const expandedState = getExpandedState();
   const oldPositions = captureGroupPositions();
   renderIssues();
@@ -144,8 +144,6 @@ function refreshAfterChange(selectedType, wasStatusSelected) {
   if (selectedType) {
     const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
     if (newHeader) selectedElement = newHeader;
-  } else if (wasStatusSelected) {
-    selectedElement = document.getElementById('status');
   }
 
   // Reapply current selection highlights
@@ -171,7 +169,7 @@ function setupIgnoreHandlers(list) {
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
-      refreshAfterChange(selectedType, selectedElement && selectedElement.id === 'status');
+      refreshAfterChange(selectedType);
     });
   });
 }
@@ -196,7 +194,6 @@ function setupRestoreHandlers(list) {
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
-      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
       ignoredIssues.splice(idx, 1);
 
@@ -208,9 +205,7 @@ function setupRestoreHandlers(list) {
       updateStatusButton();
       renderFooterStats();
 
-      if (wasStatusSelected) {
-        selectedElement = document.getElementById('status');
-      } else if (selectedType && selectedType !== restoredRuleId) {
+      if (selectedType && selectedType !== restoredRuleId) {
         const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
         if (newHeader) selectedElement = newHeader;
       }

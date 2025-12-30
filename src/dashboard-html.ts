@@ -82,7 +82,7 @@ export function getDashboardContent(
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    <div></div>
+    <button id="header-edit-btn" class="header-edit-btn" onclick="editCodingStandards()" style="display:none;">Edit Rules</button>
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -116,7 +116,6 @@ export function getDashboardContent(
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
       <div id="rules-warning-container"></div>
-      <button id="status" class="status-btn"></button>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>

@@ -16274,11 +16274,7 @@ var DASHBOARD_STYLES = `
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
-    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; color: var(--vscode-foreground); text-align: left; }
-    .rule-status-left { flex: 1; }
-    .status-btn:hover { opacity: 0.9; }
-    .status-btn:empty { display: none; }
-    .anti-patterns { margin: 0; }
+        .anti-patterns { margin: 0; }
     /* Issue category sections */
     .issue-category { margin-bottom: 12px; }
     .issue-category-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); }
@@ -16394,6 +16390,13 @@ var DASHBOARD_STYLES = `
     .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
     .rules-warning-text { flex: 1; }
     .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
+    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
+    .rules-create-btn:hover { background: var(--vscode-list-hoverBackground); }
+    .rules-create-text { color: var(--vscode-descriptionForeground); }
+    .rules-create-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
+    .header-edit-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.85em; cursor: pointer; }
+    .header-edit-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .footer-rules-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
 
     /* Unrecognized Rules Modal */
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -16617,7 +16620,6 @@ const nav = {
       renderDistributionChart();
     } else if (this._state.view === 'deps') {
       if (!depGraph) {
-        document.getElementById('status').textContent = 'Analyzing dependencies...';
         vscode.postMessage({ command: 'getDependencies' });
       } else {
         renderDepGraph();
@@ -17607,7 +17609,7 @@ function applyFlipAnimation(oldPositions) {
   }, 300);
 }
 
-function refreshAfterChange(selectedType, wasStatusSelected) {
+function refreshAfterChange(selectedType) {
   const expandedState = getExpandedState();
   const oldPositions = captureGroupPositions();
   renderIssues();
@@ -17621,8 +17623,6 @@ function refreshAfterChange(selectedType, wasStatusSelected) {
   if (selectedType) {
     const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
     if (newHeader) selectedElement = newHeader;
-  } else if (wasStatusSelected) {
-    selectedElement = document.getElementById('status');
   }
 
   // Reapply current selection highlights
@@ -17648,7 +17648,7 @@ function setupIgnoreHandlers(list) {
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
-      refreshAfterChange(selectedType, selectedElement && selectedElement.id === 'status');
+      refreshAfterChange(selectedType);
     });
   });
 }
@@ -17673,7 +17673,6 @@ function setupRestoreHandlers(list) {
 
       const selectedType = selectedElement && selectedElement.classList.contains('pattern-header')
         ? selectedElement.getAttribute('data-type') : null;
-      const wasStatusSelected = selectedElement && selectedElement.id === 'status';
 
       ignoredIssues.splice(idx, 1);
 
@@ -17685,9 +17684,7 @@ function setupRestoreHandlers(list) {
       updateStatusButton();
       renderFooterStats();
 
-      if (wasStatusSelected) {
-        selectedElement = document.getElementById('status');
-      } else if (selectedType && selectedType !== restoredRuleId) {
+      if (selectedType && selectedType !== restoredRuleId) {
         const newHeader = document.querySelector('.pattern-header[data-type="' + selectedType + '"]');
         if (newHeader) selectedElement = newHeader;
       }
@@ -17868,30 +17865,18 @@ function getAllIssueFiles() {
   return [...fileSet];
 }
 
-// Status button click - highlight all files with any issue, reset to default view
-document.getElementById('status').addEventListener('click', () => {
-  if (selectedElement) {
-    selectedElement.style.borderLeftColor = '';
-    selectedElement.style.background = '';
-  }
-  const statusBtn = document.getElementById('status');
-  selectedElement = statusBtn;
-
-  // Reset to default state - select all issues
-  colorMode = 'none';
-  selection.selectAllIssues();
-
-  // Navigate to files view
-  nav.goTo({ view: 'files', uri: null });
-});
-
 function updateStatus() {
-  const statusBtn = document.getElementById('status');
   const warningContainer = document.getElementById('rules-warning-container');
+  const headerEdit = document.getElementById('header-edit-btn');
 
   // Render warning for unrecognized rules
   if (warningContainer) {
-    if (codingStandardsExists && ruleResult.newCount > 0) {
+    if (!codingStandardsExists) {
+      warningContainer.innerHTML = '<button class="rules-create-btn" onclick="createCodingStandards()">' +
+        '<span class="rules-create-text">No coding-standards.md</span>' +
+        '<span class="rules-create-action">Create</span>' +
+        '</button>';
+    } else if (ruleResult.newCount > 0) {
       warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
         '<span class="rules-warning-icon">&#9888;</span>' +
         '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
@@ -17902,20 +17887,10 @@ function updateStatus() {
     }
   }
 
-  if (!codingStandardsExists) {
-    statusBtn.innerHTML = '<span class="rule-status-left"><span class="rule-status-missing">No coding-standards.md</span></span>' +
-      '<button class="rule-status-btn" onclick="createCodingStandards()">Create</button>';
-    return;
+  // Show/hide Edit button in header
+  if (headerEdit) {
+    headerEdit.style.display = codingStandardsExists ? 'block' : 'none';
   }
-
-  let left = '<strong>' + ruleResult.activeCount + ' rules</strong>';
-
-  if (ruleResult.unsupportedCount > 0) {
-    left += ' \xB7 <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
-  }
-
-  statusBtn.innerHTML = '<span class="rule-status-left">' + left + '</span>' +
-    '<button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
 }
 
 function editCodingStandards() {
@@ -17965,7 +17940,17 @@ function renderFooterStats() {
   const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
   const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
 
-  container.innerHTML = totalFiles.toLocaleString() + ' files \xB7 ' + totalFunctions.toLocaleString() + ' functions \xB7 ' + totalLoc.toLocaleString() + ' LOC';
+  let html = totalFiles.toLocaleString() + ' files \xB7 ' + totalFunctions.toLocaleString() + ' functions \xB7 ' + totalLoc.toLocaleString() + ' LOC';
+
+  // Add rules count if coding-standards exists
+  if (codingStandardsExists && ruleResult.activeCount > 0) {
+    html += ' \xB7 ' + ruleResult.activeCount + ' rules';
+    if (ruleResult.unsupportedCount > 0) {
+      html += ' <span class="footer-rules-unsupported">(' + ruleResult.unsupportedCount + ' unsupported)</span>';
+    }
+  }
+
+  container.innerHTML = html;
 }
 `;
 
@@ -18136,7 +18121,7 @@ window.addEventListener('message', event => {
     renderIssues();
     updateStatus();
   } else if (msg.type === 'dependencyError') {
-    document.getElementById('status').textContent = 'Error: ' + msg.message;
+    console.error('Dependency analysis error:', msg.message);
   } else if (msg.type === 'tokenCount') {
     // Handle token count response for prompt costing
     handleTokenCount(msg.promptId, msg.tokens, msg.limit);
@@ -20373,7 +20358,7 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
 </head>
 <body><header class="app-header">
     <div id="back-header" class="back-header hidden"></div>
-    <div></div>
+    <button id="header-edit-btn" class="header-edit-btn" onclick="editCodingStandards()" style="display:none;">Edit Rules</button>
   </header>
   <div class="main-split">
     <div class="main-content">
@@ -20407,7 +20392,6 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
     <div class="main-sidebar">
       <div id="dep-stats" class="dep-stats"></div>
       <div id="rules-warning-container"></div>
-      <button id="status" class="status-btn"></button>
       <div id="anti-patterns" class="anti-patterns">
         <div id="anti-pattern-list"></div>
       </div>

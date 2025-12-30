@@ -132,7 +132,6 @@ const nav = {
       renderDistributionChart();
     } else if (this._state.view === 'deps') {
       if (!depGraph) {
-        document.getElementById('status').textContent = 'Analyzing dependencies...';
         vscode.postMessage({ command: 'getDependencies' });
       } else {
         renderDepGraph();

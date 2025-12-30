@@ -65,30 +65,18 @@ function getAllIssueFiles() {
   return [...fileSet];
 }
 
-// Status button click - highlight all files with any issue, reset to default view
-document.getElementById('status').addEventListener('click', () => {
-  if (selectedElement) {
-    selectedElement.style.borderLeftColor = '';
-    selectedElement.style.background = '';
-  }
-  const statusBtn = document.getElementById('status');
-  selectedElement = statusBtn;
-
-  // Reset to default state - select all issues
-  colorMode = 'none';
-  selection.selectAllIssues();
-
-  // Navigate to files view
-  nav.goTo({ view: 'files', uri: null });
-});
-
 function updateStatus() {
-  const statusBtn = document.getElementById('status');
   const warningContainer = document.getElementById('rules-warning-container');
+  const headerEdit = document.getElementById('header-edit-btn');
 
   // Render warning for unrecognized rules
   if (warningContainer) {
-    if (codingStandardsExists && ruleResult.newCount > 0) {
+    if (!codingStandardsExists) {
+      warningContainer.innerHTML = '<button class="rules-create-btn" onclick="createCodingStandards()">' +
+        '<span class="rules-create-text">No coding-standards.md</span>' +
+        '<span class="rules-create-action">Create</span>' +
+        '</button>';
+    } else if (ruleResult.newCount > 0) {
       warningContainer.innerHTML = '<button class="rules-warning" onclick="showNewRulesModal()">' +
         '<span class="rules-warning-icon">&#9888;</span>' +
         '<span class="rules-warning-text">The rules contain ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : '') + '.</span>' +
@@ -99,20 +87,10 @@ function updateStatus() {
     }
   }
 
-  if (!codingStandardsExists) {
-    statusBtn.innerHTML = '<span class="rule-status-left"><span class="rule-status-missing">No coding-standards.md</span></span>' +
-      '<button class="rule-status-btn" onclick="createCodingStandards()">Create</button>';
-    return;
+  // Show/hide Edit button in header
+  if (headerEdit) {
+    headerEdit.style.display = codingStandardsExists ? 'block' : 'none';
   }
-
-  let left = '<strong>' + ruleResult.activeCount + ' rules</strong>';
-
-  if (ruleResult.unsupportedCount > 0) {
-    left += ' · <span class="rule-status-unsupported">' + ruleResult.unsupportedCount + ' unsupported</span>';
-  }
-
-  statusBtn.innerHTML = '<span class="rule-status-left">' + left + '</span>' +
-    '<button class="rule-status-btn" onclick="editCodingStandards()">Edit</button>';
 }
 
 function editCodingStandards() {
@@ -162,6 +140,16 @@ function renderFooterStats() {
   const totalFunctions = files.reduce((sum, f) => sum + (f.functions ? f.functions.length : 0), 0);
   const totalLoc = files.reduce((sum, f) => sum + (f.loc || 0), 0);
 
-  container.innerHTML = totalFiles.toLocaleString() + ' files · ' + totalFunctions.toLocaleString() + ' functions · ' + totalLoc.toLocaleString() + ' LOC';
+  let html = totalFiles.toLocaleString() + ' files · ' + totalFunctions.toLocaleString() + ' functions · ' + totalLoc.toLocaleString() + ' LOC';
+
+  // Add rules count if coding-standards exists
+  if (codingStandardsExists && ruleResult.activeCount > 0) {
+    html += ' · ' + ruleResult.activeCount + ' rules';
+    if (ruleResult.unsupportedCount > 0) {
+      html += ' <span class="footer-rules-unsupported">(' + ruleResult.unsupportedCount + ' unsupported)</span>';
+    }
+  }
+
+  container.innerHTML = html;
 }
 `;

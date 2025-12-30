@@ -140,11 +140,7 @@ export const DASHBOARD_STYLES = `
     .chord-ribbon.highlighted { fill-opacity: 0.9; }
     .chord-ribbon:hover { fill-opacity: 0.9; }
     .chord-label { font-size: 10px; fill: var(--vscode-foreground); }
-    .status-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 1em; font-weight: 600; cursor: pointer; background: rgba(150, 150, 150, 0.15); border: none; color: var(--vscode-foreground); text-align: left; }
-    .rule-status-left { flex: 1; }
-    .status-btn:hover { opacity: 0.9; }
-    .status-btn:empty { display: none; }
-    .anti-patterns { margin: 0; }
+        .anti-patterns { margin: 0; }
     /* Issue category sections */
     .issue-category { margin-bottom: 12px; }
     .issue-category-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); }
@@ -260,6 +256,13 @@ export const DASHBOARD_STYLES = `
     .rules-warning-icon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 1.1em; }
     .rules-warning-text { flex: 1; }
     .rules-warning-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
+    .rules-create-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; background: var(--vscode-editor-inactiveSelectionBackground); border: none; color: var(--vscode-foreground); text-align: left; }
+    .rules-create-btn:hover { background: var(--vscode-list-hoverBackground); }
+    .rules-create-text { color: var(--vscode-descriptionForeground); }
+    .rules-create-action { color: var(--vscode-textLink-foreground, #3794ff); font-weight: 500; }
+    .header-edit-btn { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.85em; cursor: pointer; }
+    .header-edit-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .footer-rules-unsupported { color: var(--vscode-editorWarning-foreground, #cca700); }
 
     /* Unrecognized Rules Modal */
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
