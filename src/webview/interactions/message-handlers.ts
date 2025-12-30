@@ -146,8 +146,8 @@ window.addEventListener('message', event => {
     }
     chatMessages.appendChild(aiMsg);
 
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Scroll to show top of AI message so user can read from beginning
+    aiMsg.scrollIntoView({ block: 'start', behavior: 'smooth' });
 
     // Show action buttons instead of prompts
     const chatActions = document.getElementById('chat-actions');
