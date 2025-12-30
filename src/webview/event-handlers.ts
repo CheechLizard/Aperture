@@ -43,10 +43,14 @@ document.getElementById('show-orphans').addEventListener('change', () => {
 // Initialize with files treemap view (default state)
 colorMode = 'none';
 
-// Sync color cycling animations to same phase
+// Sync color cycling animations to same phase by restarting them
 function syncAnimations() {
   const delay = -(Date.now() % 3000) + 'ms';
   document.querySelectorAll('.footer-input-container, .ai-send-btn.ready, .context-bar').forEach(el => {
+    // Stop animation, force reflow, restart with synced delay
+    el.style.animation = 'none';
+    el.offsetHeight; // Force reflow
+    el.style.animation = ''; // Clear inline style to restore CSS animation
     el.style.animationDelay = delay;
   });
 }

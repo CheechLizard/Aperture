@@ -187,32 +187,45 @@ function renderFileRects(layer, leaves, width, height, t) {
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
 
-  // Render internal divider lines for "other" nodes to suggest collapsed partitions
-  const otherLeaves = folderLeaves.filter(d => d.data._isOther);
+  // Render partition lines from actual BSP edges in collapsed "other" nodes
+  const otherLeaves = folderLeaves.filter(d => d.data._isOther && d._collapsedItems);
   const dividerData = [];
   otherLeaves.forEach(d => {
-    const w = d.x1 - d.x0;
-    const h = d.y1 - d.y0;
-    const numLines = Math.min(3, Math.max(1, Math.floor(Math.min(w, h) / 20)));
-    // Use vertical lines if wider than tall, horizontal if taller
-    const isVertical = w > h;
-    for (let i = 1; i <= numLines; i++) {
-      const pos = i / (numLines + 1);
-      dividerData.push({
-        key: d.data.path + '-div-' + i,
-        x1: isVertical ? d.x0 + w * pos : d.x0 + 4,
-        y1: isVertical ? d.y0 + 4 : d.y0 + h * pos,
-        x2: isVertical ? d.x0 + w * pos : d.x1 - 4,
-        y2: isVertical ? d.y1 - 4 : d.y0 + h * pos
-      });
+    const items = d._collapsedItems;
+    if (!items || items.length < 2) return;
+    // Collect unique internal edges (where two items meet)
+    const edges = new Set();
+    for (const item of items) {
+      // Check each edge of this item against all other items
+      for (const other of items) {
+        if (item === other) continue;
+        // Vertical edge: item's right meets other's left
+        if (Math.abs(item.x1 - other.x0) < 2) {
+          const y0 = Math.max(item.y0, other.y0);
+          const y1 = Math.min(item.y1, other.y1);
+          if (y1 > y0) edges.add(item.x1 + '|' + y0 + '|' + item.x1 + '|' + y1);
+        }
+        // Horizontal edge: item's bottom meets other's top
+        if (Math.abs(item.y1 - other.y0) < 2) {
+          const x0 = Math.max(item.x0, other.x0);
+          const x1 = Math.min(item.x1, other.x1);
+          if (x1 > x0) edges.add(x0 + '|' + item.y1 + '|' + x1 + '|' + item.y1);
+        }
+      }
     }
+    // Convert edges to line data
+    let idx = 0;
+    edges.forEach(edge => {
+      const [x1, y1, x2, y2] = edge.split('|').map(Number);
+      dividerData.push({ key: d.data.path + '-div-' + (idx++), x1, y1, x2, y2 });
+    });
   });
 
   layer.selectAll('line.other-divider').data(dividerData, d => d.key)
     .join(
       enter => enter.append('line')
         .attr('class', 'other-divider')
-        .attr('stroke', 'rgba(255,255,255,0.1)')
+        .attr('stroke', 'rgba(255,255,255,0.15)')
         .attr('stroke-width', 1)
         .attr('x1', d => d.x1).attr('y1', d => d.y1)
         .attr('x2', d => d.x2).attr('y2', d => d.y2),
