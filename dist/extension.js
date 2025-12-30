@@ -16147,11 +16147,14 @@ var DASHBOARD_STYLES = `
     @keyframes inputGlow { 0%, 100% { border-color: rgba(100, 149, 237, 0.8); box-shadow: 0 0 12px rgba(100, 149, 237, 0.4); } 33% { border-color: rgba(147, 112, 219, 0.8); box-shadow: 0 0 12px rgba(147, 112, 219, 0.4); } 66% { border-color: rgba(64, 224, 208, 0.8); box-shadow: 0 0 12px rgba(64, 224, 208, 0.4); } }
     .ai-input-wrapper textarea { flex: 1; padding: 5px 14px; margin: 0; background: transparent; border: none; color: var(--vscode-input-foreground); font-size: 14px; line-height: 1.4; outline: none; resize: none; font-family: inherit; min-height: 28px; max-height: 120px; overflow-y: auto; }
     .ai-input-actions { display: flex; align-items: center; gap: 8px; }
-    .context-pie { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
+    .context-pie { width: 24px; height: 24px; border-radius: 50%; background: conic-gradient(#bbb 0% 0%, #555 0% 100%); flex-shrink: 0; }
     .context-pct { font-size: 0.75em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
-    .ai-send-btn { width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 4px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .ai-send-btn:hover { background: var(--vscode-button-hoverBackground); }
+    .ai-send-btn { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 6px; border: none; background: rgba(255, 255, 255, 0.15); color: var(--vscode-descriptionForeground); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s, color 0.2s; }
+    .ai-send-btn:hover { background: rgba(255, 255, 255, 0.25); }
     .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ai-send-btn.ready { background: var(--vscode-button-background); color: var(--vscode-button-foreground); animation: sendGlow 3s ease-in-out infinite; }
+    @keyframes sendGlow { 0%, 100% { background: rgba(100, 149, 237, 0.9); } 33% { background: rgba(147, 112, 219, 0.9); } 66% { background: rgba(64, 224, 208, 0.9); } }
+    .ai-send-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     /* Context Files Chips - shown in footer context row */
     .context-files { display: flex; flex-wrap: nowrap; gap: 6px; overflow: hidden; flex: 1; min-height: 0; }
     .footer-context-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
@@ -16159,7 +16162,7 @@ var DASHBOARD_STYLES = `
     .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 8px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-size: 0.75em; color: var(--vscode-foreground); flex-shrink: 0; }
     .context-chip-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin: 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 12px; line-height: 1; }
+    .context-chip-remove { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; margin: 0 -2px 0 0; border: none; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; border-radius: 3px; font-size: 14px; line-height: 1; }
     .context-chip-remove:hover { background: rgba(255, 255, 255, 0.15); color: var(--vscode-foreground); }
     .context-chip-more { padding: 3px 8px; background: transparent; border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--vscode-descriptionForeground); }
     /* AI Chat Panel - opens upward from footer, positioned via JS */
@@ -17126,11 +17129,30 @@ function renderDynamicPrompts() {
     // No prompts shown - user should select issues or files first
   }
 
+  // Add "Fix rules" prompt if there are unrecognized rules
+  if (ruleResult && ruleResult.newCount > 0) {
+    prompts.push({
+      label: 'Fix ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : ''),
+      prompt: '__FIX_RULES__',  // Special marker handled below
+      noContext: true  // Don't need file context for this
+    });
+  }
+
   // No prompts to show
   if (prompts.length === 0) {
     const hasIssues = activeIssues.length > 0;
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">' +
       (hasIssues ? 'Select an issue type to analyze' : 'No issues detected') + '</span>';
+    return;
+  }
+
+  // Separate prompts that need context costing from those that don't
+  const contextPrompts = prompts.filter(p => !p.noContext);
+  const noContextPrompts = prompts.filter(p => p.noContext);
+
+  // If only no-context prompts, render them immediately
+  if (contextPrompts.length === 0) {
+    renderNoContextPrompts(noContextPrompts);
     return;
   }
 
@@ -17143,7 +17165,10 @@ function renderDynamicPrompts() {
 
   // Assign IDs and create pending prompts for ALL variants of each prompt
   pendingPrompts = [];
-  for (const p of prompts) {
+  // Store no-context prompts to append after costing
+  pendingPrompts.noContextPrompts = noContextPrompts;
+
+  for (const p of contextPrompts) {
     const baseId = 'prompt-' + (++promptIdCounter);
     for (let i = 0; i < variants.length; i++) {
       pendingPrompts.push({
@@ -17168,6 +17193,30 @@ function renderDynamicPrompts() {
       promptId: p.id
     });
   }
+}
+
+// Render prompts that don't need context (like "Fix rules")
+function renderNoContextPrompts(prompts) {
+  const container = document.getElementById('rules');
+  container.innerHTML = prompts.map(p => {
+    if (p.prompt === '__FIX_RULES__') {
+      return '<button class="rule-btn" data-action="fix-rules">' + p.label + '</button>';
+    }
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>';
+  }).join('');
+
+  container.querySelectorAll('.rule-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('data-action') === 'fix-rules') {
+        promptFixRules();
+      } else {
+        const prompt = btn.getAttribute('data-prompt');
+        const input = document.getElementById('query');
+        input.value = prompt;
+        input.focus();
+      }
+    });
+  });
 }
 
 // Called when a token count response comes back
@@ -17240,12 +17289,16 @@ function renderCostdPrompts() {
     }
   }
 
-  if (affordablePrompts.length === 0) {
+  // Get no-context prompts that were stored
+  const noContextPrompts = pendingPrompts.noContextPrompts || [];
+
+  if (affordablePrompts.length === 0 && noContextPrompts.length === 0) {
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Context too large for prompts</span>';
     return;
   }
 
-  container.innerHTML = affordablePrompts.map(p => {
+  // Build HTML for context prompts
+  let html = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
     // For file-limited variants, show "(X of Y)" where X=files, Y=total issues
     const fileLabel = p.isFileLimited
@@ -17258,8 +17311,24 @@ function renderCostdPrompts() {
       '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
   }).join('');
 
+  // Append no-context prompts (like "Fix rules")
+  html += noContextPrompts.map(p => {
+    if (p.prompt === '__FIX_RULES__') {
+      return '<button class="rule-btn" data-action="fix-rules">' + p.label + '</button>';
+    }
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>';
+  }).join('');
+
+  container.innerHTML = html;
+
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      // Handle special actions
+      if (btn.getAttribute('data-action') === 'fix-rules') {
+        promptFixRules();
+        return;
+      }
+
       // Attach context files and issues (commits them for sending)
       const variantFilesData = btn.getAttribute('data-variant-files');
       const variantIssuesData = btn.getAttribute('data-variant-issues');
@@ -17922,6 +17991,9 @@ function promptFixRules() {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 
+  // Mark send button as ready
+  document.getElementById('send').classList.add('ready');
+
   input.focus();
 
   // Show AI panel (positions before making visible to prevent flash)
@@ -17960,6 +18032,7 @@ document.getElementById('send').addEventListener('click', () => {
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
+  document.getElementById('send').classList.remove('ready');
   input.value = '';
   input.style.height = 'auto';  // Reset to single line
 
@@ -18027,12 +18100,20 @@ function showAiPanel() {
   panel.classList.add('visible');
 }
 
-// Auto-resize textarea and reposition AI panel
+// Auto-resize textarea, reposition AI panel, and update send button state
 document.getElementById('query').addEventListener('input', (e) => {
   const textarea = e.target;
   textarea.style.height = 'auto';
   textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
   positionAiPanel();
+
+  // Toggle send button ready state based on content
+  const sendBtn = document.getElementById('send');
+  if (textarea.value.trim()) {
+    sendBtn.classList.add('ready');
+  } else {
+    sendBtn.classList.remove('ready');
+  }
 });
 
 // Reposition panel on window resize and focus
@@ -20450,7 +20531,7 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
         <div class="footer-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
           <span id="context-pct" class="context-pct"></span>
-          <button id="send" class="ai-send-btn">\u2191</button>
+          <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>
     </div>

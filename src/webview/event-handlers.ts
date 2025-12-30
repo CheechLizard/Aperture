@@ -117,6 +117,9 @@ function promptFixRules() {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 
+  // Mark send button as ready
+  document.getElementById('send').classList.add('ready');
+
   input.focus();
 
   // Show AI panel (positions before making visible to prevent flash)

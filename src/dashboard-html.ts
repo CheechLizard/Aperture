@@ -140,7 +140,7 @@ export function getDashboardContent(
         <div class="footer-actions">
           <div id="context-pie" class="context-pie" title="Context used"></div>
           <span id="context-pct" class="context-pct"></span>
-          <button id="send" class="ai-send-btn">↑</button>
+          <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>
     </div>

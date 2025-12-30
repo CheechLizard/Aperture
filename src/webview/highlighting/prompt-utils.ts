@@ -123,11 +123,30 @@ function renderDynamicPrompts() {
     // No prompts shown - user should select issues or files first
   }
 
+  // Add "Fix rules" prompt if there are unrecognized rules
+  if (ruleResult && ruleResult.newCount > 0) {
+    prompts.push({
+      label: 'Fix ' + ruleResult.newCount + ' unrecognized rule' + (ruleResult.newCount !== 1 ? 's' : ''),
+      prompt: '__FIX_RULES__',  // Special marker handled below
+      noContext: true  // Don't need file context for this
+    });
+  }
+
   // No prompts to show
   if (prompts.length === 0) {
     const hasIssues = activeIssues.length > 0;
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">' +
       (hasIssues ? 'Select an issue type to analyze' : 'No issues detected') + '</span>';
+    return;
+  }
+
+  // Separate prompts that need context costing from those that don't
+  const contextPrompts = prompts.filter(p => !p.noContext);
+  const noContextPrompts = prompts.filter(p => p.noContext);
+
+  // If only no-context prompts, render them immediately
+  if (contextPrompts.length === 0) {
+    renderNoContextPrompts(noContextPrompts);
     return;
   }
 
@@ -140,7 +159,10 @@ function renderDynamicPrompts() {
 
   // Assign IDs and create pending prompts for ALL variants of each prompt
   pendingPrompts = [];
-  for (const p of prompts) {
+  // Store no-context prompts to append after costing
+  pendingPrompts.noContextPrompts = noContextPrompts;
+
+  for (const p of contextPrompts) {
     const baseId = 'prompt-' + (++promptIdCounter);
     for (let i = 0; i < variants.length; i++) {
       pendingPrompts.push({
@@ -165,6 +187,30 @@ function renderDynamicPrompts() {
       promptId: p.id
     });
   }
+}
+
+// Render prompts that don't need context (like "Fix rules")
+function renderNoContextPrompts(prompts) {
+  const container = document.getElementById('rules');
+  container.innerHTML = prompts.map(p => {
+    if (p.prompt === '__FIX_RULES__') {
+      return '<button class="rule-btn" data-action="fix-rules">' + p.label + '</button>';
+    }
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>';
+  }).join('');
+
+  container.querySelectorAll('.rule-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('data-action') === 'fix-rules') {
+        promptFixRules();
+      } else {
+        const prompt = btn.getAttribute('data-prompt');
+        const input = document.getElementById('query');
+        input.value = prompt;
+        input.focus();
+      }
+    });
+  });
 }
 
 // Called when a token count response comes back
@@ -237,12 +283,16 @@ function renderCostdPrompts() {
     }
   }
 
-  if (affordablePrompts.length === 0) {
+  // Get no-context prompts that were stored
+  const noContextPrompts = pendingPrompts.noContextPrompts || [];
+
+  if (affordablePrompts.length === 0 && noContextPrompts.length === 0) {
     container.innerHTML = '<span style="color:var(--vscode-descriptionForeground);font-size:0.85em;">Context too large for prompts</span>';
     return;
   }
 
-  container.innerHTML = affordablePrompts.map(p => {
+  // Build HTML for context prompts
+  let html = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
     // For file-limited variants, show "(X of Y)" where X=files, Y=total issues
     const fileLabel = p.isFileLimited
@@ -255,8 +305,24 @@ function renderCostdPrompts() {
       '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
   }).join('');
 
+  // Append no-context prompts (like "Fix rules")
+  html += noContextPrompts.map(p => {
+    if (p.prompt === '__FIX_RULES__') {
+      return '<button class="rule-btn" data-action="fix-rules">' + p.label + '</button>';
+    }
+    return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '">' + p.label + '</button>';
+  }).join('');
+
+  container.innerHTML = html;
+
   container.querySelectorAll('.rule-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      // Handle special actions
+      if (btn.getAttribute('data-action') === 'fix-rules') {
+        promptFixRules();
+        return;
+      }
+
       // Attach context files and issues (commits them for sending)
       const variantFilesData = btn.getAttribute('data-variant-files');
       const variantIssuesData = btn.getAttribute('data-variant-issues');

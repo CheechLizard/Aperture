@@ -6,6 +6,7 @@ document.getElementById('send').addEventListener('click', () => {
   const text = input.value.trim();
   if (!text) return;
   document.getElementById('send').disabled = true;
+  document.getElementById('send').classList.remove('ready');
   input.value = '';
   input.style.height = 'auto';  // Reset to single line
 
@@ -73,12 +74,20 @@ function showAiPanel() {
   panel.classList.add('visible');
 }
 
-// Auto-resize textarea and reposition AI panel
+// Auto-resize textarea, reposition AI panel, and update send button state
 document.getElementById('query').addEventListener('input', (e) => {
   const textarea = e.target;
   textarea.style.height = 'auto';
   textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
   positionAiPanel();
+
+  // Toggle send button ready state based on content
+  const sendBtn = document.getElementById('send');
+  if (textarea.value.trim()) {
+    sendBtn.classList.add('ready');
+  } else {
+    sendBtn.classList.remove('ready');
+  }
 });
 
 // Reposition panel on window resize and focus
