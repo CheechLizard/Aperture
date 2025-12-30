@@ -42,13 +42,13 @@ export const DASHBOARD_STYLES = `
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
     .chat-messages:empty { display: none; }
-    .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 0.9em; line-height: 1.4; }
+    .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 0 12px; padding: 10px 14px; font-size: 1em; line-height: 1.4; }
     .user-message.debug { align-self: stretch; max-width: 100%; background: rgba(30, 30, 50, 0.9); border: 1px solid rgba(100, 100, 200, 0.5); color: #eee; font-family: monospace; flex-shrink: 0; }
     .user-message-text { margin-bottom: 6px; }
     .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
     .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
     .user-message-file::before { content: '📎'; font-size: 0.9em; }
-    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
+    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 0; padding: 10px 14px; font-size: 1em; line-height: 1.5; white-space: pre-wrap; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     .ai-message .thinking-abort { margin-left: auto; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1; }
@@ -63,7 +63,7 @@ export const DASHBOARD_STYLES = `
     /* Prompt Loading Spinner */
     .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
+    .footer { position: relative; height: 90px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
     .footer-stats { font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
@@ -71,6 +71,7 @@ export const DASHBOARD_STYLES = `
     .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
+    .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-warning { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(204, 167, 0, 0.15); border: 1px solid rgba(204, 167, 0, 0.4); border-radius: 4px; }
@@ -94,6 +95,8 @@ export const DASHBOARD_STYLES = `
     /* Collapsed folder nodes - render as clickable leaves */
     .folder-node { fill: #2d2d2d; stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .folder-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .folder-node.other { fill: #252525; stroke: rgba(255,255,255,0.2); stroke-dasharray: 4 2; }
+    .folder-node.other:hover { stroke: var(--vscode-focusBorder); stroke-dasharray: none; }
     .folder-label { font-size: 9px; fill: #fff; pointer-events: none; }
     .folder-count { font-size: 8px; fill: #888; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }

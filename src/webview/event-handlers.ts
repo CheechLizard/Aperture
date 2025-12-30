@@ -43,6 +43,15 @@ document.getElementById('show-orphans').addEventListener('change', () => {
 // Initialize with files treemap view (default state)
 colorMode = 'none';
 
+// Sync color cycling animations to same phase
+function syncAnimations() {
+  const delay = -(Date.now() % 3000) + 'ms';
+  document.querySelectorAll('.footer-input-container, .ai-send-btn.ready, .context-bar').forEach(el => {
+    el.style.animationDelay = delay;
+  });
+}
+syncAnimations();
+
 // Initialize navigation to files view
 nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
@@ -119,6 +128,7 @@ function promptFixRules() {
 
   // Mark send button as ready
   document.getElementById('send').classList.add('ready');
+  syncAnimations();
 
   input.focus();
 

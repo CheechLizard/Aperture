@@ -16176,13 +16176,13 @@ var DASHBOARD_STYLES = `
     /* Chat Messages Area */
     .chat-messages { flex: 1; min-height: 0; max-height: calc(60vh - 120px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
     .chat-messages:empty { display: none; }
-    .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 0.9em; line-height: 1.4; }
+    .user-message { align-self: flex-end; max-width: 85%; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 12px 12px 0 12px; padding: 10px 14px; font-size: 1em; line-height: 1.4; }
     .user-message.debug { align-self: stretch; max-width: 100%; background: rgba(30, 30, 50, 0.9); border: 1px solid rgba(100, 100, 200, 0.5); color: #eee; font-family: monospace; flex-shrink: 0; }
     .user-message-text { margin-bottom: 6px; }
     .user-message-files { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; opacity: 0.85; }
     .user-message-file { display: inline-flex; align-items: center; gap: 3px; }
     .user-message-file::before { content: '\u{1F4CE}'; font-size: 0.9em; }
-    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 4px; padding: 10px 14px; font-size: 0.9em; line-height: 1.5; white-space: pre-wrap; }
+    .ai-message { align-self: flex-start; max-width: 90%; background: rgba(255, 255, 255, 0.08); border-radius: 12px 12px 12px 0; padding: 10px 14px; font-size: 1em; line-height: 1.5; white-space: pre-wrap; }
     .ai-message.thinking { display: flex; align-items: center; gap: 10px; }
     .ai-message .thinking-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     .ai-message .thinking-abort { margin-left: auto; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1; }
@@ -16197,7 +16197,7 @@ var DASHBOARD_STYLES = `
     /* Prompt Loading Spinner */
     .prompt-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .prompt-loading .thinking-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--vscode-textLink-foreground); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .footer { position: relative; height: 70px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
+    .footer { position: relative; height: 90px; border-top: 1px solid var(--vscode-widget-border); font-size: 0.8em; color: var(--vscode-descriptionForeground); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 12px 8px; overflow: visible; }
     .footer-stats { font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; }
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
@@ -16205,6 +16205,7 @@ var DASHBOARD_STYLES = `
     .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
+    .input-divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
     .footer-stat { display: inline-flex; gap: 4px; align-items: baseline; }
     .footer-stat strong { color: var(--vscode-textLink-foreground); font-size: 1.1em; }
     .footer-warning { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(204, 167, 0, 0.15); border: 1px solid rgba(204, 167, 0, 0.4); border-radius: 4px; }
@@ -16228,6 +16229,8 @@ var DASHBOARD_STYLES = `
     /* Collapsed folder nodes - render as clickable leaves */
     .folder-node { fill: #2d2d2d; stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; transition: opacity 0.2s; }
     .folder-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
+    .folder-node.other { fill: #252525; stroke: rgba(255,255,255,0.2); stroke-dasharray: 4 2; }
+    .folder-node.other:hover { stroke: var(--vscode-focusBorder); stroke-dasharray: none; }
     .folder-label { font-size: 9px; fill: #fff; pointer-events: none; }
     .folder-count { font-size: 8px; fill: #888; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
@@ -17227,6 +17230,7 @@ function renderNoContextPrompts(prompts) {
         input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         // Update send button state and reposition panel
         document.getElementById('send').classList.add('ready');
+        syncAnimations();
         positionAiPanel();
         input.focus();
       }
@@ -17366,6 +17370,7 @@ function renderCostdPrompts() {
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
       // Update send button state and reposition panel
       document.getElementById('send').classList.add('ready');
+      syncAnimations();
       positionAiPanel();
       input.focus();
     });
@@ -17943,6 +17948,15 @@ document.getElementById('show-orphans').addEventListener('change', () => {
 // Initialize with files treemap view (default state)
 colorMode = 'none';
 
+// Sync color cycling animations to same phase
+function syncAnimations() {
+  const delay = -(Date.now() % 3000) + 'ms';
+  document.querySelectorAll('.footer-input-container, .ai-send-btn.ready, .context-bar').forEach(el => {
+    el.style.animationDelay = delay;
+  });
+}
+syncAnimations();
+
 // Initialize navigation to files view
 nav.goTo({ view: 'files', file: null });
 renderDynamicPrompts();
@@ -18019,6 +18033,7 @@ function promptFixRules() {
 
   // Mark send button as ready
   document.getElementById('send').classList.add('ready');
+  syncAnimations();
 
   input.focus();
 
@@ -18137,6 +18152,7 @@ document.getElementById('query').addEventListener('input', (e) => {
   const sendBtn = document.getElementById('send');
   if (textarea.value.trim()) {
     sendBtn.classList.add('ready');
+    syncAnimations();
   } else {
     sendBtn.classList.remove('ready');
   }
@@ -18236,6 +18252,7 @@ window.addEventListener('message', event => {
         }
         if (chatFooter) {
           chatFooter.classList.add('visible');
+          syncAnimations();
         }
       } else {
         if (chatFooter) {
@@ -18436,7 +18453,7 @@ function aggregateSmallNodes(hierarchyNode) {
     }
     return {
       data: {
-        name: otherCount + ' small item' + (otherCount !== 1 ? 's' : ''),
+        name: otherCount + ' more...',
         path: hierarchyNode.data.path + '/_other_' + Math.random().toString(36).slice(2, 6),
         uri: hierarchyNode.data.uri,
         _isOther: true,
@@ -18810,7 +18827,7 @@ function renderFileRects(layer, leaves, width, height, t) {
   layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.path)
     .join(
       enter => enter.append('rect')
-        .attr('class', 'folder-node node')
+        .attr('class', d => 'folder-node node' + (d.data._isOther ? ' other' : ''))
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
         .attr('data-collapsed-paths', d => d.data._collapsedPaths ? d.data._collapsedPaths.join(',') : null)
@@ -18818,7 +18835,7 @@ function renderFileRects(layer, leaves, width, height, t) {
         .attr('y', d => d.y0)
         .attr('width', d => Math.max(0, d.x1 - d.x0))
         .attr('height', d => Math.max(0, d.y1 - d.y0)),
-      update => update,
+      update => update.attr('class', d => 'folder-node node' + (d.data._isOther ? ' other' : '')),
       exit => exit.remove()
     )
     .on('mouseover', (e, d) => {
@@ -18865,6 +18882,41 @@ function renderFileRects(layer, leaves, width, height, t) {
     .attr('y', d => d.y0)
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
+
+  // Render internal divider lines for "other" nodes to suggest collapsed partitions
+  const otherLeaves = folderLeaves.filter(d => d.data._isOther);
+  const dividerData = [];
+  otherLeaves.forEach(d => {
+    const w = d.x1 - d.x0;
+    const h = d.y1 - d.y0;
+    const numLines = Math.min(3, Math.max(1, Math.floor(Math.min(w, h) / 20)));
+    // Use vertical lines if wider than tall, horizontal if taller
+    const isVertical = w > h;
+    for (let i = 1; i <= numLines; i++) {
+      const pos = i / (numLines + 1);
+      dividerData.push({
+        key: d.data.path + '-div-' + i,
+        x1: isVertical ? d.x0 + w * pos : d.x0 + 4,
+        y1: isVertical ? d.y0 + 4 : d.y0 + h * pos,
+        x2: isVertical ? d.x0 + w * pos : d.x1 - 4,
+        y2: isVertical ? d.y1 - 4 : d.y0 + h * pos
+      });
+    }
+  });
+
+  layer.selectAll('line.other-divider').data(dividerData, d => d.key)
+    .join(
+      enter => enter.append('line')
+        .attr('class', 'other-divider')
+        .attr('stroke', 'rgba(255,255,255,0.1)')
+        .attr('stroke-width', 1)
+        .attr('x1', d => d.x1).attr('y1', d => d.y1)
+        .attr('x2', d => d.x2).attr('y2', d => d.y2),
+      update => update
+        .attr('x1', d => d.x1).attr('y1', d => d.y1)
+        .attr('x2', d => d.x2).attr('y2', d => d.y2),
+      exit => exit.remove()
+    );
 
   // Folder leaf labels rendered separately in renderFolderLeafLabels
 }
@@ -20567,6 +20619,7 @@ function getDashboardContent(data, architectureIssues, ruleResult = null, coding
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
       </div>
+      <hr class="input-divider">
       <div class="footer-context-row">
         <div id="context-files" class="context-files"></div>
         <div class="footer-actions">

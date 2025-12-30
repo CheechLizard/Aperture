@@ -216,6 +216,7 @@ function renderNoContextPrompts(prompts) {
         input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         // Update send button state and reposition panel
         document.getElementById('send').classList.add('ready');
+        syncAnimations();
         positionAiPanel();
         input.focus();
       }
@@ -355,6 +356,7 @@ function renderCostdPrompts() {
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
       // Update send button state and reposition panel
       document.getElementById('send').classList.add('ready');
+      syncAnimations();
       positionAiPanel();
       input.focus();
     });

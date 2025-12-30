@@ -140,6 +140,7 @@ export function getDashboardContent(
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
       </div>
+      <hr class="input-divider">
       <div class="footer-context-row">
         <div id="context-files" class="context-files"></div>
         <div class="footer-actions">

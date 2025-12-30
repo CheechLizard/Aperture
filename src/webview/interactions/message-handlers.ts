@@ -85,6 +85,7 @@ document.getElementById('query').addEventListener('input', (e) => {
   const sendBtn = document.getElementById('send');
   if (textarea.value.trim()) {
     sendBtn.classList.add('ready');
+    syncAnimations();
   } else {
     sendBtn.classList.remove('ready');
   }
@@ -184,6 +185,7 @@ window.addEventListener('message', event => {
         }
         if (chatFooter) {
           chatFooter.classList.add('visible');
+          syncAnimations();
         }
       } else {
         if (chatFooter) {

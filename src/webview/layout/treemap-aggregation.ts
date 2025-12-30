@@ -32,7 +32,7 @@ function aggregateSmallNodes(hierarchyNode) {
     }
     return {
       data: {
-        name: otherCount + ' small item' + (otherCount !== 1 ? 's' : ''),
+        name: otherCount + ' more...',
         path: hierarchyNode.data.path + '/_other_' + Math.random().toString(36).slice(2, 6),
         uri: hierarchyNode.data.uri,
         _isOther: true,

@@ -131,7 +131,7 @@ function renderFileRects(layer, leaves, width, height, t) {
   layer.selectAll('rect.folder-node').data(folderLeaves, d => d.data.path)
     .join(
       enter => enter.append('rect')
-        .attr('class', 'folder-node node')
+        .attr('class', d => 'folder-node node' + (d.data._isOther ? ' other' : ''))
         .attr('data-uri', d => d.data.uri)
         .attr('data-path', d => d.data.path)
         .attr('data-collapsed-paths', d => d.data._collapsedPaths ? d.data._collapsedPaths.join(',') : null)
@@ -139,7 +139,7 @@ function renderFileRects(layer, leaves, width, height, t) {
         .attr('y', d => d.y0)
         .attr('width', d => Math.max(0, d.x1 - d.x0))
         .attr('height', d => Math.max(0, d.y1 - d.y0)),
-      update => update,
+      update => update.attr('class', d => 'folder-node node' + (d.data._isOther ? ' other' : '')),
       exit => exit.remove()
     )
     .on('mouseover', (e, d) => {
@@ -186,6 +186,41 @@ function renderFileRects(layer, leaves, width, height, t) {
     .attr('y', d => d.y0)
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0));
+
+  // Render internal divider lines for "other" nodes to suggest collapsed partitions
+  const otherLeaves = folderLeaves.filter(d => d.data._isOther);
+  const dividerData = [];
+  otherLeaves.forEach(d => {
+    const w = d.x1 - d.x0;
+    const h = d.y1 - d.y0;
+    const numLines = Math.min(3, Math.max(1, Math.floor(Math.min(w, h) / 20)));
+    // Use vertical lines if wider than tall, horizontal if taller
+    const isVertical = w > h;
+    for (let i = 1; i <= numLines; i++) {
+      const pos = i / (numLines + 1);
+      dividerData.push({
+        key: d.data.path + '-div-' + i,
+        x1: isVertical ? d.x0 + w * pos : d.x0 + 4,
+        y1: isVertical ? d.y0 + 4 : d.y0 + h * pos,
+        x2: isVertical ? d.x0 + w * pos : d.x1 - 4,
+        y2: isVertical ? d.y1 - 4 : d.y0 + h * pos
+      });
+    }
+  });
+
+  layer.selectAll('line.other-divider').data(dividerData, d => d.key)
+    .join(
+      enter => enter.append('line')
+        .attr('class', 'other-divider')
+        .attr('stroke', 'rgba(255,255,255,0.1)')
+        .attr('stroke-width', 1)
+        .attr('x1', d => d.x1).attr('y1', d => d.y1)
+        .attr('x2', d => d.x2).attr('y2', d => d.y2),
+      update => update
+        .attr('x1', d => d.x1).attr('y1', d => d.y1)
+        .attr('x2', d => d.x2).attr('y2', d => d.y2),
+      exit => exit.remove()
+    );
 
   // Folder leaf labels rendered separately in renderFolderLeafLabels
 }
