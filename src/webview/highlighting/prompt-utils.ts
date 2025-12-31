@@ -68,34 +68,37 @@ function renderDynamicPrompts() {
     // Scenario 1: Rule selected + zoomed into file
     const fileName = zoomedFile.split('/').pop();
 
+    // Issues of selected rule in zoomed file
+    const ruleIssuesInFile = activeIssues.filter(i =>
+      i.ruleId === ruleId &&
+      i.locations.some(l => l.file === zoomedFile)
+    );
     prompts.push({
       label: 'Analyze ' + formatRuleId(ruleId) + ' in ' + fileName,
-      prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues in ' + fileName
+      prompt: 'Analyze the ' + formatRuleId(ruleId).toLowerCase() + ' issues in ' + fileName,
+      files: [zoomedFile],
+      issues: ruleIssuesInFile
     });
 
-    // Other issues in same file
+    // Other issues in same file (different rules)
     const otherInFile = activeIssues.filter(i =>
       i.ruleId !== ruleId &&
       i.locations.some(l => l.file === zoomedFile)
     );
     if (otherInFile.length > 0) {
+      const allIssuesInFile = activeIssues.filter(i =>
+        i.locations.some(l => l.file === zoomedFile)
+      );
       prompts.push({
         label: 'All issues in ' + fileName,
-        prompt: 'Analyze all issues in ' + fileName
+        prompt: 'Analyze all issues in ' + fileName,
+        files: [zoomedFile],
+        issues: allIssuesInFile
       });
     }
 
-    // Same issue in other files
-    const sameIssueOtherFiles = activeIssues.filter(i =>
-      i.ruleId === ruleId &&
-      !i.locations.some(l => l.file === zoomedFile)
-    );
-    if (sameIssueOtherFiles.length > 0) {
-      prompts.push({
-        label: 'Selected ' + formatRuleId(ruleId) + ' issues',
-        prompt: 'Analyze all ' + formatRuleId(ruleId).toLowerCase() + ' issues in the codebase'
-      });
-    }
+    // Note: When zoomed in, we don't offer to analyze files outside the view.
+    // User should zoom out to see the broader "Selected X issues" prompt.
 
   } else if (ruleId) {
     // Scenario 2: Rule selected, not zoomed
@@ -164,17 +167,33 @@ function renderDynamicPrompts() {
 
   for (const p of contextPrompts) {
     const baseId = 'prompt-' + (++promptIdCounter);
-    for (let i = 0; i < variants.length; i++) {
+
+    // If prompt has its own files/issues, use those (single variant, no degradation)
+    if (p.files) {
       pendingPrompts.push({
         ...p,
         baseId: baseId,
-        variantIndex: i,
-        variantLabel: variants[i].label,
-        variantContext: variants[i].context,
-        id: baseId + '-v' + i,
+        variantIndex: 0,
+        variantLabel: null,
+        variantContext: { files: p.files, issues: p.issues || [] },
+        id: baseId + '-v0',
         tokens: null,
         tooExpensive: false
       });
+    } else {
+      // No specific files - use global variants for graceful degradation
+      for (let i = 0; i < variants.length; i++) {
+        pendingPrompts.push({
+          ...p,
+          baseId: baseId,
+          variantIndex: i,
+          variantLabel: variants[i].label,
+          variantContext: variants[i].context,
+          id: baseId + '-v' + i,
+          tokens: null,
+          tooExpensive: false
+        });
+      }
     }
   }
 
