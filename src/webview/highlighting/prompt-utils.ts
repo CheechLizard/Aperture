@@ -119,11 +119,26 @@ function renderDynamicPrompts() {
       });
     }
 
+  } else if (zoomedFile) {
+    // Scenario 3: Zoomed into file but no rule selected
+    const allIssuesInFile = activeIssues.filter(i =>
+      i.locations.some(l => l.file === zoomedFile)
+    );
+    if (allIssuesInFile.length > 0) {
+      const fileName = zoomedFile.split('/').pop();
+      prompts.push({
+        label: 'All issues in ' + fileName,
+        prompt: 'Analyze all issues in ' + fileName,
+        files: [zoomedFile],
+        issues: allIssuesInFile,
+        showIssueCount: true
+      });
+    }
   } else if (focusFiles.length > 0) {
-    // Scenario 3: Files selected via status button but no specific rule
+    // Scenario 4: Files selected via status button but no specific rule
     // No prompts shown - too broad, user should select a specific issue type
   } else {
-    // Scenario 4: Nothing selected (initial state)
+    // Scenario 5: Nothing selected (initial state)
     // No prompts shown - user should select issues or files first
   }
 
@@ -335,7 +350,7 @@ function renderCostdPrompts() {
       countLabel = issueCount + ' issue' + (issueCount === 1 ? '' : 's');
     } else if (p.isFileLimited || p.isHighSeverityVariant) {
       // Degraded variants - show "(X of Y)"
-      countLabel = fileCount + ' of ' + p.totalFiles;
+      countLabel = fileCount + ' of ' + p.totalFiles + ' files';
     } else {
       // Normal - show file count
       countLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
