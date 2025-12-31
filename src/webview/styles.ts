@@ -175,7 +175,7 @@ export const DASHBOARD_STYLES = `
     .pattern-header:hover { background: var(--vscode-list-hoverBackground); }
     .pattern-header.high { border-left-color: #e74c3c; }
     .pattern-header.medium { border-left-color: #f39c12; }
-    .pattern-header.low { border-left-color: #7f8c8d; }
+    .pattern-group:has(.pattern-items.expanded) .pattern-header { position: sticky; top: 0; z-index: 1; background: #2d2d30; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
     .pattern-chevron { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; cursor: pointer; }
     .pattern-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
     .pattern-chevron.expanded svg { transform: rotate(90deg); }
@@ -188,7 +188,6 @@ export const DASHBOARD_STYLES = `
     .pattern-item:hover { background: var(--vscode-list-hoverBackground); }
     .pattern-item.high { border-left-color: #e74c3c; }
     .pattern-item.medium { border-left-color: #f39c12; }
-    .pattern-item.low { border-left-color: #7f8c8d; }
     .pattern-item-file { color: var(--vscode-foreground); font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pattern-item-desc { font-size: 0.9em; color: var(--vscode-descriptionForeground); line-height: 1.3; }
     .pattern-item-row { display: flex; align-items: center; gap: 8px; }

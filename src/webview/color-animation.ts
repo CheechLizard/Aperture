@@ -77,7 +77,19 @@ function cycleIssueColors() {
   if (selectedElement && selectedElement.isConnected) {
     // Visible selection background with pulsing alpha
     const bgAlpha = 0.5 + 0.1 * Math.sin(pulsePhase);
-    selectedElement.style.background = 'rgba(' + r + ',' + g + ',' + b + ',' + bgAlpha.toFixed(2) + ')';
+    // Check if this is a sticky header (expanded pattern group) - needs opaque background
+    const isSticky = selectedElement.classList.contains('pattern-header') &&
+      selectedElement.closest('.pattern-group')?.querySelector('.pattern-items.expanded');
+    if (isSticky) {
+      // Blend highlight color with base background (#1e1e1e) to create opaque result
+      const baseR = 30, baseG = 30, baseB = 30;
+      const blendR = Math.round(r * bgAlpha + baseR * (1 - bgAlpha));
+      const blendG = Math.round(g * bgAlpha + baseG * (1 - bgAlpha));
+      const blendB = Math.round(b * bgAlpha + baseB * (1 - bgAlpha));
+      selectedElement.style.background = 'rgb(' + blendR + ',' + blendG + ',' + blendB + ')';
+    } else {
+      selectedElement.style.background = 'rgba(' + r + ',' + g + ',' + b + ',' + bgAlpha.toFixed(2) + ')';
+    }
   }
 }
 

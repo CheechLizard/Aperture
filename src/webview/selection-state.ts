@@ -199,6 +199,8 @@ const selection = {
       // Hide divider and context row when no files
       if (divider) divider.classList.remove('visible');
       if (contextRow) contextRow.classList.remove('visible');
+      // Reposition AI panel after footer layout changes
+      if (typeof positionAiPanel === 'function') positionAiPanel();
       return;
     }
 
@@ -243,6 +245,9 @@ const selection = {
         this._showFilesFlyout(files, moreBtn);
       });
     }
+
+    // Reposition AI panel after footer layout changes
+    if (typeof positionAiPanel === 'function') positionAiPanel();
   },
 
   // Show flyout with all files (delegates to global function)
