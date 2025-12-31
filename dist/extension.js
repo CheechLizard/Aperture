@@ -12398,11 +12398,12 @@ function renderCostdPrompts() {
       // Resize input to fit content
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-      // Update send button state and reposition panel
+      // Update send button state
       document.getElementById('send').classList.add('ready');
       syncAnimations();
-      positionAiPanel();
-      input.focus();
+      // Dismiss AI panel - user has made their selection
+      input.blur();
+      hideAiPanel();
     });
   });
 }
