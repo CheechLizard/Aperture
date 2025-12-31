@@ -11256,8 +11256,7 @@ var DASHBOARD_STYLES = `
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
     .footer-lang { background: rgba(204, 167, 0, 0.15); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; pointer-events: none; }
-    .footer-input-container > * { pointer-events: auto; }
+    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
     .input-divider { display: none; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
@@ -11403,10 +11402,17 @@ var DASHBOARD_STYLES = `
     }
 
     /* Function Distribution Chart */
-    .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
+    .functions-container { display: none; position: relative; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
     .functions-container.visible { display: flex; }
     #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
+    /* Scroll edge indicators for off-screen highlighted items */
+    .scroll-indicator { position: absolute; left: 50%; transform: translateX(-50%); z-index: 10; display: none; align-items: center; gap: 4px; padding: 2px 10px; background: rgba(255, 255, 255, 0.9); color: #000; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; border-radius: 10px; }
+    .scroll-indicator.visible { display: flex; }
+    .scroll-indicator.top { top: 4px; }
+    .scroll-indicator.bottom { bottom: 4px; }
+    .scroll-indicator:hover { background: #fff; }
+    .scroll-indicator svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
     /* Zoom Header - positioned absolutely to left */
     .zoom-header { position: absolute; left: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; }
@@ -12058,6 +12064,11 @@ function highlightNodes(urisOrPaths, lineMap) {
       ribbon.classList.add('highlighted');
     }
   });
+
+  // Update scroll indicators for off-screen highlighted items
+  if (typeof updateScrollIndicators === 'function') {
+    updateScrollIndicators();
+  }
 }
 
 // Handle AI response highlights (separate from user selection)
@@ -15742,6 +15753,122 @@ const zoom = {
 };
 `;
 
+// src/webview/scroll-indicators.ts
+init_esbuild_shim();
+var SCROLL_INDICATORS_SCRIPT = `
+// Scroll edge indicators - show count of highlighted items above/below viewport
+function initScrollIndicators() {
+  const container = document.querySelector('.functions-container');
+  if (!container || container.querySelector('.scroll-indicator')) return;
+
+  const topIndicator = document.createElement('div');
+  topIndicator.className = 'scroll-indicator top';
+  topIndicator.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg><span class="count"></span>';
+
+  const bottomIndicator = document.createElement('div');
+  bottomIndicator.className = 'scroll-indicator bottom';
+  bottomIndicator.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg><span class="count"></span>';
+
+  container.appendChild(topIndicator);
+  container.appendChild(bottomIndicator);
+
+  // Click to scroll to first off-screen highlighted item
+  topIndicator.addEventListener('click', () => scrollToOffscreenHighlight('above'));
+  bottomIndicator.addEventListener('click', () => scrollToOffscreenHighlight('below'));
+}
+
+function updateScrollIndicators() {
+  const chart = document.getElementById('functions-chart');
+  const container = document.querySelector('.functions-container');
+  if (!chart || !container) return;
+
+  const topIndicator = container.querySelector('.scroll-indicator.top');
+  const bottomIndicator = container.querySelector('.scroll-indicator.bottom');
+  if (!topIndicator || !bottomIndicator) return;
+
+  // Only show indicators when zoomed into a file (partition layout)
+  if (!zoomedFile) {
+    topIndicator.classList.remove('visible');
+    bottomIndicator.classList.remove('visible');
+    return;
+  }
+
+  // Get all highlighted nodes in the partition view
+  const highlighted = chart.querySelectorAll('.node.highlighted');
+  if (highlighted.length === 0) {
+    topIndicator.classList.remove('visible');
+    bottomIndicator.classList.remove('visible');
+    return;
+  }
+
+  const chartRect = chart.getBoundingClientRect();
+  let aboveCount = 0;
+  let belowCount = 0;
+
+  highlighted.forEach(node => {
+    const rect = node.getBoundingClientRect();
+    // Check if node is above viewport (its bottom is above chart top)
+    if (rect.bottom < chartRect.top) {
+      aboveCount++;
+    }
+    // Check if node is below viewport (its top is below chart bottom)
+    else if (rect.top > chartRect.bottom) {
+      belowCount++;
+    }
+  });
+
+  // Update top indicator
+  if (aboveCount > 0) {
+    topIndicator.querySelector('.count').textContent = aboveCount + ' issue' + (aboveCount !== 1 ? 's' : '') + ' above';
+    topIndicator.classList.add('visible');
+  } else {
+    topIndicator.classList.remove('visible');
+  }
+
+  // Update bottom indicator
+  if (belowCount > 0) {
+    bottomIndicator.querySelector('.count').textContent = belowCount + ' issue' + (belowCount !== 1 ? 's' : '') + ' below';
+    bottomIndicator.classList.add('visible');
+  } else {
+    bottomIndicator.classList.remove('visible');
+  }
+}
+
+function scrollToOffscreenHighlight(direction) {
+  const chart = document.getElementById('functions-chart');
+  if (!chart) return;
+
+  const highlighted = [...chart.querySelectorAll('.node.highlighted')];
+  if (highlighted.length === 0) return;
+
+  const chartRect = chart.getBoundingClientRect();
+
+  if (direction === 'above') {
+    // Find the last highlighted node that's above viewport
+    for (let i = highlighted.length - 1; i >= 0; i--) {
+      const rect = highlighted[i].getBoundingClientRect();
+      if (rect.bottom < chartRect.top) {
+        highlighted[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
+  } else {
+    // Find the first highlighted node that's below viewport
+    for (const node of highlighted) {
+      const rect = node.getBoundingClientRect();
+      if (rect.top > chartRect.bottom) {
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
+  }
+}
+
+// Initialize indicators and listen for scroll
+initScrollIndicators();
+document.getElementById('functions-chart')?.addEventListener('scroll', updateScrollIndicators);
+`;
+
 // src/dashboard-html.ts
 function getLoadingContent() {
   return `<!DOCTYPE html>
@@ -15938,6 +16065,8 @@ ${COLOR_ANIMATION_SCRIPT}
 ${MESSAGE_HANDLERS_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
+
+${SCROLL_INDICATORS_SCRIPT}
 </script>
 </body>
 </html>`;

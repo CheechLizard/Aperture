@@ -105,6 +105,11 @@ function highlightNodes(urisOrPaths, lineMap) {
       ribbon.classList.add('highlighted');
     }
   });
+
+  // Update scroll indicators for off-screen highlighted items
+  if (typeof updateScrollIndicators === 'function') {
+    updateScrollIndicators();
+  }
 }
 
 // Handle AI response highlights (separate from user selection)

@@ -27,6 +27,7 @@ import { URI_SCRIPT } from './webview/uri';
 import { BREADCRUMB_SCRIPT } from './webview/breadcrumb';
 import { CODE_PREVIEW_SCRIPT } from './webview/code-preview';
 import { ZOOM_SCRIPT } from './webview/zoom';
+import { SCROLL_INDICATORS_SCRIPT } from './webview/scroll-indicators';
 
 export function getLoadingContent(): string {
   return `<!DOCTYPE html>
@@ -235,6 +236,8 @@ ${COLOR_ANIMATION_SCRIPT}
 ${MESSAGE_HANDLERS_SCRIPT}
 
 ${EVENT_HANDLERS_SCRIPT}
+
+${SCROLL_INDICATORS_SCRIPT}
 </script>
 </body>
 </html>`;
