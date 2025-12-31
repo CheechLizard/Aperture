@@ -48,16 +48,24 @@ function buildPartitionData(file, width, height) {
     return { nodes: [], requiredHeight: height, maxDepth: 0, maxLine: 0 };
   }
 
-  const maxLine = file.loc || 0;
+  // file.loc is non-blank line count, but we need actual line numbers for layout
+  // Find the actual last line from function endLines
+  let actualMaxLine = file.loc || 0;
+  if (file.functions && file.functions.length > 0) {
+    for (const fn of file.functions) {
+      if (fn.endLine > actualMaxLine) actualMaxLine = fn.endLine;
+    }
+  }
+
   const contentStart = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
   const nodes = [];
 
   // Add file-level block first
   nodes.push({
     name: file.path.split('/').pop(),
-    value: maxLine,
+    value: file.loc || 0,  // Display LOC count
     line: 1,
-    endLine: maxLine,
+    endLine: actualMaxLine,  // Use actual line number for layout
     depth: 0,
     filePath: file.path,
     uri: file.uri,
@@ -148,8 +156,8 @@ function buildPartitionData(file, width, height) {
   });
 
   const maxDepth = Math.max(0, ...nodes.map(n => n.containmentDepth));
-  const requiredHeight = contentStart + maxLine * PARTITION_LOC_SCALE + PARTITION_PADDING;
-  return { nodes, requiredHeight, maxDepth, maxLine };
+  const requiredHeight = contentStart + actualMaxLine * PARTITION_LOC_SCALE + PARTITION_PADDING;
+  return { nodes, requiredHeight, maxDepth, maxLine: actualMaxLine };
 }
 
 // Calculate label positions - horizontal cascade (labels never move down)
