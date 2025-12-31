@@ -35,9 +35,54 @@ export function getLoadingContent(): string {
 <head>
   <meta charset="UTF-8">
   <title>Aperture Dashboard</title>
-  <style>body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }</style>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); display: flex; flex-direction: column; }
+    .skeleton-header { height: 40px; border-bottom: 1px solid var(--vscode-widget-border); }
+    .skeleton-container { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 0 20px; }
+    .skeleton-main { flex: 3; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+    .skeleton-sidebar { flex: 1; min-width: 250px; max-width: 320px; border-left: 1px solid var(--vscode-panel-border, #444); padding: 8px 0 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .skeleton-treemap { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; }
+    .skeleton-box { background: #151515; border-radius: 3px; position: relative; overflow: hidden; }
+    .skeleton-box.large { grid-column: span 2; grid-row: span 2; }
+    .skeleton-item { height: 48px; background: #151515; border-radius: 4px; position: relative; overflow: hidden; }
+    .skeleton-item.header { height: 32px; width: 60%; margin-bottom: 4px; }
+    .skeleton-box::after, .skeleton-item::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent); animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .skeleton-footer { height: 90px; border-top: 1px solid var(--vscode-widget-border); display: flex; align-items: center; justify-content: center; }
+    .skeleton-input { width: 520px; height: 50px; background: #151515; border-radius: 12px; position: relative; overflow: hidden; }
+    .skeleton-input::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent); animation: shimmer 1.5s infinite; }
+  </style>
 </head>
-<body><h1>Aperture Dashboard</h1><p>Scanning workspace...</p></body>
+<body>
+  <div class="skeleton-header"></div>
+  <div class="skeleton-container">
+    <div class="skeleton-main">
+      <div class="skeleton-treemap">
+        <div class="skeleton-box large"></div>
+        <div class="skeleton-box"></div>
+        <div class="skeleton-box"></div>
+        <div class="skeleton-box"></div>
+        <div class="skeleton-box"></div>
+        <div class="skeleton-box"></div>
+        <div class="skeleton-box"></div>
+      </div>
+    </div>
+    <div class="skeleton-sidebar">
+      <div class="skeleton-item header"></div>
+      <div class="skeleton-item"></div>
+      <div class="skeleton-item"></div>
+      <div class="skeleton-item"></div>
+      <div class="skeleton-item header"></div>
+      <div class="skeleton-item"></div>
+      <div class="skeleton-item"></div>
+    </div>
+  </div>
+  <div class="skeleton-footer">
+    <div class="skeleton-input"></div>
+  </div>
+</body>
 </html>`;
 }
 

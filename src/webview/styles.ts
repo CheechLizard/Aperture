@@ -307,4 +307,20 @@ export const DASHBOARD_STYLES = `
     .modal-desc { margin: 0 0 16px 0; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .new-rule-item { padding: 10px 12px; margin-bottom: 8px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); }
     .new-rule-text { font-size: 0.9em; line-height: 1.4; }
+
+    /* Loading Skeleton */
+    .skeleton-container { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 20px; }
+    .skeleton-main { flex: 3; display: flex; flex-direction: column; gap: 8px; }
+    .skeleton-sidebar { flex: 1; min-width: 250px; max-width: 320px; border-left: 1px solid var(--vscode-panel-border, #444); padding-left: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .skeleton-treemap { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; }
+    .skeleton-box { background: #151515; border-radius: 3px; position: relative; overflow: hidden; }
+    .skeleton-box.large { grid-column: span 2; grid-row: span 2; }
+    .skeleton-box.medium { grid-column: span 1; grid-row: span 1; }
+    .skeleton-item { height: 48px; background: #151515; border-radius: 4px; position: relative; overflow: hidden; }
+    .skeleton-item.header { height: 32px; width: 60%; margin-bottom: 4px; }
+    .skeleton-box::after, .skeleton-item::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent); animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .skeleton-footer { height: 90px; border-top: 1px solid var(--vscode-widget-border); display: flex; align-items: center; justify-content: center; }
+    .skeleton-input { width: 520px; height: 50px; background: #151515; border-radius: 12px; position: relative; overflow: hidden; }
+    .skeleton-input::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent); animation: shimmer 1.5s infinite; }
 `;
