@@ -25,6 +25,9 @@ function updateScrollIndicators() {
   const container = document.querySelector('.functions-container');
   if (!chart || !container) return;
 
+  // Ensure indicators exist (may not if container was recreated)
+  initScrollIndicators();
+
   const topIndicator = container.querySelector('.scroll-indicator.top');
   const bottomIndicator = container.querySelector('.scroll-indicator.bottom');
   if (!topIndicator || !bottomIndicator) return;
@@ -36,13 +39,29 @@ function updateScrollIndicators() {
     return;
   }
 
-  // Get highlighted nodes that represent actual issues (not nested children or file blocks)
-  const allHighlighted = chart.querySelectorAll('.node.highlighted');
-  const highlighted = [...allHighlighted].filter(node => {
-    const isNested = node.getAttribute('data-is-nested') === 'true';
-    const blockType = node.getAttribute('data-block-type');
-    // Only count functions and containers, not nested blocks or file blocks
-    return !isNested && blockType !== 'file';
+  // Get highlighted nodes that are "roots" - the primary issue targets
+  // (nodes not contained within another highlighted node, by line range)
+  const allHighlighted = [...chart.querySelectorAll('.node.highlighted')];
+  const highlighted = allHighlighted.filter(node => {
+    // Exclude file blocks
+    if (node.getAttribute('data-block-type') === 'file') return false;
+    // Get this node's line range
+    const startLine = parseInt(node.getAttribute('data-line') || '0');
+    const endLine = parseInt(node.getAttribute('data-end-line') || '0');
+    if (!startLine || !endLine) return false;
+    // Check if any OTHER highlighted node contains this one (by line range)
+    // If so, this is a child, not a root
+    for (const other of allHighlighted) {
+      if (other === node) continue;
+      if (other.getAttribute('data-block-type') === 'file') continue;
+      const otherStart = parseInt(other.getAttribute('data-line') || '0');
+      const otherEnd = parseInt(other.getAttribute('data-end-line') || '0');
+      // If other strictly contains this node, it's not a root
+      if (otherStart <= startLine && otherEnd >= endLine && (otherStart < startLine || otherEnd > endLine)) {
+        return false;
+      }
+    }
+    return true;
   });
   if (highlighted.length === 0) {
     topIndicator.classList.remove('visible');

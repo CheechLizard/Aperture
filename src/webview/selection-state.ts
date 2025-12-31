@@ -174,7 +174,14 @@ const selection = {
   },
 
   // Apply highlights to DOM nodes
+  // Recomputes affected files/lines if a rule is selected (handles view changes)
   _applyHighlights() {
+    // If a rule is selected, recompute for current visible files
+    // This ensures highlights are correct after navigation changes
+    if (this._state.ruleId) {
+      this._state.highlightFiles = this.getAffectedFiles();
+      this._state.highlightLines = this.getAffectedLines();
+    }
     highlightNodes(this._state.highlightFiles, this._state.highlightLines);
     this._renderContextFiles();
     renderDynamicPrompts();

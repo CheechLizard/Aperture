@@ -9,6 +9,7 @@ const NESTING_NODE_TYPES = new Set([
   'do_statement',
   'switch_statement',
   'try_statement',
+  'catch_clause',
 ]);
 
 const NESTING_TYPE_MAP: Record<string, string> = {
@@ -19,6 +20,7 @@ const NESTING_TYPE_MAP: Record<string, string> = {
   'do_statement': 'do',
   'switch_statement': 'switch',
   'try_statement': 'try',
+  'catch_clause': 'catch',
 };
 
 export function extractFunctionsFromTree(root: TreeSitter.Node): FunctionInfo[] {

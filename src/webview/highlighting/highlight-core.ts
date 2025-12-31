@@ -224,8 +224,9 @@ function highlightNodes(urisOrPaths, lineMap) {
   }
 
   // Update scroll indicators after styling
+  // Use requestAnimationFrame to ensure DOM has painted
   if (typeof updateScrollIndicators === 'function') {
-    updateScrollIndicators();
+    requestAnimationFrame(() => updateScrollIndicators());
   }
 }
 

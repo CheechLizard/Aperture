@@ -140,6 +140,16 @@ const nav = {
       }
     }
 
+    // Restore visual selection in issues panel after DOM rebuild
+    // (renderIssues rebuilds DOM, so selectedElement may point to detached node)
+    const selectedRuleId = selection.getState().ruleId;
+    if (selectedRuleId) {
+      const header = document.querySelector('.pattern-header[data-type="' + selectedRuleId + '"]');
+      if (header) {
+        selectedElement = header;
+      }
+    }
+
     // Apply persistent issue styling and current selection highlights
     applyPersistentIssueHighlights();
     selection._applyHighlights();
