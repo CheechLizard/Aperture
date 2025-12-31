@@ -10,7 +10,7 @@ const PARTITION_LABEL_MIN_HEIGHT = 18;
 
 function buildPartitionData(file, width, height) {
   if (!file || !file.functions || file.functions.length === 0) {
-    return [];
+    return { nodes: [], requiredHeight: height };
   }
 
   // Sort by startLine to preserve document order
@@ -20,13 +20,24 @@ function buildPartitionData(file, width, height) {
 
   // Calculate total LOC for proportional heights
   const totalLoc = sortedFunctions.reduce((sum, fn) => sum + fn.loc, 0);
-  const availableHeight = height - PARTITION_HEADER_HEIGHT - (PARTITION_PADDING * 2);
+  const totalPadding = (sortedFunctions.length - 1) * PARTITION_PADDING;
+
+  // First pass: calculate heights with minimum enforcement
+  // Use container height as baseline for proportional calculation
+  const baseAvailable = height - PARTITION_HEADER_HEIGHT - (PARTITION_PADDING * 2) - totalPadding;
+  const nodeHeights = sortedFunctions.map(fn => {
+    const proportion = fn.loc / totalLoc;
+    return Math.max(PARTITION_MIN_HEIGHT, proportion * baseAvailable);
+  });
+
+  // Calculate actual required height from sum of node heights
+  const totalNodeHeight = nodeHeights.reduce((sum, h) => sum + h, 0);
+  const requiredHeight = PARTITION_HEADER_HEIGHT + (PARTITION_PADDING * 2) + totalNodeHeight + totalPadding;
 
   // Build partition nodes with calculated positions
   let currentY = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
-  const nodes = sortedFunctions.map(fn => {
-    const proportion = fn.loc / totalLoc;
-    const nodeHeight = Math.max(PARTITION_MIN_HEIGHT, proportion * availableHeight);
+  const nodes = sortedFunctions.map((fn, i) => {
+    const nodeHeight = nodeHeights[i];
 
     const node = {
       name: fn.name,
@@ -47,7 +58,7 @@ function buildPartitionData(file, width, height) {
     return node;
   });
 
-  return nodes;
+  return { nodes, requiredHeight };
 }
 
 // Render partition layout - LAYOUT ONLY, no animation
@@ -58,7 +69,14 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
   }
-  svg.attr('width', width).attr('height', height);
+
+  // Build partition data - returns nodes and required height for scrolling
+  const partitionData = buildPartitionData(file, width, height);
+  const nodes = partitionData.nodes;
+  const svgHeight = partitionData.requiredHeight;
+
+  // Set SVG to required height (may be taller than container for scrolling)
+  svg.attr('width', width).attr('height', svgHeight);
 
   // Use provided layer or get/create default
   let partitionLayer = targetLayer;
@@ -69,16 +87,14 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
     }
   }
 
-  const nodes = buildPartitionData(file, width, height);
-
   // Render header at final positions
   renderPartitionHeader(partitionLayer, file, width);
 
   // Render function rectangles at final positions
-  renderPartitionRects(partitionLayer, nodes, width, height);
+  renderPartitionRects(partitionLayer, nodes, width, svgHeight);
 
   // Render labels at final positions
-  renderPartitionLabels(partitionLayer, nodes, width, height);
+  renderPartitionLabels(partitionLayer, nodes, width, svgHeight);
 
   return { svg, partitionLayer, nodes };
 }

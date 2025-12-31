@@ -1,4 +1,19 @@
 export const SELECTION_STATE_SCRIPT = `
+// Get files visible in current zoom state
+function getVisibleFiles() {
+  const navState = nav.getState();
+  if (!navState.zoomedUri) {
+    return null;  // null means "all files visible"
+  }
+  const zoomedPath = getFilePath(navState.zoomedUri);
+  // Check if zoomed into a specific file
+  if (files.some(f => f.path === zoomedPath)) {
+    return [zoomedPath];
+  }
+  // Zoomed into a folder - return all files under that path
+  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
+}
+
 // Get files that have high severity issues
 function getHighSeverityFiles(filePaths) {
   const highSevFiles = new Set();
@@ -33,12 +48,16 @@ const selection = {
   },
 
   // Get lines affected by current rule (for function-level highlighting)
+  // Filters by visible files when zoomed in
   getAffectedLines() {
     if (!this._state.ruleId) return {};
+    const visibleFiles = getVisibleFiles();
     const lineMap = {};
     for (const issue of issues) {
       if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
         for (const loc of issue.locations) {
+          // Skip if zoomed and file not visible
+          if (visibleFiles !== null && !visibleFiles.includes(loc.file)) continue;
           if (loc.line) {
             if (!lineMap[loc.file]) lineMap[loc.file] = [];
             lineMap[loc.file].push(loc.line);
@@ -50,12 +69,16 @@ const selection = {
   },
 
   // Get files affected by current rule (derived, not stored)
+  // Filters by visible files when zoomed in
   getAffectedFiles() {
     if (!this._state.ruleId) return [];
+    const visibleFiles = getVisibleFiles();
     const fileSet = new Set();
     for (const issue of issues) {
       if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
         for (const loc of issue.locations) {
+          // Skip if zoomed and file not visible
+          if (visibleFiles !== null && !visibleFiles.includes(loc.file)) continue;
           fileSet.add(loc.file);
         }
       }

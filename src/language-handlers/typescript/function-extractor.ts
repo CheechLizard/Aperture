@@ -82,6 +82,38 @@ function tryExtractFunction(node: TreeSitter.Node): FunctionInfo | null {
     };
   }
 
+  if (node.type === 'function_expression' || node.type === 'function') {
+    const parent = node.parent;
+    let name = 'anonymous';
+    // Check various assignment patterns
+    if (parent?.type === 'variable_declarator') {
+      name = parent.childForFieldName('name')?.text || 'anonymous';
+    } else if (parent?.type === 'pair') {
+      name = parent.childForFieldName('key')?.text || 'anonymous';
+    } else if (parent?.type === 'assignment_expression') {
+      // Handle: foo = function() {} or obj.foo = function() {}
+      const left = parent.childForFieldName('left');
+      if (left) {
+        if (left.type === 'identifier') {
+          name = left.text;
+        } else if (left.type === 'member_expression') {
+          // Get the property name (rightmost part)
+          const prop = left.childForFieldName('property');
+          name = prop?.text || 'anonymous';
+        }
+      }
+    }
+    const params = node.childForFieldName('parameters');
+    return {
+      name,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: countParameters(params),
+    };
+  }
+
   return null;
 }
 

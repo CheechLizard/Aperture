@@ -128,21 +128,6 @@ function renderIgnoredHtml(filteredIgnored) {
     '<span>Ignored items (' + filteredIgnored.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
 }
 
-// Get files visible in current zoom state
-function getVisibleFiles() {
-  const navState = nav.getState();
-  if (!navState.zoomedUri) {
-    return null;  // null means "all files visible"
-  }
-  const zoomedPath = getFilePath(navState.zoomedUri);
-  // Check if zoomed into a specific file
-  if (files.some(f => f.path === zoomedPath)) {
-    return [zoomedPath];
-  }
-  // Zoomed into a folder - return all files under that path
-  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
-}
-
 // Filter issues to only those affecting visible files
 function filterIssuesByVisibleFiles(issueList, visibleFiles) {
   if (visibleFiles === null) return issueList;

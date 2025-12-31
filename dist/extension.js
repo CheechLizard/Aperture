@@ -4364,6 +4364,34 @@ function tryExtractFunction(node) {
       parameterCount: countParameters(params)
     };
   }
+  if (node.type === "function_expression" || node.type === "function") {
+    const parent = node.parent;
+    let name2 = "anonymous";
+    if (parent?.type === "variable_declarator") {
+      name2 = parent.childForFieldName("name")?.text || "anonymous";
+    } else if (parent?.type === "pair") {
+      name2 = parent.childForFieldName("key")?.text || "anonymous";
+    } else if (parent?.type === "assignment_expression") {
+      const left = parent.childForFieldName("left");
+      if (left) {
+        if (left.type === "identifier") {
+          name2 = left.text;
+        } else if (left.type === "member_expression") {
+          const prop = left.childForFieldName("property");
+          name2 = prop?.text || "anonymous";
+        }
+      }
+    }
+    const params = node.childForFieldName("parameters");
+    return {
+      name: name2,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: countParameters(params)
+    };
+  }
   return null;
 }
 function countParameters(paramsNode) {
@@ -11376,7 +11404,7 @@ var DASHBOARD_STYLES = `
     /* Function Distribution Chart */
     .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
     .functions-container.visible { display: flex; }
-    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 
     /* Zoom Header - positioned absolutely to left */
@@ -12616,21 +12644,6 @@ function renderIgnoredHtml(filteredIgnored) {
   }).join('');
   return '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
     '<span>Ignored items (' + filteredIgnored.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
-}
-
-// Get files visible in current zoom state
-function getVisibleFiles() {
-  const navState = nav.getState();
-  if (!navState.zoomedUri) {
-    return null;  // null means "all files visible"
-  }
-  const zoomedPath = getFilePath(navState.zoomedUri);
-  // Check if zoomed into a specific file
-  if (files.some(f => f.path === zoomedPath)) {
-    return [zoomedPath];
-  }
-  // Zoomed into a folder - return all files under that path
-  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
 }
 
 // Filter issues to only those affecting visible files
@@ -14275,7 +14288,7 @@ const PARTITION_LABEL_MIN_HEIGHT = 18;
 
 function buildPartitionData(file, width, height) {
   if (!file || !file.functions || file.functions.length === 0) {
-    return [];
+    return { nodes: [], requiredHeight: height };
   }
 
   // Sort by startLine to preserve document order
@@ -14285,13 +14298,24 @@ function buildPartitionData(file, width, height) {
 
   // Calculate total LOC for proportional heights
   const totalLoc = sortedFunctions.reduce((sum, fn) => sum + fn.loc, 0);
-  const availableHeight = height - PARTITION_HEADER_HEIGHT - (PARTITION_PADDING * 2);
+  const totalPadding = (sortedFunctions.length - 1) * PARTITION_PADDING;
+
+  // First pass: calculate heights with minimum enforcement
+  // Use container height as baseline for proportional calculation
+  const baseAvailable = height - PARTITION_HEADER_HEIGHT - (PARTITION_PADDING * 2) - totalPadding;
+  const nodeHeights = sortedFunctions.map(fn => {
+    const proportion = fn.loc / totalLoc;
+    return Math.max(PARTITION_MIN_HEIGHT, proportion * baseAvailable);
+  });
+
+  // Calculate actual required height from sum of node heights
+  const totalNodeHeight = nodeHeights.reduce((sum, h) => sum + h, 0);
+  const requiredHeight = PARTITION_HEADER_HEIGHT + (PARTITION_PADDING * 2) + totalNodeHeight + totalPadding;
 
   // Build partition nodes with calculated positions
   let currentY = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
-  const nodes = sortedFunctions.map(fn => {
-    const proportion = fn.loc / totalLoc;
-    const nodeHeight = Math.max(PARTITION_MIN_HEIGHT, proportion * availableHeight);
+  const nodes = sortedFunctions.map((fn, i) => {
+    const nodeHeight = nodeHeights[i];
 
     const node = {
       name: fn.name,
@@ -14312,7 +14336,7 @@ function buildPartitionData(file, width, height) {
     return node;
   });
 
-  return nodes;
+  return { nodes, requiredHeight };
 }
 
 // Render partition layout - LAYOUT ONLY, no animation
@@ -14323,7 +14347,14 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
   }
-  svg.attr('width', width).attr('height', height);
+
+  // Build partition data - returns nodes and required height for scrolling
+  const partitionData = buildPartitionData(file, width, height);
+  const nodes = partitionData.nodes;
+  const svgHeight = partitionData.requiredHeight;
+
+  // Set SVG to required height (may be taller than container for scrolling)
+  svg.attr('width', width).attr('height', svgHeight);
 
   // Use provided layer or get/create default
   let partitionLayer = targetLayer;
@@ -14334,16 +14365,14 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
     }
   }
 
-  const nodes = buildPartitionData(file, width, height);
-
   // Render header at final positions
   renderPartitionHeader(partitionLayer, file, width);
 
   // Render function rectangles at final positions
-  renderPartitionRects(partitionLayer, nodes, width, height);
+  renderPartitionRects(partitionLayer, nodes, width, svgHeight);
 
   // Render labels at final positions
-  renderPartitionLabels(partitionLayer, nodes, width, height);
+  renderPartitionLabels(partitionLayer, nodes, width, svgHeight);
 
   return { svg, partitionLayer, nodes };
 }
@@ -14802,6 +14831,21 @@ function showFilesFlyout(files, anchorEl) {
 // src/webview/selection-state.ts
 init_esbuild_shim();
 var SELECTION_STATE_SCRIPT = `
+// Get files visible in current zoom state
+function getVisibleFiles() {
+  const navState = nav.getState();
+  if (!navState.zoomedUri) {
+    return null;  // null means "all files visible"
+  }
+  const zoomedPath = getFilePath(navState.zoomedUri);
+  // Check if zoomed into a specific file
+  if (files.some(f => f.path === zoomedPath)) {
+    return [zoomedPath];
+  }
+  // Zoomed into a folder - return all files under that path
+  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
+}
+
 // Get files that have high severity issues
 function getHighSeverityFiles(filePaths) {
   const highSevFiles = new Set();
@@ -14836,12 +14880,16 @@ const selection = {
   },
 
   // Get lines affected by current rule (for function-level highlighting)
+  // Filters by visible files when zoomed in
   getAffectedLines() {
     if (!this._state.ruleId) return {};
+    const visibleFiles = getVisibleFiles();
     const lineMap = {};
     for (const issue of issues) {
       if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
         for (const loc of issue.locations) {
+          // Skip if zoomed and file not visible
+          if (visibleFiles !== null && !visibleFiles.includes(loc.file)) continue;
           if (loc.line) {
             if (!lineMap[loc.file]) lineMap[loc.file] = [];
             lineMap[loc.file].push(loc.line);
@@ -14853,12 +14901,16 @@ const selection = {
   },
 
   // Get files affected by current rule (derived, not stored)
+  // Filters by visible files when zoomed in
   getAffectedFiles() {
     if (!this._state.ruleId) return [];
+    const visibleFiles = getVisibleFiles();
     const fileSet = new Set();
     for (const issue of issues) {
       if (issue.ruleId === this._state.ruleId && !isIssueIgnored(issue)) {
         for (const loc of issue.locations) {
+          // Skip if zoomed and file not visible
+          if (visibleFiles !== null && !visibleFiles.includes(loc.file)) continue;
           fileSet.add(loc.file);
         }
       }
