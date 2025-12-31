@@ -150,10 +150,15 @@ function collectNestingInfo(
   blocks: NestedBlock[]
 ): number {
   let maxDepth = currentDepth;
-  const isNestingNode = NESTING_NODE_TYPES.has(node.type);
+
+  // Check if this is a nesting node, but handle "else if" specially
+  // In tree-sitter, "else if" is an if_statement inside an else_clause
+  // It should NOT increment depth (it's a continuation, not nesting)
+  const isElseIf = node.type === 'if_statement' && node.parent?.type === 'else_clause';
+  const isNestingNode = NESTING_NODE_TYPES.has(node.type) && !isElseIf;
   const newDepth = isNestingNode ? currentDepth + 1 : currentDepth;
 
-  // Collect this block if it's a nesting node
+  // Collect this block if it's a nesting node (but not else-if)
   if (isNestingNode) {
     blocks.push({
       startLine: node.startPosition.row + 1,

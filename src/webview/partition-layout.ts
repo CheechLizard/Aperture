@@ -215,32 +215,41 @@ function renderPartitionHeader(layer, file, minLabelX, diagramWidth) {
 function renderPartitionRects(layer, nodes) {
   syncElements(layer, 'rect.partition-node', nodes,
     d => d.uri,
-    d => {
+    () => {
       const rect = createSvgElement('rect');
       rect.setAttribute('class', 'partition-node node');
-      rect.setAttribute('data-uri', d.uri);
-      rect.setAttribute('data-path', d.filePath);
-      rect.setAttribute('data-line', d.line);
-      rect.setAttribute('data-end-line', d.endLine);
       rect.setAttribute('fill', FUNC_NEUTRAL_COLOR);
       rect.style.cursor = 'pointer';
 
+      // Event handlers read from data attributes to avoid stale closure data
       rect.addEventListener('mouseover', e => {
-        const html = '<div><strong>' + d.name + '</strong></div>' +
-          '<div>Lines ' + d.line + '-' + d.endLine + ' \\u00b7 ' + d.value + ' LOC</div>' +
-          (d.depth ? '<div>Nesting depth: ' + d.depth + '</div>' : '') +
+        const el = e.target;
+        const depth = el.getAttribute('data-depth');
+        const html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
           '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
         showTooltip(html, e);
       });
       rect.addEventListener('mousemove', e => positionTooltip(e));
       rect.addEventListener('mouseout', () => hideTooltip());
-      rect.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openFile', uri: d.uri, line: d.line });
+      rect.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
       });
 
       return rect;
     },
     (el, d) => {
+      // Update all data attributes on every render
+      el.setAttribute('data-uri', d.uri);
+      el.setAttribute('data-path', d.filePath);
+      el.setAttribute('data-line', d.line);
+      el.setAttribute('data-end-line', d.endLine);
+      el.setAttribute('data-name', d.name);
+      el.setAttribute('data-loc', d.value);
+      el.setAttribute('data-depth', d.depth);
+
       el.setAttribute('x', d.x0);
       el.setAttribute('y', d.y0);
       el.setAttribute('width', d.x1 - d.x0);
@@ -274,37 +283,45 @@ function renderPartitionNesting(layer, nodes) {
 
   syncElements(layer, 'rect.partition-nesting', nestingData,
     d => d.node.uri + '-' + d.idx,
-    d => {
+    () => {
       const rect = createSvgElement('rect');
       rect.setAttribute('class', 'partition-nesting node');
-      rect.setAttribute('data-uri', d.node.uri);
-      rect.setAttribute('data-path', d.node.filePath);
-      rect.setAttribute('data-line', d.block.startLine);
-      rect.setAttribute('data-end-line', d.block.endLine);
       rect.style.cursor = 'pointer';
 
-      // Progressively lighter gray for deeper nesting
-      const base = 60;
-      const step = 15;
-      const lightness = Math.min(base + d.block.depth * step, 120);
-      rect.setAttribute('fill', 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')');
-
+      // Event handlers read from data attributes to avoid stale closure data
       rect.addEventListener('mouseover', e => {
-        const html = '<div><strong>' + d.block.type + '</strong></div>' +
-          '<div>Lines ' + d.block.startLine + '-' + d.block.endLine + ' \\u00b7 ' + d.block.loc + ' LOC</div>' +
-          '<div>Depth: ' + d.block.depth + '</div>' +
+        const el = e.target;
+        const html = '<div><strong>' + el.getAttribute('data-block-type') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          '<div>Depth: ' + el.getAttribute('data-depth') + '</div>' +
           '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
         showTooltip(html, e);
       });
       rect.addEventListener('mousemove', e => positionTooltip(e));
       rect.addEventListener('mouseout', () => hideTooltip());
-      rect.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.block.startLine });
+      rect.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
       });
 
       return rect;
     },
     (el, d) => {
+      // Update all data attributes on every render (not just create)
+      el.setAttribute('data-uri', d.node.uri);
+      el.setAttribute('data-path', d.node.filePath);
+      el.setAttribute('data-line', d.block.startLine);
+      el.setAttribute('data-end-line', d.block.endLine);
+      el.setAttribute('data-loc', d.block.loc);
+      el.setAttribute('data-depth', d.block.depth);
+      el.setAttribute('data-block-type', d.block.type);
+
+      // Progressively lighter gray for deeper nesting
+      const base = 60;
+      const step = 15;
+      const lightness = Math.min(base + d.block.depth * step, 120);
+      el.setAttribute('fill', 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')');
+
       el.setAttribute('x', d.x0);
       el.setAttribute('y', d.y0);
       el.setAttribute('width', d.x1 - d.x0);
@@ -342,36 +359,46 @@ function renderPartitionLabels(layer, labelPositions) {
 
   syncElements(layer, 'text.partition-label', labelPositions,
     d => d.node.uri,
-    d => {
+    () => {
       const text = createSvgElement('text');
       text.setAttribute('class', 'partition-label');
-      text.setAttribute('data-uri', d.node.uri);
       text.setAttribute('fill', 'rgba(255,255,255,0.7)');
       text.setAttribute('font-size', '11px');
       text.setAttribute('text-anchor', 'end');
       text.style.cursor = 'pointer';
 
+      // Event handlers read from data attributes to avoid stale closure data
       text.addEventListener('mouseover', e => {
-        const n = d.node;
-        const html = '<div><strong>' + n.name + '</strong></div>' +
-          '<div>Lines ' + n.line + '-' + n.endLine + ' \\u00b7 ' + n.value + ' LOC</div>' +
-          (n.depth ? '<div>Nesting depth: ' + n.depth + '</div>' : '') +
+        const el = e.target;
+        const depth = el.getAttribute('data-depth');
+        const html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
           '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
         showTooltip(html, e);
-        e.target.setAttribute('fill', '#fff');
+        el.setAttribute('fill', '#fff');
       });
       text.addEventListener('mousemove', e => positionTooltip(e));
       text.addEventListener('mouseout', e => {
         hideTooltip();
         e.target.setAttribute('fill', 'rgba(255,255,255,0.7)');
       });
-      text.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.node.line });
+      text.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
       });
 
       return text;
     },
     (el, d) => {
+      // Update all data attributes on every render
+      el.setAttribute('data-uri', d.node.uri);
+      el.setAttribute('data-name', d.node.name);
+      el.setAttribute('data-line', d.node.line);
+      el.setAttribute('data-end-line', d.node.endLine);
+      el.setAttribute('data-loc', d.node.value);
+      el.setAttribute('data-depth', d.node.depth);
+
       el.textContent = d.text;
       el.setAttribute('x', d.x);
       el.setAttribute('y', d.y + 4);

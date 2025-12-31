@@ -4419,7 +4419,8 @@ function countParameters(paramsNode) {
 }
 function collectNestingInfo(node, currentDepth, blocks) {
   let maxDepth = currentDepth;
-  const isNestingNode = NESTING_NODE_TYPES.has(node.type);
+  const isElseIf = node.type === "if_statement" && node.parent?.type === "else_clause";
+  const isNestingNode = NESTING_NODE_TYPES.has(node.type) && !isElseIf;
   const newDepth = isNestingNode ? currentDepth + 1 : currentDepth;
   if (isNestingNode) {
     blocks.push({
@@ -9913,8 +9914,9 @@ function normalizePath(path15) {
 function createFileUri(path15) {
   return `${URI_SCHEME}/${normalizePath(path15)}`;
 }
-function createSymbolUri(path15, symbolName) {
-  return `${URI_SCHEME}/${normalizePath(path15)}#${symbolName}`;
+function createSymbolUri(path15, symbolName, line) {
+  const fragment = line !== void 0 ? `${symbolName}:${line}` : symbolName;
+  return `${URI_SCHEME}/${normalizePath(path15)}#${fragment}`;
 }
 function createUriFromPathAndLine(path15, symbolName, line) {
   if (symbolName) {
@@ -10397,7 +10399,7 @@ async function scanFile(uri, workspaceUri, detectIssuesFlag, thresholds) {
     const astResult = parseAll(text, relativePath, language);
     const functionsWithUri = astResult.functions.map((fn) => ({
       ...fn,
-      uri: createSymbolUri(relativePath, fn.name)
+      uri: createSymbolUri(relativePath, fn.name, fn.startLine)
     }));
     const fileInfo = {
       path: relativePath,
@@ -14416,16 +14418,45 @@ init_esbuild_shim();
 var PARTITION_LAYOUT_SCRIPT = `
 // Partition layout for file internals (functions/blocks)
 // Stack chart style: labels on left, fixed-width bars on right
-// 1px = 1 LOC for true proportional representation
+// Uses plain DOM - no D3 layout algorithms needed here
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
 const PARTITION_HEADER_HEIGHT = 24;
 const PARTITION_PADDING = 2;
 const PARTITION_BAR_WIDTH = 128;
 const PARTITION_NESTING_WIDTH = 48;  // Width per nesting level
 const PARTITION_LOC_SCALE = 4;       // Pixels per LOC (4px = 1 LOC)
-const PARTITION_LABEL_HEIGHT = 14;
 const PARTITION_LABEL_GAP = 8;       // Gap between label and bar
 const PARTITION_LABEL_SPACING = 16;  // Vertical spacing for collision detection
+
+function createSvgElement(tag) {
+  return document.createElementNS(SVG_NS, tag);
+}
+
+// Sync DOM elements with data array, keyed by attribute
+function syncElements(parent, selector, data, keyFn, create, update) {
+  const existing = new Map();
+  parent.querySelectorAll(selector).forEach(el => {
+    existing.set(el.getAttribute('data-key'), el);
+  });
+
+  const activeKeys = new Set();
+  data.forEach((d, i) => {
+    const key = keyFn(d, i);
+    activeKeys.add(key);
+    let el = existing.get(key);
+    if (!el) {
+      el = create(d);
+      el.setAttribute('data-key', key);
+      parent.appendChild(el);
+    }
+    update(el, d);
+  });
+
+  existing.forEach((el, key) => {
+    if (!activeKeys.has(key)) el.remove();
+  });
+}
 
 function buildPartitionData(file, width, height) {
   if (!file || !file.functions || file.functions.length === 0) {
@@ -14513,10 +14544,16 @@ function calculateLabelPositions(nodes) {
 
 // Render partition layout
 function renderPartitionLayout(container, file, width, height, t, targetLayer) {
-  let svg = d3.select(container).select('svg');
-  if (svg.empty()) {
+  // Handle D3 selection passed as targetLayer (from distribution-chart zoom animations)
+  if (targetLayer && typeof targetLayer.node === 'function') {
+    targetLayer = targetLayer.node();
+  }
+
+  let svg = container.querySelector('svg');
+  if (!svg) {
     container.innerHTML = '';
-    svg = d3.select(container).append('svg');
+    svg = createSvgElement('svg');
+    container.appendChild(svg);
   }
 
   // Build partition data
@@ -14525,13 +14562,16 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   const svgHeight = partitionData.requiredHeight;
   const maxDepth = partitionData.maxDepth;
 
-  svg.attr('width', width).attr('height', svgHeight);
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', svgHeight);
 
   let partitionLayer = targetLayer;
   if (!partitionLayer) {
-    partitionLayer = svg.select('g.partition-layer');
-    if (partitionLayer.empty()) {
-      partitionLayer = svg.append('g').attr('class', 'partition-layer');
+    partitionLayer = svg.querySelector('g.partition-layer');
+    if (!partitionLayer) {
+      partitionLayer = createSvgElement('g');
+      partitionLayer.setAttribute('class', 'partition-layer');
+      svg.appendChild(partitionLayer);
     }
   }
 
@@ -14542,9 +14582,6 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   const nestingWidth = maxDepth * PARTITION_NESTING_WIDTH;
   const diagramWidth = PARTITION_BAR_WIDTH + nestingWidth - minLabelX;
   const centerOffset = (width - diagramWidth) / 2 - minLabelX;
-
-  // Clear transform (we'll apply offset directly to positions)
-  partitionLayer.attr('transform', null);
 
   // Apply offset to all positions
   nodes.forEach(n => { n.x0 += centerOffset; n.x1 += centerOffset; });
@@ -14562,59 +14599,80 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
 function renderPartitionHeader(layer, file, minLabelX, diagramWidth) {
   const headerData = file ? [{ path: file.path, name: file.path.split('/').pop() }] : [];
 
-  layer.selectAll('rect.partition-header').data(headerData, d => d.path)
-    .join(
-      enter => enter.append('rect')
-        .attr('class', 'partition-header')
-        .attr('y', 0)
-        .attr('height', PARTITION_HEADER_HEIGHT),
-      update => update,
-      exit => exit.remove()
-    )
-    .attr('x', minLabelX)
-    .attr('width', diagramWidth);
+  syncElements(layer, 'rect.partition-header', headerData,
+    d => d.path,
+    () => {
+      const rect = createSvgElement('rect');
+      rect.setAttribute('class', 'partition-header');
+      rect.setAttribute('y', 0);
+      rect.setAttribute('height', PARTITION_HEADER_HEIGHT);
+      return rect;
+    },
+    (el, d) => {
+      el.setAttribute('x', minLabelX);
+      el.setAttribute('width', diagramWidth);
+    }
+  );
 
-  layer.selectAll('text.partition-header-label').data(headerData, d => d.path)
-    .join(
-      enter => enter.append('text')
-        .attr('class', 'partition-header-label')
-        .attr('y', 16),
-      update => update,
-      exit => exit.remove()
-    )
-    .attr('x', minLabelX + 8)
-    .text(d => truncateLabel(d.name, diagramWidth - 16, 7));
+  syncElements(layer, 'text.partition-header-label', headerData,
+    d => d.path,
+    () => {
+      const text = createSvgElement('text');
+      text.setAttribute('class', 'partition-header-label');
+      text.setAttribute('y', 16);
+      return text;
+    },
+    (el, d) => {
+      el.setAttribute('x', minLabelX + 8);
+      el.textContent = truncateLabel(d.name, diagramWidth - 16, 7);
+    }
+  );
 }
 
 function renderPartitionRects(layer, nodes) {
-  layer.selectAll('rect.partition-node').data(nodes, d => d.uri)
-    .join(
-      enter => enter.append('rect')
-        .attr('class', 'partition-node node')
-        .attr('data-uri', d => d.uri)
-        .attr('data-path', d => d.filePath)
-        .attr('data-line', d => d.line)
-        .attr('data-end-line', d => d.endLine)
-        .attr('fill', FUNC_NEUTRAL_COLOR),
-      update => update,
-      exit => exit.remove()
-    )
-    .on('mouseover', (e, d) => {
-      const html = '<div><strong>' + d.name + '</strong></div>' +
-        '<div>Lines ' + d.line + '-' + d.endLine + ' \\u00b7 ' + d.value + ' LOC</div>' +
-        (d.depth ? '<div>Nesting depth: ' + d.depth + '</div>' : '') +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
-      showTooltip(html, e);
-    })
-    .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.uri, line: d.line });
-    })
-    .attr('x', d => d.x0)
-    .attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0)
-    .attr('height', d => Math.max(1, d.y1 - d.y0));
+  syncElements(layer, 'rect.partition-node', nodes,
+    d => d.uri,
+    () => {
+      const rect = createSvgElement('rect');
+      rect.setAttribute('class', 'partition-node node');
+      rect.setAttribute('fill', FUNC_NEUTRAL_COLOR);
+      rect.style.cursor = 'pointer';
+
+      // Event handlers read from data attributes to avoid stale closure data
+      rect.addEventListener('mouseover', e => {
+        const el = e.target;
+        const depth = el.getAttribute('data-depth');
+        const html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
+          '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        showTooltip(html, e);
+      });
+      rect.addEventListener('mousemove', e => positionTooltip(e));
+      rect.addEventListener('mouseout', () => hideTooltip());
+      rect.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
+      });
+
+      return rect;
+    },
+    (el, d) => {
+      // Update all data attributes on every render
+      el.setAttribute('data-uri', d.uri);
+      el.setAttribute('data-path', d.filePath);
+      el.setAttribute('data-line', d.line);
+      el.setAttribute('data-end-line', d.endLine);
+      el.setAttribute('data-name', d.name);
+      el.setAttribute('data-loc', d.value);
+      el.setAttribute('data-depth', d.depth);
+
+      el.setAttribute('x', d.x0);
+      el.setAttribute('y', d.y0);
+      el.setAttribute('width', d.x1 - d.x0);
+      el.setAttribute('height', Math.max(1, d.y1 - d.y0));
+    }
+  );
 }
 
 function renderPartitionNesting(layer, nodes) {
@@ -14640,109 +14698,138 @@ function renderPartitionNesting(layer, nodes) {
     });
   });
 
-  layer.selectAll('rect.partition-nesting').data(nestingData, d => d.node.uri + '-' + d.idx)
-    .join(
-      enter => enter.append('rect'),
-      update => update,
-      exit => exit.remove()
-    )
-    .attr('class', 'partition-nesting node')
-    .attr('data-uri', d => d.node.uri)
-    .attr('data-path', d => d.node.filePath)
-    .attr('data-line', d => d.block.startLine)
-    .attr('data-end-line', d => d.block.endLine)
-    .attr('cursor', 'pointer')
-    .attr('fill', d => {
+  syncElements(layer, 'rect.partition-nesting', nestingData,
+    d => d.node.uri + '-' + d.idx,
+    () => {
+      const rect = createSvgElement('rect');
+      rect.setAttribute('class', 'partition-nesting node');
+      rect.style.cursor = 'pointer';
+
+      // Event handlers read from data attributes to avoid stale closure data
+      rect.addEventListener('mouseover', e => {
+        const el = e.target;
+        const html = '<div><strong>' + el.getAttribute('data-block-type') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          '<div>Depth: ' + el.getAttribute('data-depth') + '</div>' +
+          '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        showTooltip(html, e);
+      });
+      rect.addEventListener('mousemove', e => positionTooltip(e));
+      rect.addEventListener('mouseout', () => hideTooltip());
+      rect.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
+      });
+
+      return rect;
+    },
+    (el, d) => {
+      // Update all data attributes on every render (not just create)
+      el.setAttribute('data-uri', d.node.uri);
+      el.setAttribute('data-path', d.node.filePath);
+      el.setAttribute('data-line', d.block.startLine);
+      el.setAttribute('data-end-line', d.block.endLine);
+      el.setAttribute('data-loc', d.block.loc);
+      el.setAttribute('data-depth', d.block.depth);
+      el.setAttribute('data-block-type', d.block.type);
+
       // Progressively lighter gray for deeper nesting
       const base = 60;
       const step = 15;
       const lightness = Math.min(base + d.block.depth * step, 120);
-      return 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')';
-    })
-    .on('mouseover', (e, d) => {
-      const html = '<div><strong>' + d.block.type + '</strong></div>' +
-        '<div>Lines ' + d.block.startLine + '-' + d.block.endLine + ' \\u00b7 ' + d.block.loc + ' LOC</div>' +
-        '<div>Depth: ' + d.block.depth + '</div>' +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
-      showTooltip(html, e);
-    })
-    .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', () => hideTooltip())
-    .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.block.startLine });
-    })
-    .attr('x', d => d.x0)
-    .attr('y', d => d.y0)
-    .attr('width', d => d.x1 - d.x0)
-    .attr('height', d => Math.max(1, d.y1 - d.y0));
+      el.setAttribute('fill', 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')');
+
+      el.setAttribute('x', d.x0);
+      el.setAttribute('y', d.y0);
+      el.setAttribute('width', d.x1 - d.x0);
+      el.setAttribute('height', Math.max(1, d.y1 - d.y0));
+    }
+  );
 }
 
 function renderPartitionLeaders(layer, labelPositions) {
-  layer.selectAll('path.partition-leader').data(labelPositions, d => d.node.uri)
-    .join(
-      enter => enter.append('path')
-        .attr('class', 'partition-leader')
-        .attr('data-uri', d => d.node.uri)
-        .attr('fill', 'none')
-        .attr('stroke', 'rgba(255,255,255,0.15)')
-        .attr('stroke-width', 1),
-      update => update,
-      exit => exit.remove()
-    )
-    .attr('d', d => {
+  syncElements(layer, 'path.partition-leader', labelPositions,
+    d => d.node.uri,
+    d => {
+      const path = createSvgElement('path');
+      path.setAttribute('class', 'partition-leader');
+      path.setAttribute('data-uri', d.node.uri);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'rgba(255,255,255,0.15)');
+      path.setAttribute('stroke-width', 1);
+      return path;
+    },
+    (el, d) => {
       const labelY = d.y;
       const labelX = d.x + 4;  // Small gap after text
       const barLeft = d.node.x0;
       const barCenterY = d.node.y0 + (d.node.y1 - d.node.y0) / 2;
       // Line from label to bar center
-      return 'M' + labelX + ',' + labelY + ' L' + barLeft + ',' + barCenterY;
-    });
+      el.setAttribute('d', 'M' + labelX + ',' + labelY + ' L' + barLeft + ',' + barCenterY);
+    }
+  );
 }
 
 function renderPartitionLabels(layer, labelPositions) {
   // Remove old pill backgrounds if any
-  layer.selectAll('rect.partition-label-bg').remove();
+  layer.querySelectorAll('rect.partition-label-bg').forEach(el => el.remove());
 
-  // Label text - right-aligned, interactive
-  layer.selectAll('text.partition-label').data(labelPositions, d => d.node.uri)
-    .join(
-      enter => enter.append('text')
-        .attr('class', 'partition-label')
-        .attr('data-uri', d => d.node.uri)
-        .attr('fill', 'rgba(255,255,255,0.7)')
-        .attr('font-size', '11px')
-        .attr('text-anchor', 'end')
-        .attr('cursor', 'pointer'),
-      update => update,
-      exit => exit.remove()
-    )
-    .on('mouseover', (e, d) => {
-      const n = d.node;
-      const html = '<div><strong>' + n.name + '</strong></div>' +
-        '<div>Lines ' + n.line + '-' + n.endLine + ' \\u00b7 ' + n.value + ' LOC</div>' +
-        (n.depth ? '<div>Nesting depth: ' + n.depth + '</div>' : '') +
-        '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
-      showTooltip(html, e);
-      d3.select(e.target).attr('fill', '#fff');
-    })
-    .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', (e) => {
-      hideTooltip();
-      d3.select(e.target).attr('fill', 'rgba(255,255,255,0.7)');
-    })
-    .on('click', (e, d) => {
-      vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.node.line });
-    })
-    .text(d => d.text)
-    .attr('x', d => d.x)
-    .attr('y', d => d.y + 4);
+  syncElements(layer, 'text.partition-label', labelPositions,
+    d => d.node.uri,
+    () => {
+      const text = createSvgElement('text');
+      text.setAttribute('class', 'partition-label');
+      text.setAttribute('fill', 'rgba(255,255,255,0.7)');
+      text.setAttribute('font-size', '11px');
+      text.setAttribute('text-anchor', 'end');
+      text.style.cursor = 'pointer';
+
+      // Event handlers read from data attributes to avoid stale closure data
+      text.addEventListener('mouseover', e => {
+        const el = e.target;
+        const depth = el.getAttribute('data-depth');
+        const html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
+          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+          (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
+          '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        showTooltip(html, e);
+        el.setAttribute('fill', '#fff');
+      });
+      text.addEventListener('mousemove', e => positionTooltip(e));
+      text.addEventListener('mouseout', e => {
+        hideTooltip();
+        e.target.setAttribute('fill', 'rgba(255,255,255,0.7)');
+      });
+      text.addEventListener('click', e => {
+        const el = e.target;
+        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
+      });
+
+      return text;
+    },
+    (el, d) => {
+      // Update all data attributes on every render
+      el.setAttribute('data-uri', d.node.uri);
+      el.setAttribute('data-name', d.node.name);
+      el.setAttribute('data-line', d.node.line);
+      el.setAttribute('data-end-line', d.node.endLine);
+      el.setAttribute('data-loc', d.node.value);
+      el.setAttribute('data-depth', d.node.depth);
+
+      el.textContent = d.text;
+      el.setAttribute('x', d.x);
+      el.setAttribute('y', d.y + 4);
+    }
+  );
 }
 
 function clearPartitionLayer(container) {
-  const svg = d3.select(container).select('svg');
-  if (!svg.empty()) {
-    const partitionLayer = svg.select('g.partition-layer');
-    partitionLayer.selectAll('*').remove();
+  const svg = container.querySelector('svg');
+  if (svg) {
+    const partitionLayer = svg.querySelector('g.partition-layer');
+    if (partitionLayer) {
+      partitionLayer.innerHTML = '';
+    }
   }
 }
 `;
@@ -16422,7 +16509,7 @@ async function openDashboard(context) {
           if (message.uri) {
             const relativePath = getFilePath(message.uri);
             filePath = path13.join(currentData?.root || "", relativePath);
-            line = getLineFromUri(message.uri) || message.line || null;
+            line = message.line ?? getLineFromUri(message.uri) ?? null;
           } else {
             filePath = message.path;
             line = message.line || null;

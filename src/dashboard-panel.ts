@@ -47,7 +47,8 @@ export async function openDashboard(context: vscode.ExtensionContext): Promise<v
           if (message.uri) {
             const relativePath = getFilePath(message.uri);
             filePath = path.join(currentData?.root || '', relativePath);
-            line = getLineFromUri(message.uri) || message.line || null;
+            // Prefer explicit line parameter over line extracted from URI fragment
+            line = message.line ?? getLineFromUri(message.uri) ?? null;
           } else {
             filePath = message.path;
             line = message.line || null;
