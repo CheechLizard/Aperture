@@ -184,8 +184,6 @@ window.addEventListener('message', event => {
       positionAiPanel();
     });
 
-    updateHighlights(msg.relevantFiles || []);
-
     // Update context bar with actual usage (only show when >0%)
     if (msg.usage) {
       const pct = Math.min(100, Math.round((msg.usage.totalTokens / msg.usage.contextLimit) * 100));

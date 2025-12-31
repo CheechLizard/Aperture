@@ -229,11 +229,4 @@ function highlightNodes(urisOrPaths, lineMap) {
     requestAnimationFrame(() => updateScrollIndicators());
   }
 }
-
-// Handle AI response highlights (separate from user selection)
-function updateHighlights(relevantFiles) {
-  // AI responses temporarily override the visual highlight
-  // but don't change the selection state
-  highlightNodes(relevantFiles);
-}
 `;
