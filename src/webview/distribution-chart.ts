@@ -103,6 +103,13 @@ function renderDistributionChart() {
 
       zoom.animateLayers(oldLayer, newLayer, clickedBounds, width, height, t, 'in');
 
+      // Update scroll indicators after animation completes
+      setTimeout(() => {
+        if (typeof updateScrollIndicators === 'function') {
+          updateScrollIndicators();
+        }
+      }, zoom.duration + 50);
+
     } else {
       // Folder → Folder (or Folder → File preview): new file layer expands
       const oldLayer = svg.select('g.file-layer');

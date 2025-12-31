@@ -217,15 +217,17 @@ export const DASHBOARD_STYLES = `
     }
 
     /* Function Distribution Chart */
-    .functions-container { display: none; position: relative; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
+    .functions-container { display: none; position: relative; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; isolation: isolate; }
     .functions-container.visible { display: flex; }
     #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
     /* Scroll edge indicators for off-screen highlighted items */
-    .scroll-indicator { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; display: none; align-items: center; gap: 4px; padding: 2px 10px; background: rgba(255, 255, 255, 0.9); color: #000; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; border-radius: 10px; }
-    .scroll-indicator.visible { display: flex; }
-    .scroll-indicator.top { top: 4px; }
-    .scroll-indicator.bottom { bottom: 4px; }
+    .scroll-indicator { position: absolute; left: 50%; z-index: 1; display: flex; align-items: center; gap: 4px; padding: 2px 10px; background: rgba(255, 255, 255, 0.9); color: #000; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; }
+    .scroll-indicator.visible { opacity: 1; pointer-events: auto; }
+    .scroll-indicator.top { top: 4px; transform: translateX(-50%) translateY(-10px); }
+    .scroll-indicator.top.visible { transform: translateX(-50%) translateY(0); }
+    .scroll-indicator.bottom { bottom: 4px; transform: translateX(-50%) translateY(10px); }
+    .scroll-indicator.bottom.visible { transform: translateX(-50%) translateY(0); }
     .scroll-indicator:hover { background: #fff; }
     .scroll-indicator svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
