@@ -160,13 +160,22 @@ const selection = {
   // Render context files as chips in footer - shows ATTACHED files (ready to send)
   _renderContextFiles() {
     const container = document.getElementById('context-files');
+    const divider = document.getElementById('input-divider');
+    const contextRow = document.getElementById('footer-context-row');
     if (!container) return;
 
     const files = this._state.attachedFiles;
     if (files.length === 0) {
       container.innerHTML = '';
+      // Hide divider and context row when no files
+      if (divider) divider.classList.remove('visible');
+      if (contextRow) contextRow.classList.remove('visible');
       return;
     }
+
+    // Show divider and context row when files exist
+    if (divider) divider.classList.add('visible');
+    if (contextRow) contextRow.classList.add('visible');
 
     // Show first 3 files, then +N more button (but ALL files are sent to API)
     const maxVisible = 3;

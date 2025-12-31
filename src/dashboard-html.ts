@@ -139,13 +139,11 @@ export function getDashboardContent(
       <div id="rules-warning-container" class="rules-warning-container"></div>
       <div class="ai-input-wrapper">
         <textarea id="query" placeholder="Ask about this codebase..." rows="1"></textarea>
+        <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
-      <hr class="input-divider">
-      <div class="footer-context-row">
+      <hr id="input-divider" class="input-divider">
+      <div id="footer-context-row" class="footer-context-row">
         <div id="context-files" class="context-files"></div>
-        <div class="footer-actions">
-          <button id="send" class="ai-send-btn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
-        </div>
       </div>
     </div>
     ${unsupportedCount > 0 ? `<div id="footer-parsers" class="footer-parsers"><span class="footer-parsers-icon">⚠</span><span>Missing parsers:</span>${data.languageSupport.filter(l => !l.isSupported).map(l => '<span class="footer-lang">' + l.language + '</span>').join('')}</div>` : ''}
