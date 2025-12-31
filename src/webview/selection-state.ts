@@ -168,9 +168,8 @@ const selection = {
     this._state.attachedIssues = this._state.attachedIssues.filter(i =>
       i.locations.some(l => this._state.attachedFiles.includes(l.file))
     );
-    this._state.highlightFiles = this._state.highlightFiles.filter(f => f !== filePath);
-    this._renderContextFiles();
-    highlightNodes(this._state.highlightFiles);
+    // Reapply highlights - if rule selected, recomputes from rule; otherwise clears
+    this._applyHighlights();
   },
 
   // Apply highlights to DOM nodes

@@ -180,7 +180,8 @@ window.addEventListener('message', event => {
       chatMessages.innerHTML = '';
       chatActions.innerHTML = '<div id="rules" class="rules"></div>';
       renderDynamicPrompts();
-      selection.clear();
+      // Reset panel position after clearing content
+      positionAiPanel();
     });
 
     updateHighlights(msg.relevantFiles || []);
