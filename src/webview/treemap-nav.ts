@@ -130,6 +130,7 @@ const nav = {
   _render() {
     if (this._state.view === 'files' || this._state.view === 'functions') {
       renderDistributionChart();
+      renderIssues();  // Update issues panel to show only issues in view
     } else if (this._state.view === 'deps') {
       if (!depGraph) {
         vscode.postMessage({ command: 'getDependencies' });

@@ -93,7 +93,8 @@ function renderDynamicPrompts() {
         label: 'All issues in ' + fileName,
         prompt: 'Analyze all issues in ' + fileName,
         files: [zoomedFile],
-        issues: allIssuesInFile
+        issues: allIssuesInFile,
+        showIssueCount: true  // Show "(N issues)" instead of "(1 file)"
       });
     }
 
@@ -326,15 +327,24 @@ function renderCostdPrompts() {
   // Build HTML for context prompts
   let html = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
-    // For degraded variants (file-limited or high severity), show "(X of Y)" where X=current files, Y=total files
-    const fileLabel = (p.isFileLimited || p.isHighSeverityVariant)
-      ? fileCount + ' of ' + p.totalFiles
-      : (fileCount === 1 ? '1 file' : fileCount + ' files');
+    const issueCount = p.variantContext.issues.length;
+    // Determine what to show in parentheses
+    let countLabel;
+    if (p.showIssueCount) {
+      // "All issues in file" - show issue count
+      countLabel = issueCount + ' issue' + (issueCount === 1 ? '' : 's');
+    } else if (p.isFileLimited || p.isHighSeverityVariant) {
+      // Degraded variants - show "(X of Y)"
+      countLabel = fileCount + ' of ' + p.totalFiles;
+    } else {
+      // Normal - show file count
+      countLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    }
     return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
       ' data-prompt-id="' + p.id + '"' +
       ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
       ' data-variant-issues="' + encodeURIComponent(JSON.stringify(p.variantContext.issues)) + '"' +
-      '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
+      '>' + p.displayLabel + ' <span class="file-count">(' + countLabel + ')</span></button>';
   }).join('');
 
   // Append no-context prompts (like "Fix rules")

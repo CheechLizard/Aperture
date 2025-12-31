@@ -11662,6 +11662,7 @@ const nav = {
   _render() {
     if (this._state.view === 'files' || this._state.view === 'functions') {
       renderDistributionChart();
+      renderIssues();  // Update issues panel to show only issues in view
     } else if (this._state.view === 'deps') {
       if (!depGraph) {
         vscode.postMessage({ command: 'getDependencies' });
@@ -12135,7 +12136,8 @@ function renderDynamicPrompts() {
         label: 'All issues in ' + fileName,
         prompt: 'Analyze all issues in ' + fileName,
         files: [zoomedFile],
-        issues: allIssuesInFile
+        issues: allIssuesInFile,
+        showIssueCount: true  // Show "(N issues)" instead of "(1 file)"
       });
     }
 
@@ -12368,15 +12370,24 @@ function renderCostdPrompts() {
   // Build HTML for context prompts
   let html = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
-    // For degraded variants (file-limited or high severity), show "(X of Y)" where X=current files, Y=total files
-    const fileLabel = (p.isFileLimited || p.isHighSeverityVariant)
-      ? fileCount + ' of ' + p.totalFiles
-      : (fileCount === 1 ? '1 file' : fileCount + ' files');
+    const issueCount = p.variantContext.issues.length;
+    // Determine what to show in parentheses
+    let countLabel;
+    if (p.showIssueCount) {
+      // "All issues in file" - show issue count
+      countLabel = issueCount + ' issue' + (issueCount === 1 ? '' : 's');
+    } else if (p.isFileLimited || p.isHighSeverityVariant) {
+      // Degraded variants - show "(X of Y)"
+      countLabel = fileCount + ' of ' + p.totalFiles;
+    } else {
+      // Normal - show file count
+      countLabel = fileCount === 1 ? '1 file' : fileCount + ' files';
+    }
     return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
       ' data-prompt-id="' + p.id + '"' +
       ' data-variant-files="' + encodeURIComponent(JSON.stringify(p.variantContext.files)) + '"' +
       ' data-variant-issues="' + encodeURIComponent(JSON.stringify(p.variantContext.issues)) + '"' +
-      '>' + p.displayLabel + ' <span class="file-count">(' + fileLabel + ')</span></button>';
+      '>' + p.displayLabel + ' <span class="file-count">(' + countLabel + ')</span></button>';
   }).join('');
 
   // Append no-context prompts (like "Fix rules")
@@ -12583,28 +12594,58 @@ function renderCategoryHtml(category, label, groups) {
     '<div class="issue-category-items expanded">' + groupsHtml + '</div></div>';
 }
 
-function renderIgnoredHtml() {
-  if (ignoredIssues.length === 0) return '';
-  const itemsHtml = ignoredIssues.map((item, idx) => {
+function renderIgnoredHtml(filteredIgnored) {
+  if (filteredIgnored.length === 0) return '';
+  const itemsHtml = filteredIgnored.map((item) => {
+    // Find the original index in ignoredIssues for restore functionality
+    const originalIdx = ignoredIssues.indexOf(item);
     const firstLoc = item.locations[0];
     const fileName = firstLoc.file.split('/').pop();
     const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
-    return '<div class="ignored-item" data-idx="' + idx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
+    return '<div class="ignored-item" data-idx="' + originalIdx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
       '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
   }).join('');
   return '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
-    '<span>Ignored items (' + ignoredIssues.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
+    '<span>Ignored items (' + filteredIgnored.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
+}
+
+// Get files visible in current zoom state
+function getVisibleFiles() {
+  const navState = nav.getState();
+  if (!navState.zoomedUri) {
+    return null;  // null means "all files visible"
+  }
+  const zoomedPath = getFilePath(navState.zoomedUri);
+  // Check if zoomed into a specific file
+  if (files.some(f => f.path === zoomedPath)) {
+    return [zoomedPath];
+  }
+  // Zoomed into a folder - return all files under that path
+  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
+}
+
+// Filter issues to only those affecting visible files
+function filterIssuesByVisibleFiles(issueList, visibleFiles) {
+  if (visibleFiles === null) return issueList;
+  return issueList.filter(issue =>
+    issue.locations.some(loc => visibleFiles.includes(loc.file))
+  );
 }
 
 function renderIssues() {
   const list = document.getElementById('anti-pattern-list');
-  const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
+  const visibleFiles = getVisibleFiles();
+  const activeIssues = filterIssuesByVisibleFiles(
+    issues.filter(issue => !isIssueIgnored(issue)),
+    visibleFiles
+  );
+  const filteredIgnored = filterIssuesByVisibleFiles(ignoredIssues, visibleFiles);
 
-  if (activeIssues.length === 0 && ignoredIssues.length === 0) {
+  if (activeIssues.length === 0 && filteredIgnored.length === 0) {
     // If no coding-standards.md, show nothing (Create button is in status bar)
-    // If file exists but no issues, show "No issues detected"
+    // If file exists but no issues, show "No issues in view"
     list.innerHTML = codingStandardsExists
-      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>'
+      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues in view</div>'
       : '';
     return;
   }
@@ -12618,7 +12659,7 @@ function renderIssues() {
     renderCategoryHtml('code', 'Code Issues', categories.code) +
     renderCategoryHtml('file', 'File Issues', categories.file) +
     renderCategoryHtml('architecture', 'Architecture Issues', categories.arch) +
-    renderIgnoredHtml();
+    renderIgnoredHtml(filteredIgnored);
 
   setupCategoryHandlers(list);
   setupChevronHandlers(list);

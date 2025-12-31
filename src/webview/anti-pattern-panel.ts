@@ -119,28 +119,58 @@ function renderCategoryHtml(category, label, groups) {
     '<div class="issue-category-items expanded">' + groupsHtml + '</div></div>';
 }
 
-function renderIgnoredHtml() {
-  if (ignoredIssues.length === 0) return '';
-  const itemsHtml = ignoredIssues.map((item, idx) => {
+function renderIgnoredHtml(filteredIgnored) {
+  if (filteredIgnored.length === 0) return '';
+  const itemsHtml = filteredIgnored.map((item) => {
+    // Find the original index in ignoredIssues for restore functionality
+    const originalIdx = ignoredIssues.indexOf(item);
     const firstLoc = item.locations[0];
     const fileName = firstLoc.file.split('/').pop();
     const lineInfo = firstLoc.line ? ':' + firstLoc.line : '';
-    return '<div class="ignored-item" data-idx="' + idx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
+    return '<div class="ignored-item" data-idx="' + originalIdx + '"><span>' + formatRuleId(item.ruleId) + ': ' + fileName + lineInfo + '</span>' +
       '<button class="ignored-item-restore" title="Restore this item">restore</button></div>';
   }).join('');
   return '<div class="ignored-section"><div class="ignored-header"><span class="pattern-chevron"><svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg></span>' +
-    '<span>Ignored items (' + ignoredIssues.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
+    '<span>Ignored items (' + filteredIgnored.length + ')</span></div><div class="ignored-items">' + itemsHtml + '</div></div>';
+}
+
+// Get files visible in current zoom state
+function getVisibleFiles() {
+  const navState = nav.getState();
+  if (!navState.zoomedUri) {
+    return null;  // null means "all files visible"
+  }
+  const zoomedPath = getFilePath(navState.zoomedUri);
+  // Check if zoomed into a specific file
+  if (files.some(f => f.path === zoomedPath)) {
+    return [zoomedPath];
+  }
+  // Zoomed into a folder - return all files under that path
+  return files.filter(f => f.path.startsWith(zoomedPath + '/')).map(f => f.path);
+}
+
+// Filter issues to only those affecting visible files
+function filterIssuesByVisibleFiles(issueList, visibleFiles) {
+  if (visibleFiles === null) return issueList;
+  return issueList.filter(issue =>
+    issue.locations.some(loc => visibleFiles.includes(loc.file))
+  );
 }
 
 function renderIssues() {
   const list = document.getElementById('anti-pattern-list');
-  const activeIssues = issues.filter(issue => !isIssueIgnored(issue));
+  const visibleFiles = getVisibleFiles();
+  const activeIssues = filterIssuesByVisibleFiles(
+    issues.filter(issue => !isIssueIgnored(issue)),
+    visibleFiles
+  );
+  const filteredIgnored = filterIssuesByVisibleFiles(ignoredIssues, visibleFiles);
 
-  if (activeIssues.length === 0 && ignoredIssues.length === 0) {
+  if (activeIssues.length === 0 && filteredIgnored.length === 0) {
     // If no coding-standards.md, show nothing (Create button is in status bar)
-    // If file exists but no issues, show "No issues detected"
+    // If file exists but no issues, show "No issues in view"
     list.innerHTML = codingStandardsExists
-      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues detected</div>'
+      ? '<div style="color:var(--vscode-descriptionForeground);font-size:0.85em;padding:8px;">No issues in view</div>'
       : '';
     return;
   }
@@ -154,7 +184,7 @@ function renderIssues() {
     renderCategoryHtml('code', 'Code Issues', categories.code) +
     renderCategoryHtml('file', 'File Issues', categories.file) +
     renderCategoryHtml('architecture', 'Architecture Issues', categories.arch) +
-    renderIgnoredHtml();
+    renderIgnoredHtml(filteredIgnored);
 
   setupCategoryHandlers(list);
   setupChevronHandlers(list);
