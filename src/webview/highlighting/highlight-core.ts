@@ -16,9 +16,8 @@ function highlightNodes(urisOrPaths, lineMap) {
   });
 
   // Also clear partition label/leader styles
-  document.querySelectorAll('.partition-label-bg, .partition-leader').forEach(el => {
+  document.querySelectorAll('.partition-label, .partition-leader').forEach(el => {
     el.style.removeProperty('fill');
-    el.style.removeProperty('fill-opacity');
     el.style.removeProperty('stroke');
     el.style.removeProperty('stroke-opacity');
   });
@@ -130,7 +129,7 @@ function highlightNodes(urisOrPaths, lineMap) {
   // Collect matching labels/leaders
   const matchingLabels = [];
   const matchingLeaders = [];
-  document.querySelectorAll('.partition-label-bg').forEach(el => {
+  document.querySelectorAll('.partition-label').forEach(el => {
     if (highlightedUris.has(el.getAttribute('data-uri'))) matchingLabels.push(el);
   });
   document.querySelectorAll('.partition-leader').forEach(el => {
@@ -154,7 +153,7 @@ function highlightNodes(urisOrPaths, lineMap) {
     highlightedNodes.forEach(n => { n.style.setProperty('fill', color, 'important'); n.style.setProperty('fill-opacity', '0.75', 'important'); });
     highlightedArcs.forEach(a => { a.style.setProperty('fill', color, 'important'); a.style.setProperty('fill-opacity', '0.75', 'important'); });
     highlightedRibbons.forEach(r => { r.style.setProperty('fill', color, 'important'); r.style.setProperty('fill-opacity', '0.5', 'important'); });
-    matchingLabels.forEach(l => { l.style.setProperty('fill', color, 'important'); l.style.setProperty('fill-opacity', '0.75', 'important'); });
+    matchingLabels.forEach(l => { l.style.setProperty('fill', color, 'important'); });
     matchingLeaders.forEach(l => { l.style.setProperty('stroke', color, 'important'); l.style.setProperty('stroke-opacity', '0.75', 'important'); });
   }
 

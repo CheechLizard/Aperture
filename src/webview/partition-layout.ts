@@ -4,17 +4,17 @@ export const PARTITION_LAYOUT_SCRIPT = `
 // 1px = 1 LOC for true proportional representation
 
 const PARTITION_HEADER_HEIGHT = 24;
-const PARTITION_PADDING = 1;
+const PARTITION_PADDING = 2;
 const PARTITION_BAR_WIDTH = 128;
-const PARTITION_LABEL_HEIGHT = 18;
-const PARTITION_LABEL_WIDTH = 140;  // Fixed width for all labels
-const PARTITION_LABEL_GAP = 12;     // Gap between cascaded labels
-const PARTITION_LABEL_PADDING = 8;  // Left/right padding inside label
-const PARTITION_LABEL_SPACING = 22; // Vertical spacing for collision detection (> LABEL_HEIGHT)
+const PARTITION_NESTING_WIDTH = 48;  // Width per nesting level
+const PARTITION_LOC_SCALE = 2;       // Pixels per LOC (2px = 1 LOC)
+const PARTITION_LABEL_HEIGHT = 14;
+const PARTITION_LABEL_GAP = 8;       // Gap between label and bar
+const PARTITION_LABEL_SPACING = 16;  // Vertical spacing for collision detection
 
 function buildPartitionData(file, width, height) {
   if (!file || !file.functions || file.functions.length === 0) {
-    return { nodes: [], requiredHeight: height };
+    return { nodes: [], requiredHeight: height, maxDepth: 0 };
   }
 
   // Sort by startLine to preserve document order
@@ -25,10 +25,13 @@ function buildPartitionData(file, width, height) {
   // 1px = 1 LOC - direct mapping
   const totalPadding = (sortedFunctions.length - 1) * PARTITION_PADDING;
 
-  // Build partition nodes with exact LOC heights
+  // Find max nesting depth for diagram width calculation
+  const maxDepth = Math.max(0, ...sortedFunctions.map(fn => fn.maxNestingDepth || 0));
+
+  // Build partition nodes with scaled LOC heights
   let currentY = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
   const nodes = sortedFunctions.map((fn) => {
-    const nodeHeight = fn.loc; // 1px per LOC
+    const nodeHeight = fn.loc * PARTITION_LOC_SCALE;
 
     // Bars at fixed position (will be centered later)
     const barX = 0;
@@ -37,10 +40,11 @@ function buildPartitionData(file, width, height) {
       value: fn.loc,
       line: fn.startLine,
       endLine: fn.endLine,
-      depth: fn.maxNestingDepth,
+      depth: fn.maxNestingDepth || 0,
       params: fn.parameterCount,
       filePath: file.path,
       uri: fn.uri,
+      nestedBlocks: fn.nestedBlocks || [],
       x0: barX,
       y0: currentY,
       x1: barX + PARTITION_BAR_WIDTH,
@@ -53,41 +57,31 @@ function buildPartitionData(file, width, height) {
 
   // Calculate required height
   const totalLoc = sortedFunctions.reduce((sum, fn) => sum + fn.loc, 0);
-  const requiredHeight = PARTITION_HEADER_HEIGHT + (PARTITION_PADDING * 2) + totalLoc + totalPadding;
+  const scaledLoc = totalLoc * PARTITION_LOC_SCALE;
+  const requiredHeight = PARTITION_HEADER_HEIGHT + (PARTITION_PADDING * 2) + scaledLoc + totalPadding;
 
-  return { nodes, requiredHeight };
+  return { nodes, requiredHeight, maxDepth };
 }
 
-// Calculate label positions with horizontal cascade (labels never move down)
-function calculateLabelPositions(nodes, width) {
-  // Labels start just left of the bars (bars are at x=0 to PARTITION_BAR_WIDTH)
-  const labelStart = -PARTITION_LABEL_GAP - PARTITION_LABEL_WIDTH;
+// Calculate label positions - simple vertical stacking, right-aligned to bar
+function calculateLabelPositions(nodes) {
+  // Labels are right-aligned just before the bar
+  const labelX = -PARTITION_LABEL_GAP;
 
   const labels = nodes.map(d => ({
     node: d,
-    y: d.y0 + (d.y1 - d.y0) / 2,  // Always centered on bar vertically
-    x: labelStart,                 // Start position (rightmost column, to left of bars)
+    y: d.y0 + (d.y1 - d.y0) / 2,  // Centered on bar vertically
+    x: labelX,
     text: d.name + ' (' + d.value + ')'
   }));
 
-  // For each label, cascade LEFT if it overlaps vertically with any label in the same column
+  // Push labels down if they overlap vertically
   for (let i = 1; i < labels.length; i++) {
     const curr = labels[i];
-
-    // Keep moving left until no vertical overlap with labels in the same column
-    let hasOverlap = true;
-    while (hasOverlap) {
-      hasOverlap = false;
-      for (let j = 0; j < i; j++) {
-        const prev = labels[j];
-        // Same column (within label width) and vertical overlap?
-        const sameColumn = Math.abs(prev.x - curr.x) < PARTITION_LABEL_WIDTH;
-        const verticalOverlap = Math.abs(curr.y - prev.y) < PARTITION_LABEL_SPACING;
-        if (sameColumn && verticalOverlap) {
-          curr.x = prev.x - PARTITION_LABEL_WIDTH - PARTITION_LABEL_GAP;
-          hasOverlap = true;
-          break;
-        }
+    for (let j = i - 1; j >= 0; j--) {
+      const prev = labels[j];
+      if (curr.y - prev.y < PARTITION_LABEL_SPACING) {
+        curr.y = prev.y + PARTITION_LABEL_SPACING;
       }
     }
   }
@@ -107,6 +101,7 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   const partitionData = buildPartitionData(file, width, height);
   const nodes = partitionData.nodes;
   const svgHeight = partitionData.requiredHeight;
+  const maxDepth = partitionData.maxDepth;
 
   svg.attr('width', width).attr('height', svgHeight);
 
@@ -119,11 +114,11 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   }
 
   // Calculate diagram width and center offset
-  // Bars are at x=0 to PARTITION_BAR_WIDTH, labels extend to the left (negative x)
-  const labelPositions = calculateLabelPositions(nodes, width);
-  const minLabelX = labelPositions.length > 0 ? Math.min(...labelPositions.map(l => l.x)) : 0;
-  const diagramWidth = PARTITION_BAR_WIDTH - minLabelX;  // From leftmost label to bar right edge
-  const centerOffset = (width - diagramWidth) / 2 - minLabelX;
+  // Bars at 0 to BAR_WIDTH, nesting extends right, labels flow left from bar
+  const labelPositions = calculateLabelPositions(nodes);
+  const nestingWidth = maxDepth * PARTITION_NESTING_WIDTH;
+  const diagramWidth = PARTITION_BAR_WIDTH + nestingWidth;
+  const centerOffset = (width - diagramWidth) / 2;
 
   // Clear transform (we'll apply offset directly to positions)
   partitionLayer.attr('transform', null);
@@ -132,8 +127,9 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   nodes.forEach(n => { n.x0 += centerOffset; n.x1 += centerOffset; });
   labelPositions.forEach(l => { l.x += centerOffset; });
 
-  renderPartitionHeader(partitionLayer, file, minLabelX + centerOffset, diagramWidth);
+  renderPartitionHeader(partitionLayer, file, centerOffset, diagramWidth);
   renderPartitionRects(partitionLayer, nodes);
+  renderPartitionNesting(partitionLayer, nodes);
   renderPartitionLeaders(partitionLayer, labelPositions);
   renderPartitionLabels(partitionLayer, labelPositions);
 
@@ -198,6 +194,49 @@ function renderPartitionRects(layer, nodes) {
     .attr('height', d => Math.max(1, d.y1 - d.y0));
 }
 
+function renderPartitionNesting(layer, nodes) {
+  // Build nesting data from actual nested blocks
+  const nestingData = [];
+  nodes.forEach(node => {
+    const blocks = node.nestedBlocks || [];
+    blocks.forEach((block, idx) => {
+      // Calculate Y position relative to function start (scaled)
+      const relativeStart = (block.startLine - node.line) * PARTITION_LOC_SCALE;
+      const y0 = node.y0 + relativeStart;
+      const y1 = y0 + block.loc * PARTITION_LOC_SCALE;
+
+      nestingData.push({
+        node: node,
+        block: block,
+        idx: idx,
+        x0: node.x1 + (block.depth - 1) * PARTITION_NESTING_WIDTH,
+        x1: node.x1 + block.depth * PARTITION_NESTING_WIDTH,
+        y0: y0,
+        y1: y1
+      });
+    });
+  });
+
+  layer.selectAll('rect.partition-nesting').data(nestingData, d => d.node.uri + '-' + d.idx)
+    .join(
+      enter => enter.append('rect')
+        .attr('class', 'partition-nesting'),
+      update => update,
+      exit => exit.remove()
+    )
+    .attr('fill', d => {
+      // Progressively lighter gray for deeper nesting
+      const base = 60;
+      const step = 15;
+      const lightness = Math.min(base + d.block.depth * step, 120);
+      return 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')';
+    })
+    .attr('x', d => d.x0)
+    .attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0)
+    .attr('height', d => Math.max(1, d.y1 - d.y0));
+}
+
 function renderPartitionLeaders(layer, labelPositions) {
   layer.selectAll('path.partition-leader').data(labelPositions, d => d.node.uri)
     .join(
@@ -205,30 +244,35 @@ function renderPartitionLeaders(layer, labelPositions) {
         .attr('class', 'partition-leader')
         .attr('data-uri', d => d.node.uri)
         .attr('fill', 'none')
-        .attr('stroke', 'rgba(255,255,255,0.25)')
+        .attr('stroke', 'rgba(255,255,255,0.15)')
         .attr('stroke-width', 1),
       update => update,
       exit => exit.remove()
     )
     .attr('d', d => {
-      const barCenterY = d.y;  // Label stays at bar center
-      const labelRight = d.x + PARTITION_LABEL_WIDTH;
+      const labelY = d.y;
+      const labelX = d.x + 4;  // Small gap after text
       const barLeft = d.node.x0;
-      // Horizontal line from label right to bar left
-      return 'M' + labelRight + ',' + barCenterY + ' L' + barLeft + ',' + barCenterY;
+      const barCenterY = d.node.y0 + (d.node.y1 - d.node.y0) / 2;
+      // Line from label to bar center
+      return 'M' + labelX + ',' + labelY + ' L' + barLeft + ',' + barCenterY;
     });
 }
 
 function renderPartitionLabels(layer, labelPositions) {
-  // Label backgrounds (pill shape)
-  layer.selectAll('rect.partition-label-bg').data(labelPositions, d => d.node.uri)
+  // Remove old pill backgrounds if any
+  layer.selectAll('rect.partition-label-bg').remove();
+
+  // Label text - right-aligned, interactive
+  layer.selectAll('text.partition-label').data(labelPositions, d => d.node.uri)
     .join(
-      enter => enter.append('rect')
-        .attr('class', 'partition-label-bg')
+      enter => enter.append('text')
+        .attr('class', 'partition-label')
         .attr('data-uri', d => d.node.uri)
-        .attr('rx', 9)
-        .attr('ry', 9)
-        .attr('fill', 'rgba(50,50,50,0.9)'),
+        .attr('fill', 'rgba(255,255,255,0.7)')
+        .attr('font-size', '11px')
+        .attr('text-anchor', 'end')
+        .attr('cursor', 'pointer'),
       update => update,
       exit => exit.remove()
     )
@@ -239,30 +283,18 @@ function renderPartitionLabels(layer, labelPositions) {
         (n.depth ? '<div>Nesting depth: ' + n.depth + '</div>' : '') +
         '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
       showTooltip(html, e);
+      d3.select(e.target).attr('fill', '#fff');
     })
     .on('mousemove', e => positionTooltip(e))
-    .on('mouseout', () => hideTooltip())
+    .on('mouseout', (e) => {
+      hideTooltip();
+      d3.select(e.target).attr('fill', 'rgba(255,255,255,0.7)');
+    })
     .on('click', (e, d) => {
       vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.node.line });
     })
+    .text(d => d.text)
     .attr('x', d => d.x)
-    .attr('y', d => d.y - PARTITION_LABEL_HEIGHT / 2)
-    .attr('width', PARTITION_LABEL_WIDTH)
-    .attr('height', PARTITION_LABEL_HEIGHT);
-
-  // Label text
-  layer.selectAll('text.partition-label').data(labelPositions, d => d.node.uri)
-    .join(
-      enter => enter.append('text')
-        .attr('class', 'partition-label')
-        .attr('fill', '#fff')
-        .attr('font-size', '11px')
-        .attr('pointer-events', 'none'),
-      update => update,
-      exit => exit.remove()
-    )
-    .text(d => truncateLabel(d.text, PARTITION_LABEL_WIDTH - PARTITION_LABEL_PADDING * 2, 7))
-    .attr('x', d => d.x + PARTITION_LABEL_PADDING)
     .attr('y', d => d.y + 4);
 }
 

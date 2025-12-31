@@ -1,5 +1,5 @@
 import * as TreeSitter from 'web-tree-sitter';
-import { FunctionInfo } from '../../types';
+import { FunctionInfo, NestedBlock } from '../../types';
 
 const NESTING_NODE_TYPES = new Set([
   'if_statement',
@@ -10,6 +10,16 @@ const NESTING_NODE_TYPES = new Set([
   'switch_statement',
   'try_statement',
 ]);
+
+const NESTING_TYPE_MAP: Record<string, string> = {
+  'if_statement': 'if',
+  'for_statement': 'for',
+  'for_in_statement': 'for',
+  'while_statement': 'while',
+  'do_statement': 'do',
+  'switch_statement': 'switch',
+  'try_statement': 'try',
+};
 
 export function extractFunctionsFromTree(root: TreeSitter.Node): FunctionInfo[] {
   const functions: FunctionInfo[] = [];
@@ -24,7 +34,9 @@ function walkForFunctions(
 ): void {
   const funcInfo = tryExtractFunction(node);
   if (funcInfo) {
-    funcInfo.maxNestingDepth = calculateMaxNesting(node, 0);
+    const blocks: NestedBlock[] = [];
+    funcInfo.maxNestingDepth = collectNestingInfo(node, 0, blocks);
+    funcInfo.nestedBlocks = blocks;
     functions.push(funcInfo);
   }
 
@@ -130,14 +142,30 @@ function countParameters(paramsNode: TreeSitter.Node | null): number {
   return count;
 }
 
-function calculateMaxNesting(node: TreeSitter.Node, currentDepth: number): number {
+function collectNestingInfo(
+  node: TreeSitter.Node,
+  currentDepth: number,
+  blocks: NestedBlock[]
+): number {
   let maxDepth = currentDepth;
-  const newDepth = NESTING_NODE_TYPES.has(node.type) ? currentDepth + 1 : currentDepth;
+  const isNestingNode = NESTING_NODE_TYPES.has(node.type);
+  const newDepth = isNestingNode ? currentDepth + 1 : currentDepth;
+
+  // Collect this block if it's a nesting node
+  if (isNestingNode) {
+    blocks.push({
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      depth: newDepth,
+      type: NESTING_TYPE_MAP[node.type] || node.type,
+    });
+  }
 
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i);
     if (child) {
-      const childMax = calculateMaxNesting(child, newDepth);
+      const childMax = collectNestingInfo(child, newDepth, blocks);
       if (childMax > maxDepth) maxDepth = childMax;
     }
   }

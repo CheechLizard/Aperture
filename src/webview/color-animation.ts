@@ -54,14 +54,12 @@ function cycleIssueColors() {
     if (uri) highlightedUris.add(uri);
   });
 
-  document.querySelectorAll('.partition-label-bg').forEach(labelBg => {
-    const uri = labelBg.getAttribute('data-uri');
+  document.querySelectorAll('.partition-label').forEach(label => {
+    const uri = label.getAttribute('data-uri');
     if (highlightedUris.has(uri)) {
-      labelBg.style.setProperty('fill', color, 'important');
-      labelBg.style.setProperty('fill-opacity', alpha.toString(), 'important');
+      label.style.setProperty('fill', color, 'important');
     } else {
-      labelBg.style.removeProperty('fill');
-      labelBg.style.removeProperty('fill-opacity');
+      label.style.removeProperty('fill');
     }
   });
 

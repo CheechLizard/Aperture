@@ -32,6 +32,14 @@ export interface FileInfo {
   issues?: Issue[];
 }
 
+export interface NestedBlock {
+  startLine: number;
+  endLine: number;
+  loc: number;
+  depth: number;
+  type: string;  // 'if' | 'for' | 'while' | 'switch' | 'try' | etc.
+}
+
 export interface FunctionInfo {
   name: string;
   uri?: string;  // Added by scanner after AST extraction
@@ -40,6 +48,7 @@ export interface FunctionInfo {
   loc: number;
   maxNestingDepth: number;
   parameterCount: number;
+  nestedBlocks?: NestedBlock[];
 }
 
 export type Severity = 'high' | 'medium' | 'low';

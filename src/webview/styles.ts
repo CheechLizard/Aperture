@@ -242,10 +242,9 @@ export const DASHBOARD_STYLES = `
     .partition-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .partition-node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; }
     .partition-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .partition-label-bg { cursor: pointer; }
-    .partition-label-bg:hover { fill: rgba(80,80,80,0.95); }
-    .partition-label { pointer-events: none; }
+    .partition-label { cursor: pointer; }
     .partition-leader { pointer-events: none; }
+    .partition-nesting { stroke: var(--vscode-editor-background); stroke-width: 1px; pointer-events: none; }
     /* Code preview for leaf nodes */
     .code-preview-container { display: flex; flex-direction: column; height: 100%; padding: 16px; background: var(--vscode-editor-background); }
     .code-preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
