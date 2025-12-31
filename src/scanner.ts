@@ -82,10 +82,10 @@ async function scanFile(
     // Full AST extraction
     const astResult = parseAll(text, relativePath, language);
 
-    // Add URIs to functions
+    // Add URIs to functions (include line number for uniqueness)
     const functionsWithUri = astResult.functions.map(fn => ({
       ...fn,
-      uri: createSymbolUri(relativePath, fn.name),
+      uri: createSymbolUri(relativePath, fn.name, fn.startLine),
     }));
 
     // Create file info with functions populated

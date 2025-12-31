@@ -25,8 +25,10 @@ export function createFileUri(path: string): string {
 }
 
 /** Create URI for a named symbol (function, class, method) */
-export function createSymbolUri(path: string, symbolName: string): string {
-  return `${URI_SCHEME}/${normalizePath(path)}#${symbolName}`;
+export function createSymbolUri(path: string, symbolName: string, line?: number): string {
+  // Include line number for uniqueness (multiple functions can have same name, e.g. "anonymous")
+  const fragment = line !== undefined ? `${symbolName}:${line}` : symbolName;
+  return `${URI_SCHEME}/${normalizePath(path)}#${fragment}`;
 }
 
 /** Create URI for a nested symbol (e.g., class method) */
