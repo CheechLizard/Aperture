@@ -49,6 +49,7 @@ export interface FunctionInfo {
   maxNestingDepth: number;
   parameterCount: number;
   nestedBlocks?: NestedBlock[];
+  isContainer?: boolean;  // True for classes, modules - containers that hold other code
 }
 
 export type Severity = 'high' | 'medium' | 'low';

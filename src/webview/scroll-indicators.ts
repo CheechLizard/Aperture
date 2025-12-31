@@ -36,8 +36,14 @@ function updateScrollIndicators() {
     return;
   }
 
-  // Get all highlighted nodes in the partition view
-  const highlighted = chart.querySelectorAll('.node.highlighted');
+  // Get highlighted nodes that represent actual issues (not nested children or file blocks)
+  const allHighlighted = chart.querySelectorAll('.node.highlighted');
+  const highlighted = [...allHighlighted].filter(node => {
+    const isNested = node.getAttribute('data-is-nested') === 'true';
+    const blockType = node.getAttribute('data-block-type');
+    // Only count functions and containers, not nested blocks or file blocks
+    return !isNested && blockType !== 'file';
+  });
   if (highlighted.length === 0) {
     topIndicator.classList.remove('visible');
     bottomIndicator.classList.remove('visible');

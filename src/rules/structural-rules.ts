@@ -14,6 +14,9 @@ export function detectLongFunctions(file: FileInfo, thresholds?: RuleThresholds)
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
+    // Skip containers (classes, modules, object literals) - they're structural, not functions
+    if (func.isContainer) continue;
+
     if (func.loc > errorLimit) {
       issues.push({
         ruleId: 'long-function',
@@ -57,6 +60,9 @@ export function detectDeepNesting(file: FileInfo, thresholds?: RuleThresholds): 
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
+    // Skip containers - nesting metrics apply to their child functions
+    if (func.isContainer) continue;
+
     if (func.maxNestingDepth > limit) {
       issues.push({
         ruleId: 'deep-nesting',
@@ -98,6 +104,9 @@ export function detectTooManyParameters(file: FileInfo, thresholds?: RuleThresho
   const issues: Issue[] = [];
 
   for (const func of file.functions) {
+    // Skip containers - they don't have parameters
+    if (func.isContainer) continue;
+
     if (func.parameterCount > limit) {
       issues.push({
         ruleId: 'too-many-parameters',

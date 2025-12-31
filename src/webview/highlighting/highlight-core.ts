@@ -36,32 +36,76 @@ function highlightNodes(urisOrPaths, lineMap) {
 
   lineMap = lineMap || {};
 
-  // Highlight matching nodes (check both data-uri and data-path for compatibility)
-  // Skip partition-nesting nodes - they'll be highlighted based on parent function
-  document.querySelectorAll('.node:not(.partition-nesting)').forEach(node => {
+  // For partition nodes with line info, find the MOST SPECIFIC (smallest) container
+  // that contains each issue line, then highlight that and its children only
+  const partitionNodes = [];
+  const otherNodes = [];
+
+  document.querySelectorAll('.node').forEach(node => {
+    const nodeLine = node.getAttribute('data-line');
+    const nodeEndLine = node.getAttribute('data-end-line');
+    const path = node.getAttribute('data-path');
+
+    if (nodeLine && nodeEndLine && path) {
+      partitionNodes.push({
+        el: node,
+        path: path,
+        startLine: parseInt(nodeLine),
+        endLine: parseInt(nodeEndLine),
+        loc: parseInt(nodeEndLine) - parseInt(nodeLine) + 1,
+        uri: node.getAttribute('data-uri'),
+        blockType: node.getAttribute('data-block-type'),
+        isNested: node.getAttribute('data-is-nested') === 'true'
+      });
+    } else {
+      otherNodes.push(node);
+    }
+  });
+
+  // For each file with line-specific issues, find and highlight the most specific containers
+  for (const [filePath, lines] of Object.entries(lineMap)) {
+    if (!lines || lines.length === 0) continue;
+
+    // Get all partition nodes for this file
+    const filePartitionNodes = partitionNodes.filter(n => n.path === filePath);
+
+    for (const issueLine of lines) {
+      // Find all nodes that contain this line
+      const containingNodes = filePartitionNodes.filter(n =>
+        issueLine >= n.startLine && issueLine <= n.endLine
+      );
+
+      if (containingNodes.length === 0) continue;
+
+      // Find the smallest (most specific) container - the one with smallest LOC
+      // NEVER select the file block if there are other candidates (different LOC counting methods)
+      const mostSpecific = containingNodes.reduce((best, curr) => {
+        // File blocks always lose to non-file blocks
+        if (best.blockType === 'file' && curr.blockType !== 'file') return curr;
+        if (curr.blockType === 'file' && best.blockType !== 'file') return best;
+        // Between non-file blocks, prefer smaller LOC
+        if (curr.loc < best.loc) return curr;
+        return best;
+      });
+
+      // Highlight the most specific container
+      mostSpecific.el.classList.add('highlighted');
+
+      // Also highlight nested blocks (if/for/etc) within the most specific container
+      // But NOT other functions/containers - those are separate issues
+      filePartitionNodes.forEach(n => {
+        if (n.isNested && n.startLine >= mostSpecific.startLine && n.endLine <= mostSpecific.endLine) {
+          n.el.classList.add('highlighted');
+        }
+      });
+    }
+  }
+
+  // Handle file-level highlighting (no line info) for non-partition nodes
+  otherNodes.forEach(node => {
     const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
     const collapsedPaths = node.getAttribute('data-collapsed-paths');
-    const nodeLine = node.getAttribute('data-line');
-    const nodeEndLine = node.getAttribute('data-end-line');
-
-    // For partition-node (function) elements, check line ranges
-    if (nodeLine && nodeEndLine && path) {
-      const lines = lineMap[path];
-      if (lines && lines.length > 0) {
-        // Only highlight if an issue line falls within this function's range
-        const startLine = parseInt(nodeLine);
-        const endLine = parseInt(nodeEndLine);
-        const matches = lines.some(l => l >= startLine && l <= endLine);
-        if (matches) {
-          node.classList.add('highlighted');
-        }
-        return; // Don't fall through to file-level matching
-      }
-      // If no line info for this file, don't highlight function nodes
-      // (file-level highlighting happens on file nodes, not function nodes)
-      return;
-    }
 
     if (uri && urisOrPaths.includes(uri)) {
       node.classList.add('highlighted');
@@ -93,6 +137,16 @@ function highlightNodes(urisOrPaths, lineMap) {
           node.classList.add('highlighted');
           break;
         }
+      }
+    }
+  });
+
+  // For file-level issues (path in pathSet but no lineMap entry), highlight the file block
+  partitionNodes.forEach(n => {
+    if (pathSet.has(n.path) && !lineMap[n.path]) {
+      // File-level issue - only highlight the file block (line 1)
+      if (n.startLine === 1 && n.el.getAttribute('data-block-type') === 'file') {
+        n.el.classList.add('highlighted');
       }
     }
   });

@@ -6,11 +6,13 @@ export const PARTITION_LAYOUT_SCRIPT = `
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const PARTITION_HEADER_HEIGHT = 24;
 const PARTITION_PADDING = 2;
-const PARTITION_BAR_WIDTH = 128;
-const PARTITION_NESTING_WIDTH = 48;  // Width per nesting level
+const PARTITION_BAR_WIDTH = 384;     // Total width of diagram (3x original)
 const PARTITION_LOC_SCALE = 4;       // Pixels per LOC (4px = 1 LOC)
 const PARTITION_LABEL_GAP = 8;       // Gap between label and bar
 const PARTITION_LABEL_SPACING = 16;  // Vertical spacing for collision detection
+const PARTITION_SCALE_WIDTH = 36;    // Width reserved for LOC scale on left
+const PARTITION_GRID_INTERVAL = 10;  // Grid line every N LOC
+const CONTAINMENT_INDENT = 24;       // Pixels to indent per containment level (equal spacing)
 
 function createSvgElement(tag) {
   return document.createElementNS(SVG_NS, tag);
@@ -42,54 +44,112 @@ function syncElements(parent, selector, data, keyFn, create, update) {
 }
 
 function buildPartitionData(file, width, height) {
-  if (!file || !file.functions || file.functions.length === 0) {
-    return { nodes: [], requiredHeight: height, maxDepth: 0 };
+  if (!file) {
+    return { nodes: [], requiredHeight: height, maxDepth: 0, maxLine: 0 };
   }
 
-  // Sort by startLine to preserve document order
-  const sortedFunctions = file.functions
-    .slice()
-    .sort((a, b) => a.startLine - b.startLine);
+  const maxLine = file.loc || 0;
+  const contentStart = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
+  const nodes = [];
 
-  // 1px = 1 LOC - direct mapping
-  const totalPadding = (sortedFunctions.length - 1) * PARTITION_PADDING;
-
-  // Find max nesting depth for diagram width calculation
-  const maxDepth = Math.max(0, ...sortedFunctions.map(fn => fn.maxNestingDepth || 0));
-
-  // Build partition nodes with scaled LOC heights
-  let currentY = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
-  const nodes = sortedFunctions.map((fn) => {
-    const nodeHeight = fn.loc * PARTITION_LOC_SCALE;
-
-    // Bars at fixed position (will be centered later)
-    const barX = 0;
-    const node = {
-      name: fn.name,
-      value: fn.loc,
-      line: fn.startLine,
-      endLine: fn.endLine,
-      depth: fn.maxNestingDepth || 0,
-      params: fn.parameterCount,
-      filePath: file.path,
-      uri: fn.uri,
-      nestedBlocks: fn.nestedBlocks || [],
-      x0: barX,
-      y0: currentY,
-      x1: barX + PARTITION_BAR_WIDTH,
-      y1: currentY + nodeHeight
-    };
-
-    currentY += nodeHeight + PARTITION_PADDING;
-    return node;
+  // Add file-level block first
+  nodes.push({
+    name: file.path.split('/').pop(),
+    value: maxLine,
+    line: 1,
+    endLine: maxLine,
+    depth: 0,
+    filePath: file.path,
+    uri: file.uri,
+    isFileBlock: true,
+    isContainer: true,
+    blockType: 'file'
   });
 
-  // Calculate required height
-  const totalLoc = sortedFunctions.reduce((sum, fn) => sum + fn.loc, 0);
-  const scaledLoc = totalLoc * PARTITION_LOC_SCALE;
-  const requiredHeight = PARTITION_HEADER_HEIGHT + (PARTITION_PADDING * 2) + scaledLoc + totalPadding;
+  if (file.functions && file.functions.length > 0) {
+    const sortedFunctions = file.functions
+      .slice()
+      .sort((a, b) => a.startLine - b.startLine);
 
-  return { nodes, requiredHeight, maxDepth };
+    // Add functions and their nested blocks as nodes
+    sortedFunctions.forEach((fn) => {
+      // Add the function node
+      nodes.push({
+        name: fn.name,
+        value: fn.loc,
+        line: fn.startLine,
+        endLine: fn.endLine,
+        depth: fn.maxNestingDepth || 0,
+        filePath: file.path,
+        uri: fn.uri,
+        isContainer: fn.isContainer || false,
+        isFileBlock: false,
+        blockType: fn.isContainer ? 'container' : 'function'
+      });
+
+      // Add nested blocks (if/for/etc) as nodes too
+      const nestedBlocks = fn.nestedBlocks || [];
+      nestedBlocks.forEach((block, idx) => {
+        nodes.push({
+          name: block.type,
+          value: block.loc,
+          line: block.startLine,
+          endLine: block.endLine,
+          depth: block.depth,
+          filePath: file.path,
+          uri: fn.uri + '-block-' + idx,
+          isContainer: false,
+          isFileBlock: false,
+          blockType: block.type,
+          isNestedBlock: true
+        });
+      });
+    });
+  }
+
+  // Calculate containment depth for each node
+  // File is always depth 0. Everything else counts containers that encompass it.
+  nodes.forEach(node => {
+    // File block is always at the top level
+    if (node.isFileBlock) {
+      node.containmentDepth = 0;
+      return;
+    }
+
+    let containmentDepth = 0;
+    for (const other of nodes) {
+      if (other === node) continue;
+
+      // File always contains everything else
+      if (other.isFileBlock) {
+        containmentDepth++;
+        continue;
+      }
+
+      // For other nodes, check if they strictly contain this node
+      // (must encompass the line range, and must be a container/function/nested block)
+      const otherContainsNode = other.line <= node.line && other.endLine >= node.endLine;
+      // Any block type can contain things inside it (containers, functions, nested blocks)
+      const canContain = other.isContainer || other.blockType === 'function' || other.isNestedBlock;
+      if (otherContainsNode && canContain) {
+        containmentDepth++;
+      }
+    }
+    node.containmentDepth = containmentDepth;
+  });
+
+  // Calculate y positions and x bounds based on containment depth
+  // Deeper nodes indent from left only (all blocks extend to the same right edge)
+  nodes.forEach(node => {
+    node.y0 = contentStart + (node.line - 1) * PARTITION_LOC_SCALE;
+    node.y1 = contentStart + node.endLine * PARTITION_LOC_SCALE;
+    node.x0 = node.containmentDepth * CONTAINMENT_INDENT;
+    node.x1 = PARTITION_BAR_WIDTH;  // All blocks extend to same right edge
+  });
+
+  const maxDepth = Math.max(0, ...nodes.map(n => n.containmentDepth));
+  const requiredHeight = contentStart + maxLine * PARTITION_LOC_SCALE + PARTITION_PADDING;
+  return { nodes, requiredHeight, maxDepth, maxLine };
 }
 
 // Calculate label positions - horizontal cascade (labels never move down)
@@ -97,9 +157,12 @@ function calculateLabelPositions(nodes) {
   // Labels are right-aligned just before the bar
   const labelX = -PARTITION_LABEL_GAP;
 
-  const labels = nodes.map(d => ({
+  // Exclude file blocks and nested blocks from labels
+  const labelNodes = nodes.filter(d => !d.isFileBlock && !d.isNestedBlock);
+
+  const labels = labelNodes.map(d => ({
     node: d,
-    y: d.y0 + (d.y1 - d.y0) / 2,  // Always centered on bar vertically
+    y: d.y0 + 11,  // Top-aligned (offset for text baseline)
     x: labelX,
     column: 0,  // Track which column (0 = closest to bar)
     text: d.name + ' (' + d.value + ')'
@@ -159,27 +222,26 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   }
 
   // Calculate diagram width and center offset
-  // Labels extend left (negative x), bars at 0 to BAR_WIDTH, nesting extends right
+  // Labels extend left (negative x), bars contained within PARTITION_BAR_WIDTH
   const labelPositions = calculateLabelPositions(nodes);
   const minLabelX = labelPositions.length > 0 ? Math.min(...labelPositions.map(l => l.x)) : 0;
-  const nestingWidth = maxDepth * PARTITION_NESTING_WIDTH;
-  const diagramWidth = PARTITION_BAR_WIDTH + nestingWidth - minLabelX;
+  const diagramWidth = PARTITION_BAR_WIDTH - minLabelX;
   const centerOffset = (width - diagramWidth) / 2 - minLabelX;
 
   // Apply offset to all positions
   nodes.forEach(n => { n.x0 += centerOffset; n.x1 += centerOffset; });
   labelPositions.forEach(l => { l.x += centerOffset; });
 
-  renderPartitionHeader(partitionLayer, file, minLabelX + centerOffset, diagramWidth);
+  renderPartitionHeader(partitionLayer, file, width);
+  renderLocScale(partitionLayer, partitionData.maxLine, width);
   renderPartitionRects(partitionLayer, nodes);
-  renderPartitionNesting(partitionLayer, nodes);
   renderPartitionLeaders(partitionLayer, labelPositions);
   renderPartitionLabels(partitionLayer, labelPositions);
 
   return { svg, partitionLayer, nodes };
 }
 
-function renderPartitionHeader(layer, file, minLabelX, diagramWidth) {
+function renderPartitionHeader(layer, file, width) {
   const headerData = file ? [{ path: file.path, name: file.path.split('/').pop() }] : [];
 
   syncElements(layer, 'rect.partition-header', headerData,
@@ -187,13 +249,13 @@ function renderPartitionHeader(layer, file, minLabelX, diagramWidth) {
     () => {
       const rect = createSvgElement('rect');
       rect.setAttribute('class', 'partition-header');
+      rect.setAttribute('x', 0);
       rect.setAttribute('y', 0);
       rect.setAttribute('height', PARTITION_HEADER_HEIGHT);
       return rect;
     },
     (el, d) => {
-      el.setAttribute('x', minLabelX);
-      el.setAttribute('width', diagramWidth);
+      el.setAttribute('width', width);
     }
   );
 
@@ -206,8 +268,55 @@ function renderPartitionHeader(layer, file, minLabelX, diagramWidth) {
       return text;
     },
     (el, d) => {
-      el.setAttribute('x', minLabelX + 8);
-      el.textContent = truncateLabel(d.name, diagramWidth - 16, 7);
+      el.setAttribute('x', PARTITION_SCALE_WIDTH + 8);
+      el.textContent = truncateLabel(d.name, width - PARTITION_SCALE_WIDTH - 16, 7);
+    }
+  );
+}
+
+function renderLocScale(layer, maxLine, width) {
+  const contentStart = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
+  const gridLines = [];
+
+  // Generate grid line data for every PARTITION_GRID_INTERVAL lines
+  for (let line = PARTITION_GRID_INTERVAL; line <= maxLine; line += PARTITION_GRID_INTERVAL) {
+    const y = contentStart + line * PARTITION_LOC_SCALE;
+    gridLines.push({ line, y });
+  }
+
+  // Render grid lines (full width)
+  syncElements(layer, 'line.partition-grid', gridLines,
+    d => 'grid-' + d.line,
+    () => {
+      const gridLine = createSvgElement('line');
+      gridLine.setAttribute('class', 'partition-grid');
+      gridLine.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+      gridLine.setAttribute('stroke-width', 1);
+      return gridLine;
+    },
+    (el, d) => {
+      el.setAttribute('x1', 0);
+      el.setAttribute('x2', width);
+      el.setAttribute('y1', d.y);
+      el.setAttribute('y2', d.y);
+    }
+  );
+
+  // Render scale labels on left
+  syncElements(layer, 'text.partition-scale', gridLines,
+    d => 'scale-' + d.line,
+    () => {
+      const text = createSvgElement('text');
+      text.setAttribute('class', 'partition-scale');
+      text.setAttribute('fill', 'rgba(255,255,255,0.4)');
+      text.setAttribute('font-size', '10px');
+      text.setAttribute('text-anchor', 'end');
+      return text;
+    },
+    (el, d) => {
+      el.setAttribute('x', PARTITION_SCALE_WIDTH - 4);
+      el.setAttribute('y', d.y + 3);
+      el.textContent = d.line;
     }
   );
 }
@@ -224,11 +333,20 @@ function renderPartitionRects(layer, nodes) {
       // Event handlers read from data attributes to avoid stale closure data
       rect.addEventListener('mouseover', e => {
         const el = e.target;
-        const depth = el.getAttribute('data-depth');
-        const html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
-          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
-          (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
-          '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        const blockType = el.getAttribute('data-block-type');
+        const isNested = el.getAttribute('data-is-nested') === 'true';
+        let html;
+        if (isNested) {
+          html = '<div><strong>' + blockType + '</strong></div>' +
+            '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+            '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        } else {
+          const depth = el.getAttribute('data-depth');
+          html = '<div><strong>' + el.getAttribute('data-name') + '</strong></div>' +
+            '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
+            (depth && depth !== '0' ? '<div>Nesting depth: ' + depth + '</div>' : '') +
+            '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+        }
         showTooltip(html, e);
       });
       rect.addEventListener('mousemove', e => positionTooltip(e));
@@ -249,82 +367,39 @@ function renderPartitionRects(layer, nodes) {
       el.setAttribute('data-name', d.name);
       el.setAttribute('data-loc', d.value);
       el.setAttribute('data-depth', d.depth);
+      el.setAttribute('data-block-type', d.blockType || '');
+      el.setAttribute('data-is-nested', d.isNestedBlock ? 'true' : 'false');
+
+      // Style based on block type:
+      // - File block: very subtle outline
+      // - Container (class/module/object): subtle fill with outline
+      // - Function: solid fill
+      // - Nested block (if/for/etc): progressively lighter based on depth
+      if (d.isFileBlock) {
+        el.setAttribute('fill', 'rgba(255,255,255,0.02)');
+        el.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+        el.setAttribute('stroke-width', '1');
+      } else if (d.isNestedBlock) {
+        // Progressively lighter gray for deeper nesting (can reach white)
+        const base = 50;
+        const step = 20;
+        const lightness = Math.min(base + d.containmentDepth * step, 255);
+        el.setAttribute('fill', 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')');
+        el.removeAttribute('stroke');
+        el.removeAttribute('stroke-width');
+      } else if (d.isContainer) {
+        el.setAttribute('fill', 'rgba(255,255,255,0.06)');
+        el.setAttribute('stroke', 'rgba(255,255,255,0.15)');
+        el.setAttribute('stroke-width', '1');
+      } else {
+        el.setAttribute('fill', FUNC_NEUTRAL_COLOR);
+        el.removeAttribute('stroke');
+        el.removeAttribute('stroke-width');
+      }
 
       el.setAttribute('x', d.x0);
       el.setAttribute('y', d.y0);
-      el.setAttribute('width', d.x1 - d.x0);
-      el.setAttribute('height', Math.max(1, d.y1 - d.y0));
-    }
-  );
-}
-
-function renderPartitionNesting(layer, nodes) {
-  // Build nesting data from actual nested blocks
-  const nestingData = [];
-  nodes.forEach(node => {
-    const blocks = node.nestedBlocks || [];
-    blocks.forEach((block, idx) => {
-      // Calculate Y position relative to function start (scaled)
-      const relativeStart = (block.startLine - node.line) * PARTITION_LOC_SCALE;
-      const y0 = node.y0 + relativeStart;
-      const y1 = y0 + block.loc * PARTITION_LOC_SCALE;
-
-      nestingData.push({
-        node: node,
-        block: block,
-        idx: idx,
-        x0: node.x1 + (block.depth - 1) * PARTITION_NESTING_WIDTH,
-        x1: node.x1 + block.depth * PARTITION_NESTING_WIDTH,
-        y0: y0,
-        y1: y1
-      });
-    });
-  });
-
-  syncElements(layer, 'rect.partition-nesting', nestingData,
-    d => d.node.uri + '-' + d.idx,
-    () => {
-      const rect = createSvgElement('rect');
-      rect.setAttribute('class', 'partition-nesting node');
-      rect.style.cursor = 'pointer';
-
-      // Event handlers read from data attributes to avoid stale closure data
-      rect.addEventListener('mouseover', e => {
-        const el = e.target;
-        const html = '<div><strong>' + el.getAttribute('data-block-type') + '</strong></div>' +
-          '<div>Lines ' + el.getAttribute('data-line') + '-' + el.getAttribute('data-end-line') + ' \\u00b7 ' + el.getAttribute('data-loc') + ' LOC</div>' +
-          '<div>Depth: ' + el.getAttribute('data-depth') + '</div>' +
-          '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
-        showTooltip(html, e);
-      });
-      rect.addEventListener('mousemove', e => positionTooltip(e));
-      rect.addEventListener('mouseout', () => hideTooltip());
-      rect.addEventListener('click', e => {
-        const el = e.target;
-        vscode.postMessage({ command: 'openFile', uri: el.getAttribute('data-uri'), line: parseInt(el.getAttribute('data-line')) });
-      });
-
-      return rect;
-    },
-    (el, d) => {
-      // Update all data attributes on every render (not just create)
-      el.setAttribute('data-uri', d.node.uri);
-      el.setAttribute('data-path', d.node.filePath);
-      el.setAttribute('data-line', d.block.startLine);
-      el.setAttribute('data-end-line', d.block.endLine);
-      el.setAttribute('data-loc', d.block.loc);
-      el.setAttribute('data-depth', d.block.depth);
-      el.setAttribute('data-block-type', d.block.type);
-
-      // Progressively lighter gray for deeper nesting
-      const base = 60;
-      const step = 15;
-      const lightness = Math.min(base + d.block.depth * step, 120);
-      el.setAttribute('fill', 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')');
-
-      el.setAttribute('x', d.x0);
-      el.setAttribute('y', d.y0);
-      el.setAttribute('width', d.x1 - d.x0);
+      el.setAttribute('width', Math.max(1, d.x1 - d.x0));
       el.setAttribute('height', Math.max(1, d.y1 - d.y0));
     }
   );
@@ -343,12 +418,12 @@ function renderPartitionLeaders(layer, labelPositions) {
       return path;
     },
     (el, d) => {
-      const labelY = d.y;
+      const labelY = d.y - 4;  // Adjust for text baseline
       const labelX = d.x + 4;  // Small gap after text
       const barLeft = d.node.x0;
-      const barCenterY = d.node.y0 + (d.node.y1 - d.node.y0) / 2;
-      // Line from label to bar center
-      el.setAttribute('d', 'M' + labelX + ',' + labelY + ' L' + barLeft + ',' + barCenterY);
+      const barTopY = d.node.y0 + 6;  // Top of bar with small offset
+      // Line from label to bar top
+      el.setAttribute('d', 'M' + labelX + ',' + labelY + ' L' + barLeft + ',' + barTopY);
     }
   );
 }
@@ -401,7 +476,7 @@ function renderPartitionLabels(layer, labelPositions) {
 
       el.textContent = d.text;
       el.setAttribute('x', d.x);
-      el.setAttribute('y', d.y + 4);
+      el.setAttribute('y', d.y);
     }
   );
 }

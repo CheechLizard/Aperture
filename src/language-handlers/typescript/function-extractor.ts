@@ -38,7 +38,15 @@ function walkForFunctions(
     funcInfo.maxNestingDepth = collectNestingInfo(node, 0, blocks);
     funcInfo.nestedBlocks = blocks;
     functions.push(funcInfo);
-    // Don't recurse into function body - nested functions are not separate entries
+
+    // For containers (classes, modules), continue recursing to extract methods
+    if (funcInfo.isContainer) {
+      for (let i = 0; i < node.childCount; i++) {
+        const child = node.child(i);
+        if (child) walkForFunctions(child, functions, currentDepth);
+      }
+    }
+    // Don't recurse into regular function bodies - nested functions are not separate entries
     return;
   }
 
@@ -51,6 +59,66 @@ function walkForFunctions(
 }
 
 function tryExtractFunction(node: TreeSitter.Node): FunctionInfo | null {
+  // Classes - extract as container blocks
+  if (node.type === 'class_declaration' || node.type === 'class') {
+    const name = node.childForFieldName('name')?.text || 'anonymous class';
+    return {
+      name: `class ${name}`,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: 0,
+      isContainer: true,
+    };
+  }
+
+  // TypeScript modules/namespaces
+  if (node.type === 'module' || node.type === 'internal_module') {
+    const name = node.childForFieldName('name')?.text || 'module';
+    return {
+      name: `module ${name}`,
+      startLine: node.startPosition.row + 1,
+      endLine: node.endPosition.row + 1,
+      loc: node.endPosition.row - node.startPosition.row + 1,
+      maxNestingDepth: 0,
+      parameterCount: 0,
+      isContainer: true,
+    };
+  }
+
+  // Object literals assigned to variables (const UIBuilder = { methods... })
+  if (node.type === 'variable_declarator') {
+    const value = node.childForFieldName('value');
+    if (value?.type === 'object') {
+      // Check if object contains methods (pair with function value)
+      let hasMethods = false;
+      for (let i = 0; i < value.childCount; i++) {
+        const child = value.child(i);
+        if (child?.type === 'pair' || child?.type === 'method_definition') {
+          const pairValue = child.childForFieldName('value');
+          if (pairValue?.type === 'function' || pairValue?.type === 'arrow_function' ||
+              child.type === 'method_definition') {
+            hasMethods = true;
+            break;
+          }
+        }
+      }
+      if (hasMethods) {
+        const name = node.childForFieldName('name')?.text || 'object';
+        return {
+          name,
+          startLine: node.startPosition.row + 1,
+          endLine: node.endPosition.row + 1,
+          loc: node.endPosition.row - node.startPosition.row + 1,
+          maxNestingDepth: 0,
+          parameterCount: 0,
+          isContainer: true,
+        };
+      }
+    }
+  }
+
   if (node.type === 'function_declaration') {
     const name = node.childForFieldName('name')?.text || 'anonymous';
     const params = node.childForFieldName('parameters');
