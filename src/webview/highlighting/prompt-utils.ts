@@ -92,7 +92,7 @@ function renderDynamicPrompts() {
     );
     if (sameIssueOtherFiles.length > 0) {
       prompts.push({
-        label: 'All ' + formatRuleId(ruleId) + ' issues',
+        label: 'Selected ' + formatRuleId(ruleId) + ' issues',
         prompt: 'Analyze all ' + formatRuleId(ruleId).toLowerCase() + ' issues in the codebase'
       });
     }
