@@ -4,7 +4,7 @@ export const PARTITION_LAYOUT_SCRIPT = `
 // Uses plain DOM - no D3 layout algorithms needed here
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const PARTITION_HEADER_HEIGHT = 24;
+const PARTITION_HEADER_HEIGHT = 0;  // Header removed - filename in breadcrumb
 const PARTITION_PADDING = 2;
 const PARTITION_BAR_WIDTH = 384;     // Total width of diagram (3x original)
 const PARTITION_LOC_SCALE = 4;       // Pixels per LOC (4px = 1 LOC)
@@ -240,7 +240,7 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   nodes.forEach(n => { n.x0 += centerOffset; n.x1 += centerOffset; });
   labelPositions.forEach(l => { l.x += centerOffset; });
 
-  renderPartitionHeader(partitionLayer, file, width);
+  // Header removed - filename is already in breadcrumb
   renderLocScale(partitionLayer, partitionData.maxLine, width);
   renderPartitionRects(partitionLayer, nodes);
   renderPartitionLeaders(partitionLayer, labelPositions);
@@ -249,38 +249,6 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   return { svg, partitionLayer, nodes };
 }
 
-function renderPartitionHeader(layer, file, width) {
-  const headerData = file ? [{ path: file.path, name: file.path.split('/').pop() }] : [];
-
-  syncElements(layer, 'rect.partition-header', headerData,
-    d => d.path,
-    () => {
-      const rect = createSvgElement('rect');
-      rect.setAttribute('class', 'partition-header');
-      rect.setAttribute('x', 0);
-      rect.setAttribute('y', 0);
-      rect.setAttribute('height', PARTITION_HEADER_HEIGHT);
-      return rect;
-    },
-    (el, d) => {
-      el.setAttribute('width', width);
-    }
-  );
-
-  syncElements(layer, 'text.partition-header-label', headerData,
-    d => d.path,
-    () => {
-      const text = createSvgElement('text');
-      text.setAttribute('class', 'partition-header-label');
-      text.setAttribute('y', 16);
-      return text;
-    },
-    (el, d) => {
-      el.setAttribute('x', PARTITION_SCALE_WIDTH + 8);
-      el.textContent = truncateLabel(d.name, width - PARTITION_SCALE_WIDTH - 16, 7);
-    }
-  );
-}
 
 function renderLocScale(layer, maxLine, width) {
   const contentStart = PARTITION_HEADER_HEIGHT + PARTITION_PADDING;
@@ -292,13 +260,13 @@ function renderLocScale(layer, maxLine, width) {
     gridLines.push({ line, y });
   }
 
-  // Render grid lines (full width)
+  // Render grid lines (full width, very faint)
   syncElements(layer, 'line.partition-grid', gridLines,
     d => 'grid-' + d.line,
     () => {
       const gridLine = createSvgElement('line');
       gridLine.setAttribute('class', 'partition-grid');
-      gridLine.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+      gridLine.setAttribute('stroke', 'rgba(255,255,255,0.03)');
       gridLine.setAttribute('stroke-width', 1);
       return gridLine;
     },
@@ -310,7 +278,7 @@ function renderLocScale(layer, maxLine, width) {
     }
   );
 
-  // Render scale labels on left
+  // Render scale labels on left (left-aligned)
   syncElements(layer, 'text.partition-scale', gridLines,
     d => 'scale-' + d.line,
     () => {
@@ -318,11 +286,11 @@ function renderLocScale(layer, maxLine, width) {
       text.setAttribute('class', 'partition-scale');
       text.setAttribute('fill', 'rgba(255,255,255,0.4)');
       text.setAttribute('font-size', '10px');
-      text.setAttribute('text-anchor', 'end');
+      text.setAttribute('text-anchor', 'start');
       return text;
     },
     (el, d) => {
-      el.setAttribute('x', PARTITION_SCALE_WIDTH - 4);
+      el.setAttribute('x', 4);
       el.setAttribute('y', d.y + 3);
       el.textContent = d.line;
     }
