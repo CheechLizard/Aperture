@@ -38,6 +38,8 @@ function walkForFunctions(
     funcInfo.maxNestingDepth = collectNestingInfo(node, 0, blocks);
     funcInfo.nestedBlocks = blocks;
     functions.push(funcInfo);
+    // Don't recurse into function body - nested functions are not separate entries
+    return;
   }
 
   const newDepth = NESTING_NODE_TYPES.has(node.type) ? currentDepth + 1 : currentDepth;

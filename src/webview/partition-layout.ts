@@ -63,25 +63,32 @@ function buildPartitionData(file, width, height) {
   return { nodes, requiredHeight, maxDepth };
 }
 
-// Calculate label positions - simple vertical stacking, right-aligned to bar
+// Calculate label positions - horizontal cascade (labels never move down)
 function calculateLabelPositions(nodes) {
   // Labels are right-aligned just before the bar
   const labelX = -PARTITION_LABEL_GAP;
 
   const labels = nodes.map(d => ({
     node: d,
-    y: d.y0 + (d.y1 - d.y0) / 2,  // Centered on bar vertically
+    y: d.y0 + (d.y1 - d.y0) / 2,  // Always centered on bar vertically
     x: labelX,
+    column: 0,  // Track which column (0 = closest to bar)
     text: d.name + ' (' + d.value + ')'
   }));
 
-  // Push labels down if they overlap vertically
+  // Cascade LEFT if overlapping vertically - labels stay at their bar's Y
+  const COLUMN_WIDTH = 120;  // Width per column
   for (let i = 1; i < labels.length; i++) {
     const curr = labels[i];
-    for (let j = i - 1; j >= 0; j--) {
+    // Check all previous labels for vertical overlap
+    for (let j = 0; j < i; j++) {
       const prev = labels[j];
-      if (curr.y - prev.y < PARTITION_LABEL_SPACING) {
-        curr.y = prev.y + PARTITION_LABEL_SPACING;
+      const sameColumn = curr.column === prev.column;
+      const verticalOverlap = Math.abs(curr.y - prev.y) < PARTITION_LABEL_SPACING;
+      if (sameColumn && verticalOverlap) {
+        curr.column++;
+        curr.x = labelX - curr.column * COLUMN_WIDTH;
+        j = -1;  // Restart overlap check with new position
       }
     }
   }
@@ -114,11 +121,12 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   }
 
   // Calculate diagram width and center offset
-  // Bars at 0 to BAR_WIDTH, nesting extends right, labels flow left from bar
+  // Labels extend left (negative x), bars at 0 to BAR_WIDTH, nesting extends right
   const labelPositions = calculateLabelPositions(nodes);
+  const minLabelX = labelPositions.length > 0 ? Math.min(...labelPositions.map(l => l.x)) : 0;
   const nestingWidth = maxDepth * PARTITION_NESTING_WIDTH;
-  const diagramWidth = PARTITION_BAR_WIDTH + nestingWidth;
-  const centerOffset = (width - diagramWidth) / 2;
+  const diagramWidth = PARTITION_BAR_WIDTH + nestingWidth - minLabelX;
+  const centerOffset = (width - diagramWidth) / 2 - minLabelX;
 
   // Clear transform (we'll apply offset directly to positions)
   partitionLayer.attr('transform', null);
@@ -127,7 +135,7 @@ function renderPartitionLayout(container, file, width, height, t, targetLayer) {
   nodes.forEach(n => { n.x0 += centerOffset; n.x1 += centerOffset; });
   labelPositions.forEach(l => { l.x += centerOffset; });
 
-  renderPartitionHeader(partitionLayer, file, centerOffset, diagramWidth);
+  renderPartitionHeader(partitionLayer, file, minLabelX + centerOffset, diagramWidth);
   renderPartitionRects(partitionLayer, nodes);
   renderPartitionNesting(partitionLayer, nodes);
   renderPartitionLeaders(partitionLayer, labelPositions);

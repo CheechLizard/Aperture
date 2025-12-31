@@ -4,6 +4,7 @@ import { BaseLanguageHandler } from './base-handler';
 import {
   ImportInfo,
   FunctionInfo,
+  NestedBlock,
   CatchBlockInfo,
   CommentInfo,
   LiteralInfo,
@@ -17,6 +18,14 @@ const NESTING_NODE_TYPES = new Set([
   'while_statement',
   'repeat_statement',
 ]);
+
+const NESTING_TYPE_MAP: Record<string, string> = {
+  'if_statement': 'if',
+  'for_statement': 'for',
+  'for_in_statement': 'for',
+  'while_statement': 'while',
+  'repeat_statement': 'repeat',
+};
 
 export class LuaHandler extends BaseLanguageHandler {
   readonly languageIds = ['Lua'];
@@ -105,14 +114,19 @@ export class LuaHandler extends BaseLanguageHandler {
     if (node.type === 'function_declaration' || node.type === 'function_definition') {
       const name = this.extractFunctionName(node);
       const params = node.childForFieldName('parameters');
+      const blocks: NestedBlock[] = [];
+      const maxNestingDepth = this.collectNestingInfo(node, 0, blocks);
       functions.push({
         name,
         startLine: node.startPosition.row + 1,
         endLine: node.endPosition.row + 1,
         loc: node.endPosition.row - node.startPosition.row + 1,
-        maxNestingDepth: this.calculateMaxNesting(node, 0),
+        maxNestingDepth,
         parameterCount: this.countParameters(params),
+        nestedBlocks: blocks,
       });
+      // Don't recurse into function body - nested functions are not separate entries
+      return;
     }
 
     for (let i = 0; i < node.childCount; i++) {
@@ -145,14 +159,29 @@ export class LuaHandler extends BaseLanguageHandler {
     return count;
   }
 
-  private calculateMaxNesting(node: TreeSitter.Node, currentDepth: number): number {
+  private collectNestingInfo(
+    node: TreeSitter.Node,
+    currentDepth: number,
+    blocks: NestedBlock[]
+  ): number {
     let maxDepth = currentDepth;
-    const newDepth = NESTING_NODE_TYPES.has(node.type) ? currentDepth + 1 : currentDepth;
+    const isNestingNode = NESTING_NODE_TYPES.has(node.type);
+    const newDepth = isNestingNode ? currentDepth + 1 : currentDepth;
+
+    if (isNestingNode) {
+      blocks.push({
+        startLine: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+        loc: node.endPosition.row - node.startPosition.row + 1,
+        depth: newDepth,
+        type: NESTING_TYPE_MAP[node.type] || node.type,
+      });
+    }
 
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i);
       if (child) {
-        const childMax = this.calculateMaxNesting(child, newDepth);
+        const childMax = this.collectNestingInfo(child, newDepth, blocks);
         if (childMax > maxDepth) maxDepth = childMax;
       }
     }
