@@ -79,13 +79,12 @@ function renderDistributionChart() {
   const showingFunctions = !!zoomedFile;
   const wasShowingFunctions = !!prevZoomedFile;
 
-  // Ensure SVG exists
+  // Ensure SVG exists (dimensions set by render functions)
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
   }
-  svg.attr('width', width).attr('height', height);
 
   if (isZoomingIn) {
     // ZOOM IN: create new layer, render into it, animate old → new

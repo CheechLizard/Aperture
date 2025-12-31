@@ -11256,7 +11256,8 @@ var DASHBOARD_STYLES = `
     .footer-parsers { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
     .footer-parsers-icon { color: var(--vscode-editorWarning-foreground, #cca700); }
     .footer-lang { background: rgba(204, 167, 0, 0.15); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; }
+    .footer-input-container { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 520px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 12px; padding: 8px; border: 2px solid transparent; animation: inputGlow 3s ease-in-out infinite; overflow: visible; pointer-events: none; }
+    .footer-input-container > * { pointer-events: auto; }
     .footer .ai-input-wrapper { width: 100%; align-items: flex-end; }
     .footer .ai-input-wrapper textarea { width: 100%; }
     .input-divider { display: none; border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 6px 0; }
@@ -11404,7 +11405,7 @@ var DASHBOARD_STYLES = `
     /* Function Distribution Chart */
     .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
     .functions-container.visible { display: flex; }
-    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 
     /* Zoom Header - positioned absolutely to left */
@@ -13181,6 +13182,22 @@ function renderFooterStats() {
 
   container.innerHTML = html;
 }
+
+// Handle scroll in partition view - claim gesture even at boundaries
+// This allows "wiggle" gestures (up/down/up) to work regardless of scroll position
+document.addEventListener('wheel', (e) => {
+  const chart = document.getElementById('functions-chart');
+  if (!chart || !chart.contains(e.target)) return;
+
+  // Check if chart is scrollable (content taller than container)
+  const isScrollable = chart.scrollHeight > chart.clientHeight;
+  if (!isScrollable) return;
+
+  // Claim the gesture by preventing default and handling scroll manually
+  // This ensures the gesture stays with this container even at boundaries
+  e.preventDefault();
+  chart.scrollTop += e.deltaY;
+}, { passive: false, capture: true });
 `;
 
 // src/webview/interactions/message-handlers.ts
@@ -14555,13 +14572,12 @@ function renderDistributionChart() {
   const showingFunctions = !!zoomedFile;
   const wasShowingFunctions = !!prevZoomedFile;
 
-  // Ensure SVG exists
+  // Ensure SVG exists (dimensions set by render functions)
   let svg = d3.select(container).select('svg');
   if (svg.empty()) {
     container.innerHTML = '';
     svg = d3.select(container).append('svg');
   }
-  svg.attr('width', width).attr('height', height);
 
   if (isZoomingIn) {
     // ZOOM IN: create new layer, render into it, animate old \u2192 new

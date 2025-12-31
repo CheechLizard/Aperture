@@ -219,7 +219,7 @@ export const DASHBOARD_STYLES = `
     /* Function Distribution Chart */
     .functions-container { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; margin: 0; padding: 0; }
     .functions-container.visible { display: flex; }
-    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; }
+    #functions-chart { width: 100%; flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; }
     .functions-empty { padding: 16px; text-align: center; color: var(--vscode-descriptionForeground); }
 
     /* Zoom Header - positioned absolutely to left */

@@ -165,4 +165,20 @@ function renderFooterStats() {
 
   container.innerHTML = html;
 }
+
+// Handle scroll in partition view - claim gesture even at boundaries
+// This allows "wiggle" gestures (up/down/up) to work regardless of scroll position
+document.addEventListener('wheel', (e) => {
+  const chart = document.getElementById('functions-chart');
+  if (!chart || !chart.contains(e.target)) return;
+
+  // Check if chart is scrollable (content taller than container)
+  const isScrollable = chart.scrollHeight > chart.clientHeight;
+  if (!isScrollable) return;
+
+  // Claim the gesture by preventing default and handling scroll manually
+  // This ensures the gesture stays with this container even at boundaries
+  e.preventDefault();
+  chart.scrollTop += e.deltaY;
+}, { passive: false, capture: true });
 `;
