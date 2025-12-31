@@ -12302,9 +12302,9 @@ function renderCostdPrompts() {
     if (affordable) {
       // Build display label based on variant
       let displayLabel = affordable.label;
-      // Get original issue count from full variant (variantIndex=0)
+      // Get original file count from full variant (variantIndex=0)
       const fullVariant = variants.find(v => v.variantIndex === 0);
-      const totalIssues = fullVariant ? fullVariant.variantContext.issues.length : affordable.variantContext.issues.length;
+      const totalFiles = fullVariant ? fullVariant.variantContext.files.length : affordable.variantContext.files.length;
 
       if (affordable.variantLabel) {
         // If degraded to high severity, update the issue count in label
@@ -12320,18 +12320,20 @@ function renderCostdPrompts() {
           displayLabel = 'Analyze the first ' + fileCount + ' file' + (fileCount === 1 ? '' : 's');
         }
       }
-      // Track total issues for "(X of Y)" chip display
+      // Track total files for "(X of Y)" chip display
 
       // Skip "Focus on high severity" buttons if we already degraded another prompt to high severity
       if (affordable.action === 'filter-high-severity') {
         continue; // Degradation handles this, don't show duplicate
       }
 
+      const isHighSeverity = affordable.variantLabel && affordable.variantLabel.includes('high severity');
       affordablePrompts.push({
         ...affordable,
         displayLabel: displayLabel,
-        totalIssues: totalIssues,
-        isFileLimited: affordable.variantLabel && affordable.variantLabel.includes('file')
+        totalFiles: totalFiles,
+        isFileLimited: affordable.variantLabel && affordable.variantLabel.includes('file'),
+        isHighSeverityVariant: isHighSeverity
       });
     }
   }
@@ -12347,9 +12349,9 @@ function renderCostdPrompts() {
   // Build HTML for context prompts
   let html = affordablePrompts.map(p => {
     const fileCount = p.variantContext.files.length;
-    // For file-limited variants, show "(X of Y)" where X=files, Y=total issues
-    const fileLabel = p.isFileLimited
-      ? fileCount + ' of ' + p.totalIssues
+    // For degraded variants (file-limited or high severity), show "(X of Y)" where X=current files, Y=total files
+    const fileLabel = (p.isFileLimited || p.isHighSeverityVariant)
+      ? fileCount + ' of ' + p.totalFiles
       : (fileCount === 1 ? '1 file' : fileCount + ' files');
     return '<button class="rule-btn" data-prompt="' + p.prompt.replace(/"/g, '&quot;') + '"' +
       ' data-prompt-id="' + p.id + '"' +
