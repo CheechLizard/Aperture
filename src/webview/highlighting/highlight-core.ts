@@ -15,6 +15,14 @@ function highlightNodes(urisOrPaths, lineMap) {
     el.style.removeProperty('fill-opacity');
   });
 
+  // Also clear partition label/leader styles
+  document.querySelectorAll('.partition-label-bg, .partition-leader').forEach(el => {
+    el.style.removeProperty('fill');
+    el.style.removeProperty('fill-opacity');
+    el.style.removeProperty('stroke');
+    el.style.removeProperty('stroke-opacity');
+  });
+
   if (urisOrPaths.length === 0) return;
 
   // Build a set of paths for matching (extract from URIs if needed)
@@ -106,7 +114,51 @@ function highlightNodes(urisOrPaths, lineMap) {
     }
   });
 
-  // Update scroll indicators for off-screen highlighted items
+  // Immediately style all highlighted elements in a single batch (avoid multiple paints)
+  // Collect all elements first, then apply all styles together
+  const highlightedNodes = document.querySelectorAll('.node.highlighted');
+  const highlightedArcs = document.querySelectorAll('.chord-arc.highlighted');
+  const highlightedRibbons = document.querySelectorAll('.chord-ribbon.highlighted');
+
+  // Collect URIs for labels/leaders
+  const highlightedUris = new Set();
+  highlightedNodes.forEach(node => {
+    const uri = node.getAttribute('data-uri');
+    if (uri) highlightedUris.add(uri);
+  });
+
+  // Collect matching labels/leaders
+  const matchingLabels = [];
+  const matchingLeaders = [];
+  document.querySelectorAll('.partition-label-bg').forEach(el => {
+    if (highlightedUris.has(el.getAttribute('data-uri'))) matchingLabels.push(el);
+  });
+  document.querySelectorAll('.partition-leader').forEach(el => {
+    if (highlightedUris.has(el.getAttribute('data-uri'))) matchingLeaders.push(el);
+  });
+
+  // Now apply all styles in one batch
+  if (highlightedNodes.length > 0) {
+    const t = (Date.now() % 3000) / 3000;
+    const colors = [[100, 149, 237], [147, 112, 219], [64, 224, 208]];
+    const segment = t * 3;
+    const idx = Math.floor(segment) % 3;
+    const nextIdx = (idx + 1) % 3;
+    const localT = segment - Math.floor(segment);
+    const r = Math.round(colors[idx][0] + (colors[nextIdx][0] - colors[idx][0]) * localT);
+    const g = Math.round(colors[idx][1] + (colors[nextIdx][1] - colors[idx][1]) * localT);
+    const b = Math.round(colors[idx][2] + (colors[nextIdx][2] - colors[idx][2]) * localT);
+    const color = '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
+
+    // Apply all fill styles
+    highlightedNodes.forEach(n => { n.style.setProperty('fill', color, 'important'); n.style.setProperty('fill-opacity', '0.75', 'important'); });
+    highlightedArcs.forEach(a => { a.style.setProperty('fill', color, 'important'); a.style.setProperty('fill-opacity', '0.75', 'important'); });
+    highlightedRibbons.forEach(r => { r.style.setProperty('fill', color, 'important'); r.style.setProperty('fill-opacity', '0.5', 'important'); });
+    matchingLabels.forEach(l => { l.style.setProperty('fill', color, 'important'); l.style.setProperty('fill-opacity', '0.75', 'important'); });
+    matchingLeaders.forEach(l => { l.style.setProperty('stroke', color, 'important'); l.style.setProperty('stroke-opacity', '0.75', 'important'); });
+  }
+
+  // Update scroll indicators after styling
   if (typeof updateScrollIndicators === 'function') {
     updateScrollIndicators();
   }

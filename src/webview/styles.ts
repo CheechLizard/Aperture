@@ -242,7 +242,7 @@ export const DASHBOARD_STYLES = `
     .partition-header-label { font-size: 11px; font-weight: bold; fill: #fff; pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px; }
     .partition-node { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; }
     .partition-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
-    .partition-label-bg { cursor: pointer; transition: fill 0.15s; }
+    .partition-label-bg { cursor: pointer; }
     .partition-label-bg:hover { fill: rgba(80,80,80,0.95); }
     .partition-label { pointer-events: none; }
     .partition-leader { pointer-events: none; }
