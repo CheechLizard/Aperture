@@ -12539,12 +12539,6 @@ function restoreExpandedState(state) {
   }
 }
 
-function switchToView(ruleId) {
-  const view = ISSUE_VIEW_MAP[ruleId] || 'files';
-  const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
-  nav.goTo({ view: viewMap[view] || 'files', uri: null });
-}
-
 function groupIssuesByRule(activeIssues) {
   const groups = new Map();
   for (const issue of activeIssues) {
@@ -12724,7 +12718,6 @@ function setupHeaderHandlers(list) {
       selectedElement = header;
       // Select this rule - computes affected files and highlights them
       selection.selectRule(ruleId);
-      switchToView(ruleId);
     });
   });
 }
@@ -12773,7 +12766,6 @@ function setupItemHandlers(list) {
         lineMap[files[0]] = [parseInt(line)];
       }
       selection.setFocus(files, lineMap);
-      switchToView(ruleId);
     });
   });
 }

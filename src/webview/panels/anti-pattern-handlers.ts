@@ -34,7 +34,6 @@ function setupHeaderHandlers(list) {
       selectedElement = header;
       // Select this rule - computes affected files and highlights them
       selection.selectRule(ruleId);
-      switchToView(ruleId);
     });
   });
 }
@@ -83,7 +82,6 @@ function setupItemHandlers(list) {
         lineMap[files[0]] = [parseInt(line)];
       }
       selection.setFocus(files, lineMap);
-      switchToView(ruleId);
     });
   });
 }

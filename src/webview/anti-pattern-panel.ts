@@ -49,12 +49,6 @@ function restoreExpandedState(state) {
   }
 }
 
-function switchToView(ruleId) {
-  const view = ISSUE_VIEW_MAP[ruleId] || 'files';
-  const viewMap = { functions: 'functions', chord: 'deps', files: 'files' };
-  nav.goTo({ view: viewMap[view] || 'files', uri: null });
-}
-
 function groupIssuesByRule(activeIssues) {
   const groups = new Map();
   for (const issue of activeIssues) {
