@@ -47,6 +47,35 @@ function cycleIssueColors() {
     ribbon.style.setProperty('fill-opacity', ribbonAlpha.toString(), 'important');
   });
 
+  // Style partition labels and leaders based on highlight state
+  const highlightedUris = new Set();
+  document.querySelectorAll('.node.highlighted').forEach(node => {
+    const uri = node.getAttribute('data-uri');
+    if (uri) highlightedUris.add(uri);
+  });
+
+  document.querySelectorAll('.partition-label-bg').forEach(labelBg => {
+    const uri = labelBg.getAttribute('data-uri');
+    if (highlightedUris.has(uri)) {
+      labelBg.style.setProperty('fill', color, 'important');
+      labelBg.style.setProperty('fill-opacity', alpha.toString(), 'important');
+    } else {
+      labelBg.style.removeProperty('fill');
+      labelBg.style.removeProperty('fill-opacity');
+    }
+  });
+
+  document.querySelectorAll('.partition-leader').forEach(leader => {
+    const uri = leader.getAttribute('data-uri');
+    if (highlightedUris.has(uri)) {
+      leader.style.setProperty('stroke', color, 'important');
+      leader.style.setProperty('stroke-opacity', alpha.toString(), 'important');
+    } else {
+      leader.style.removeProperty('stroke');
+      leader.style.removeProperty('stroke-opacity');
+    }
+  });
+
   if (selectedElement && selectedElement.isConnected) {
     // Visible selection background with pulsing alpha
     const bgAlpha = 0.5 + 0.1 * Math.sin(pulsePhase);
