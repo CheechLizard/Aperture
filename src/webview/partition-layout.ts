@@ -7,7 +7,7 @@ const PARTITION_HEADER_HEIGHT = 24;
 const PARTITION_PADDING = 2;
 const PARTITION_BAR_WIDTH = 128;
 const PARTITION_NESTING_WIDTH = 48;  // Width per nesting level
-const PARTITION_LOC_SCALE = 2;       // Pixels per LOC (2px = 1 LOC)
+const PARTITION_LOC_SCALE = 4;       // Pixels per LOC (4px = 1 LOC)
 const PARTITION_LABEL_HEIGHT = 14;
 const PARTITION_LABEL_GAP = 8;       // Gap between label and bar
 const PARTITION_LABEL_SPACING = 16;  // Vertical spacing for collision detection
@@ -227,17 +227,34 @@ function renderPartitionNesting(layer, nodes) {
 
   layer.selectAll('rect.partition-nesting').data(nestingData, d => d.node.uri + '-' + d.idx)
     .join(
-      enter => enter.append('rect')
-        .attr('class', 'partition-nesting'),
+      enter => enter.append('rect'),
       update => update,
       exit => exit.remove()
     )
+    .attr('class', 'partition-nesting node')
+    .attr('data-uri', d => d.node.uri)
+    .attr('data-path', d => d.node.filePath)
+    .attr('data-line', d => d.block.startLine)
+    .attr('data-end-line', d => d.block.endLine)
+    .attr('cursor', 'pointer')
     .attr('fill', d => {
       // Progressively lighter gray for deeper nesting
       const base = 60;
       const step = 15;
       const lightness = Math.min(base + d.block.depth * step, 120);
       return 'rgb(' + lightness + ',' + lightness + ',' + lightness + ')';
+    })
+    .on('mouseover', (e, d) => {
+      const html = '<div><strong>' + d.block.type + '</strong></div>' +
+        '<div>Lines ' + d.block.startLine + '-' + d.block.endLine + ' \\u00b7 ' + d.block.loc + ' LOC</div>' +
+        '<div>Depth: ' + d.block.depth + '</div>' +
+        '<div style="color:var(--vscode-descriptionForeground)">Click to open in editor</div>';
+      showTooltip(html, e);
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (e, d) => {
+      vscode.postMessage({ command: 'openFile', uri: d.node.uri, line: d.block.startLine });
     })
     .attr('x', d => d.x0)
     .attr('y', d => d.y0)

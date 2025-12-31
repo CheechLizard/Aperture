@@ -244,7 +244,8 @@ export const DASHBOARD_STYLES = `
     .partition-node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     .partition-label { cursor: pointer; }
     .partition-leader { pointer-events: none; }
-    .partition-nesting { stroke: var(--vscode-editor-background); stroke-width: 1px; pointer-events: none; }
+    .partition-nesting { stroke: var(--vscode-editor-background); stroke-width: 1px; cursor: pointer; }
+    .partition-nesting:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
     /* Code preview for leaf nodes */
     .code-preview-container { display: flex; flex-direction: column; height: 100%; padding: 16px; background: var(--vscode-editor-background); }
     .code-preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

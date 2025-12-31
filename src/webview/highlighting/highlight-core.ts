@@ -37,7 +37,8 @@ function highlightNodes(urisOrPaths, lineMap) {
   lineMap = lineMap || {};
 
   // Highlight matching nodes (check both data-uri and data-path for compatibility)
-  document.querySelectorAll('.node').forEach(node => {
+  // Skip partition-nesting nodes - they'll be highlighted based on parent function
+  document.querySelectorAll('.node:not(.partition-nesting)').forEach(node => {
     const uri = node.getAttribute('data-uri');
     const path = node.getAttribute('data-path');
     const collapsedPaths = node.getAttribute('data-collapsed-paths');
@@ -119,12 +120,23 @@ function highlightNodes(urisOrPaths, lineMap) {
   const highlightedArcs = document.querySelectorAll('.chord-arc.highlighted');
   const highlightedRibbons = document.querySelectorAll('.chord-ribbon.highlighted');
 
-  // Collect URIs for labels/leaders
+  // Collect URIs for labels/leaders/nesting blocks
   const highlightedUris = new Set();
   highlightedNodes.forEach(node => {
     const uri = node.getAttribute('data-uri');
     if (uri) highlightedUris.add(uri);
   });
+
+  // Highlight partition-nesting nodes whose parent function is highlighted
+  document.querySelectorAll('.partition-nesting').forEach(nesting => {
+    const uri = nesting.getAttribute('data-uri');
+    if (uri && highlightedUris.has(uri)) {
+      nesting.classList.add('highlighted');
+    }
+  });
+
+  // Re-query to include newly highlighted nesting blocks
+  const allHighlightedNodes = document.querySelectorAll('.node.highlighted');
 
   // Collect matching labels/leaders
   const matchingLabels = [];
@@ -137,7 +149,7 @@ function highlightNodes(urisOrPaths, lineMap) {
   });
 
   // Now apply all styles in one batch
-  if (highlightedNodes.length > 0) {
+  if (allHighlightedNodes.length > 0) {
     const t = (Date.now() % 3000) / 3000;
     const colors = [[100, 149, 237], [147, 112, 219], [64, 224, 208]];
     const segment = t * 3;
@@ -150,7 +162,7 @@ function highlightNodes(urisOrPaths, lineMap) {
     const color = '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
 
     // Apply all fill styles
-    highlightedNodes.forEach(n => { n.style.setProperty('fill', color, 'important'); n.style.setProperty('fill-opacity', '0.75', 'important'); });
+    allHighlightedNodes.forEach(n => { n.style.setProperty('fill', color, 'important'); n.style.setProperty('fill-opacity', '0.75', 'important'); });
     highlightedArcs.forEach(a => { a.style.setProperty('fill', color, 'important'); a.style.setProperty('fill-opacity', '0.75', 'important'); });
     highlightedRibbons.forEach(r => { r.style.setProperty('fill', color, 'important'); r.style.setProperty('fill-opacity', '0.5', 'important'); });
     matchingLabels.forEach(l => { l.style.setProperty('fill', color, 'important'); });
